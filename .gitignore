@@ -1,6 +1,11 @@
 .idea
 .vscode
 .claude
+.codex
+CLAUDE.md
+AGENTS.md
+.ruff_cache
+.mypy_cache
 /fixRepo.py
 /resources/skins/Main/TexturePacker.exe
 /resources/skins/Main/packtex.bat
