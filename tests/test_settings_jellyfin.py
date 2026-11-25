@@ -17,11 +17,17 @@ from unittest import mock
 from kodienv import ENV
 
 ENV.abort_requested = True
-from lib import playback_utils
+from jellynet.client import ClientIdentity, JellyfinClient
+from jellynet.server import JellyfinServer
+from jellynet.servermanager import JellyfinServerManager
+from plexnet import plexapp
+
+from lib import jellyfin, playback_utils
 from lib.windows import playbacksettings, seekdialog, settings
 
 from . import REPO_ROOT
 from .base import LANGUAGE_DIR, KodiTestCase
+from .jellynet_fakes import FakeResponse, FakeSession, problem
 
 PLEX_CONNECTION = {
     'local_mode',
@@ -194,3 +200,40 @@ class JellyfinSettingsTest(KodiTestCase):
                         hits.append(f'{rel}:{lineno}: {text!r}')
 
         self.assertEqual([], hits, 'Shipped files still reference Silo/SiloMod/SM4K:\n' + '\n'.join(hits))
+
+    def test_about_server_version_reads_jellyfin_raw_version(self):
+        identity = ClientIdentity('JellyMod', '0.1.0', 'Kodi', 'dev-1')
+        setting = settings.ServerVersionSetting('server_version', 'Current Server Version', None)
+
+        # Stored version avoids any network call
+        s_known = FakeSession()
+        stored_known = jellyfin.StoredServer('http://jf.lan:8096', 'srv-1', 'TheRubys', version='10.11.5')
+        srv_known = JellyfinServer(stored_known, JellyfinClient('http://jf.lan:8096', identity, session=s_known))
+        with (
+            mock.patch('lib.windows.sidebar_model.sidebarServers', return_value=[]),
+            mock.patch.object(plexapp, 'SERVERMANAGER', JellyfinServerManager([srv_known])),
+        ):
+            self.assertEqual(setting.valueLabel(), 'TheRubys 10.11.5')
+        self.assertEqual(s_known.calls, [])
+
+        # Legacy stored server without version probes /System/Info/Public once and caches it
+        s_legacy = FakeSession(FakeResponse(200, {'Id': 'srv-1', 'ServerName': 'TheRubys', 'Version': '10.11.5'}))
+        stored_legacy = jellyfin.StoredServer('http://jf.lan:8096', 'srv-1', 'TheRubys')
+        srv_legacy = JellyfinServer(stored_legacy, JellyfinClient('http://jf.lan:8096', identity, session=s_legacy))
+        with (
+            mock.patch('lib.windows.sidebar_model.sidebarServers', return_value=[]),
+            mock.patch.object(plexapp, 'SERVERMANAGER', JellyfinServerManager([srv_legacy])),
+        ):
+            self.assertEqual(setting.valueLabel(), 'TheRubys 10.11.5')
+            self.assertEqual(setting.valueLabel(), 'TheRubys 10.11.5')
+        self.assertEqual(len(s_legacy.calls), 1)
+        self.assertTrue(s_legacy.calls[0]['url'].endswith('/System/Info/Public'))
+
+        # Unreachable server falls back cleanly to '?'
+        s_down = FakeSession(problem(503, 'Unavailable'))
+        srv_down = JellyfinServer(stored_legacy, JellyfinClient('http://jf.lan:8096', identity, session=s_down))
+        with (
+            mock.patch('lib.windows.sidebar_model.sidebarServers', return_value=[]),
+            mock.patch.object(plexapp, 'SERVERMANAGER', JellyfinServerManager([srv_down])),
+        ):
+            self.assertEqual(setting.valueLabel(), 'TheRubys ?')

@@ -221,7 +221,7 @@ def _latestHubs(client, limit):
             params['limit'] = int(limit)
         answer = _fetchRow(client, '/Items/Latest', params, f'latest:{library_id}')
         items, _ = _itemsAndTotal(answer)
-        elements = itemElements(items, section_id=library_id)
+        elements = itemElements(items, section_id=library_id, section_title=library_name or None)
         if not elements:
             continue
         title = f'Latest {library_name}' if library_name else 'Recently Added'

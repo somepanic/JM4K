@@ -44,6 +44,8 @@ SECTION_TYPES = {'movies': 'movie', 'tvshows': 'show', 'boxsets': 'movie'}
 LIBRARY_PATH = re.compile(
     r'^/library/sections/([^/]+)/(all|sorts|firstCharacter|filters|collections|genre|year|contentRating|label|tag)$'
 )
+# Single library section info (/library/sections/<id>, read by getLibrarySectionTitle/Type)
+SECTION_INFO_PATH = re.compile(r'^/library/sections/([^/]+)$')
 # Admin library scan (/library/sections/<id>/refresh, /library/sections/all/refresh) and metadata refresh
 SCAN_ALL_PATH = '/library/sections/all/refresh'
 SCAN_SECTION_PATH = re.compile(r'^/library/sections/([^/]+)/refresh$')
@@ -108,11 +110,14 @@ class JellyfinServer(SignalsMixin):
         self.url = client.base_url
         self.activeConnection = JellyfinConnection(client.base_url)
         self.session = client.session
+        self._rawVersion = str(getattr(stored, 'version', '') or '') or None
         self._unmapped = set()
         self._routes = {'/library/sections': self._sections}
         self._homeCapabilities = None
         self._libraryTypes = {}
+        self._libraryTitles = {}
         self._collectionTypes = {}
+        self._itemSections = {}
         self._jumpBarCache = {}
         self._itemTypes = {}
         self._seasonSeries = {}
@@ -128,6 +133,23 @@ class JellyfinServer(SignalsMixin):
 
     def __repr__(self):
         return f'<JellyfinServer {self.uuid}>'
+
+    @property
+    def rawVersion(self):
+        """Jellyfin server version string for Settings -> About (probed once on demand if not stored)."""
+        if self._rawVersion is None:
+            try:
+                info = self.client.get('/System/Info/Public') or {}
+            except JellyfinError as e:
+                log(f'server version probe failed: {e.status}')
+                self._rawVersion = ''
+            else:
+                self._rawVersion = str(info.get('Version') or '') if isinstance(info, dict) else ''
+        return self._rawVersion
+
+    @rawVersion.setter
+    def rawVersion(self, value):
+        self._rawVersion = str(value or '')
 
     @property
     def anyLANConnection(self):
@@ -259,6 +281,9 @@ class JellyfinServer(SignalsMixin):
         refresh_match = REFRESH_METADATA_PATH.match(route) if handler is None else None
         if refresh_match:
             handler = functools.partial(self._refreshItem, refresh_match.group(1))
+        section_info_match = SECTION_INFO_PATH.match(route) if handler is None else None
+        if section_info_match:
+            handler = functools.partial(self._sectionInfo, section_info_match.group(1))
         metadata_match = METADATA_PATH.match(route) if handler is None else None
         if metadata_match:
             handler = functools.partial(
@@ -269,6 +294,7 @@ class JellyfinServer(SignalsMixin):
                 on_item=self._rememberItem,
                 extras_fetcher=related.extrasElement,
                 track_prefs=self.trackPrefs,
+                section_resolver=self._resolveItemSection,
             )
         metadata_children_match = METADATA_CHILDREN_PATH.match(route) if handler is None else None
         if metadata_children_match:
@@ -428,24 +454,93 @@ class JellyfinServer(SignalsMixin):
                     }
 
     def _cacheTypesFromXml(self, root):
-        """Record item types and season->series links from any Plex XML returned by query()."""
+        """Record item types, library section links, and season->series links from Plex XML returned by query()."""
         for elem in root.iter():
             plex_type = elem.get('type')
             rating_key = elem.get('ratingKey')
             if not rating_key or plex_type not in PLEX_TYPE_TO_KIND:
                 continue
             self._itemTypes.setdefault(rating_key, PLEX_TYPE_TO_KIND[plex_type])
+            sec_id = elem.get('librarySectionID')
+            if sec_id:
+                self._itemSections[rating_key] = sec_id
             if plex_type == 'season' and elem.get('parentRatingKey'):
-                self._seasonSeries.setdefault(rating_key, elem.get('parentRatingKey'))
+                parent_key = elem.get('parentRatingKey')
+                self._seasonSeries.setdefault(rating_key, parent_key)
+                if sec_id:
+                    self._itemSections.setdefault(parent_key, sec_id)
             elif plex_type == 'episode':
                 parent_key = elem.get('parentRatingKey')
                 gp_key = elem.get('grandparentRatingKey')
                 if gp_key:
                     self._itemTypes.setdefault(gp_key, 'Series')
+                    if sec_id:
+                        self._itemSections.setdefault(gp_key, sec_id)
                 if parent_key:
                     self._itemTypes.setdefault(parent_key, 'Season')
                     if gp_key:
                         self._seasonSeries.setdefault(parent_key, gp_key)
+
+    def _sectionInfo(self, section_id):
+        """Answer /library/sections/<id> with title1 and type for getLibrarySectionTitle/Type."""
+        sec_id = str(section_id)
+        if sec_id not in self._libraryTitles:
+            try:
+                self._sections()
+            except JellyfinAuthError:
+                raise
+            except JellyfinError as e:
+                log(f'section info lookup for {sec_id} failed: {e.status}')
+        title = self._libraryTitles.get(sec_id, '')
+        kind = self._libraryTypes.get(sec_id, '')
+        attrs = {'librarySectionID': sec_id}
+        if title:
+            attrs['title1'] = title
+            attrs['librarySectionTitle'] = title
+        if kind:
+            attrs['type'] = kind
+        return container(**attrs)
+
+    def _resolveItemSection(self, dto):
+        """Return (section_id, section_title, section_type) for a Jellyfin BaseItemDto."""
+        if not isinstance(dto, dict) or not dto.get('Id'):
+            return None, None, None
+        item_id = str(dto['Id'])
+        series_id = str(dto.get('SeriesId') or '')
+        sec_id = self._itemSections.get(item_id) or (self._itemSections.get(series_id) if series_id else None)
+        if not sec_id:
+            parent_id = str(dto.get('ParentId') or '')
+            if parent_id and parent_id in self._libraryTitles:
+                sec_id = parent_id
+        if not sec_id and self._libraryTitles:
+            try:
+                ancestors = self.client.get(f'/Items/{quote(item_id, safe="")}/Ancestors') or []
+            except JellyfinAuthError:
+                raise
+            except JellyfinError as e:
+                log(f'ancestors lookup for {item_id} failed: {e.status}')
+                ancestors = []
+            if isinstance(ancestors, list):
+                for anc in ancestors:
+                    if not isinstance(anc, dict) or not anc.get('Id'):
+                        continue
+                    anc_id = str(anc['Id'])
+                    if anc.get('Type') == 'CollectionFolder' or anc_id in self._libraryTitles:
+                        sec_id = anc_id
+                        anc_title = str(anc.get('Name') or '')
+                        if anc_title:
+                            self._libraryTitles.setdefault(sec_id, anc_title)
+                        anc_ct = str(anc.get('CollectionType') or '').lower()
+                        if anc_ct in SECTION_TYPES:
+                            self._libraryTypes.setdefault(sec_id, SECTION_TYPES[anc_ct])
+                            self._collectionTypes.setdefault(sec_id, anc_ct)
+                        break
+        if not sec_id:
+            return None, None, None
+        self._itemSections[item_id] = sec_id
+        if series_id:
+            self._itemSections.setdefault(series_id, sec_id)
+        return sec_id, self._libraryTitles.get(sec_id) or None, self._libraryTypes.get(sec_id) or None
 
     def _refreshAll(self):
         self.client.post('/Library/Refresh')
@@ -474,7 +569,9 @@ class JellyfinServer(SignalsMixin):
             if kind is None:
                 continue
             item_id = str(entry['Id'])
+            title = str(entry.get('Name') or '')
             self._libraryTypes[item_id] = kind
+            self._libraryTitles[item_id] = title
             self._collectionTypes[item_id] = collection_type
             image_tags = entry.get('ImageTags') or {}
             primary_tag = image_tags.get('Primary') if isinstance(image_tags, dict) else None

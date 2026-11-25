@@ -153,7 +153,7 @@ def _genreNames(item):
     return names
 
 
-def itemElement(item, section_id=None, member_type=None):
+def itemElement(item, section_id=None, member_type=None, section_title=None, section_type=None):
     """Convert one Jellyfin BaseItemDto dict into its Plex <Video> or <Directory> element, or None if unsupported."""
     if not isinstance(item, dict):
         return None
@@ -196,6 +196,8 @@ def itemElement(item, section_id=None, member_type=None):
     setIf(attrs, 'thumb', itemThumb(item))
     setIf(attrs, 'art', itemArt(item))
     setIf(attrs, 'librarySectionID', section_id)
+    setIf(attrs, 'librarySectionTitle', section_title)
+    setIf(attrs, 'librarySectionType', section_type)
 
     if kind in ('Movie', 'Episode'):
         duration_ms = ticks_to_ms(item.get('RunTimeTicks'))
@@ -264,11 +266,17 @@ def itemElement(item, section_id=None, member_type=None):
     return elem
 
 
-def itemElements(items, section_id=None, member_type=None):
+def itemElements(items, section_id=None, member_type=None, section_title=None, section_type=None):
     """Map a sequence of BaseItemDto dicts to Plex elements, dropping unsupported kinds."""
     elements = []
     for item in items or ():
-        elem = itemElement(item, section_id=section_id, member_type=member_type)
+        elem = itemElement(
+            item,
+            section_id=section_id,
+            member_type=member_type,
+            section_title=section_title,
+            section_type=section_type,
+        )
         if elem is not None:
             elements.append(elem)
     return elements

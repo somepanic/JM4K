@@ -767,3 +767,81 @@ class JellyfinDetailTest(KodiTestCase):
         v_stream['ColorTransfer'] = 'bt709'
         sdr_movie = make_tile(make_server(FakeSession(FakeResponse(200, sdr))), sdr).reload()
         self.assertNotIn('DoVi', info.formatMediaDetails(sdr_movie))
+
+    def test_section_info_and_detail_reload_keep_library_section_title(self):
+        from unittest import mock
+
+        from plexnet import plexapp
+
+        from lib.windows import preplay
+
+        user_views = FakeResponse(
+            200,
+            {
+                'Items': [
+                    {'Id': 'view-movies-4k', 'Name': 'Movies 4K', 'CollectionType': 'movies'},
+                    {'Id': 'view-shows', 'Name': 'Shows', 'CollectionType': 'tvshows'},
+                ],
+                'TotalRecordCount': 2,
+            },
+        )
+        grid_resp = FakeResponse(
+            200,
+            {
+                'Items': [{'Id': 'mov-1', 'Type': 'Movie', 'Name': 'Twisters', 'ProductionYear': 2024}],
+                'TotalRecordCount': 1,
+            },
+        )
+        cold_detail = copy.deepcopy(MOVIE_DETAIL)
+        cold_detail['Id'] = 'mov-cold'
+        ancestors_resp = FakeResponse(
+            200,
+            [
+                {'Id': 'view-movies-4k', 'Name': 'Movies 4K', 'Type': 'CollectionFolder', 'CollectionType': 'movies'},
+                {'Id': 'root-1', 'Name': 'Media Folders', 'Type': 'UserRootFolder'},
+            ],
+        )
+
+        session = FakeSession(
+            user_views,
+            grid_resp,
+            FakeResponse(200, MOVIE_DETAIL),
+            FakeResponse(200, cold_detail),
+            ancestors_resp,
+        )
+        srv = make_server(session)
+
+        # 1. /library/sections/<id> returns title1 and type
+        srv.query('/library/sections')
+        sec_info = srv.query('/library/sections/view-movies-4k')
+        self.assertEqual(sec_info.attrib.get('title1'), 'Movies 4K')
+        self.assertEqual(sec_info.attrib.get('type'), 'movie')
+
+        # 2. Item seen in library grid preserves librarySectionID/Title across detail reload without extra HTTP
+        srv.query('/library/sections/view-movies-4k/all')
+        calls_before_reload = len(session.calls)
+        movie = make_tile(srv, MOVIE_DETAIL).reload()
+        self.assertEqual(len(session.calls), calls_before_reload + 1)
+        self.assertEqual(movie.getLibrarySectionId(), 'view-movies-4k')
+        self.assertEqual(movie.getLibrarySectionTitle(), 'Movies 4K')
+
+        # 3. Cold detail load resolves section via /Items/<id>/Ancestors
+        cold_tile = make_tile(srv, cold_detail).reload()
+        self.assertEqual(cold_tile.getLibrarySectionId(), 'view-movies-4k')
+        self.assertEqual(cold_tile.getLibrarySectionTitle(), 'Movies 4K')
+
+        # 4. PrePlay moreActions shows "Go To Movies 4K", never "Go To None" when section is unknown
+        win = preplay.PrePlayWindow.__new__(preplay.PrePlayWindow)
+        win.video = movie
+        with mock.patch.object(plexapp, 'ACCOUNT', mock.Mock(isAdmin=False)):
+            labels = [entry[1] for entry in win.moreActions()]
+        self.assertIn('Go To Movies 4K', labels)
+        self.assertNotIn('Go To None', labels)
+
+        orphan = make_tile(make_server(FakeSession(FakeResponse(200, MOVIE_DETAIL))), MOVIE_DETAIL).reload()
+        win.video = orphan
+        with mock.patch.object(plexapp, 'ACCOUNT', mock.Mock(isAdmin=False)):
+            orphan_keys = [entry[0] for entry in win.moreActions()]
+            orphan_labels = [entry[1] for entry in win.moreActions()]
+        self.assertNotIn('to_section', orphan_keys)
+        self.assertNotIn('Go To None', orphan_labels)

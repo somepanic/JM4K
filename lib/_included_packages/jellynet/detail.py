@@ -574,13 +574,13 @@ def _clipBaseElement(item):
     )
 
 
-def detailElement(item, on_item=None, track_prefs=None):
+def detailElement(item, on_item=None, track_prefs=None, section_id=None, section_title=None, section_type=None):
     """Build a full Plex detail element from one Jellyfin BaseItemDto, or None if unsupported."""
     if not isinstance(item, dict):
         return None
     if on_item is not None:
         on_item(item)
-    root = itemElement(item)
+    root = itemElement(item, section_id=section_id, section_title=section_title, section_type=section_type)
     if root is None:
         root = _clipBaseElement(item)
     if root is None:
@@ -664,17 +664,38 @@ def _attachOnDeck(client, series_id, root, on_item=None):
         ElementTree.SubElement(root, 'OnDeck').append(ep_el)
 
 
-def itemDetail(client, item_ids, params=None, on_item=None, extras_fetcher=None, track_prefs=None):
+def itemDetail(
+    client,
+    item_ids,
+    params=None,
+    on_item=None,
+    extras_fetcher=None,
+    track_prefs=None,
+    section_resolver=None,
+):
     """Answer /library/metadata/<id> (single item) or /library/metadata/<id1>,<id2>,... (batch reload)."""
     params = params or {}
     ids = [part.strip() for part in str(item_ids).split(',') if part.strip()]
     if not ids:
         return container()
 
+    def _section_for(dto):
+        if section_resolver is None:
+            return None, None, None
+        return section_resolver(dto)
+
     if len(ids) == 1:
         item_id = ids[0]
         dto = client.get(f'/Items/{quote(item_id, safe="")}', params={'fields': DETAIL_FIELDS}) or {}
-        root = detailElement(dto, on_item=on_item, track_prefs=track_prefs)
+        sec_id, sec_title, sec_type = _section_for(dto)
+        root = detailElement(
+            dto,
+            on_item=on_item,
+            track_prefs=track_prefs,
+            section_id=sec_id,
+            section_title=sec_title,
+            section_type=sec_type,
+        )
         if root is None:
             return container()
         if dto.get('Type') == 'Series' and _isTruthy(params.get('includeOnDeck')):
@@ -710,7 +731,15 @@ def itemDetail(client, item_ids, params=None, on_item=None, extras_fetcher=None,
         dto = by_id.get(item_id)
         if dto is None:
             continue
-        elem = detailElement(dto, on_item=on_item, track_prefs=track_prefs)
+        sec_id, sec_title, sec_type = _section_for(dto)
+        elem = detailElement(
+            dto,
+            on_item=on_item,
+            track_prefs=track_prefs,
+            section_id=sec_id,
+            section_title=sec_title,
+            section_type=sec_type,
+        )
         if elem is not None:
             elements.append(elem)
     return container(elements)

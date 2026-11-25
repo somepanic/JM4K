@@ -34,13 +34,17 @@ WAIT_STEP = 0.1  # how often signIn() checks for Back/submit while polling Quick
 
 
 class StoredServer:
-    def __init__(self, baseUrl, serverId, name=None):
+    def __init__(self, baseUrl, serverId, name=None, version=None):
         self.baseUrl = baseUrl
         self.serverId = serverId
         self.name = name
+        self.version = str(version or '')
 
     def toJson(self):
-        return {'base_url': self.baseUrl, 'server_id': self.serverId, 'name': self.name}
+        data = {'base_url': self.baseUrl, 'server_id': self.serverId, 'name': self.name}
+        if self.version:
+            data['version'] = self.version
+        return data
 
 
 def normalizeUrl(address):
@@ -55,7 +59,7 @@ def storedServers():
     except ValueError:
         data = []
     return [
-        StoredServer(d['base_url'], d['server_id'], d.get('name'))
+        StoredServer(d['base_url'], d['server_id'], d.get('name'), version=d.get('version'))
         for d in data
         if isinstance(d, dict) and d.get('base_url') and d.get('server_id')
     ]
@@ -72,7 +76,7 @@ def addServer(address, identity=None, session=None, serverId=None):
     info = probe(baseUrl, session=session, identity=identity)
     if serverId and info.server_id != serverId:
         raise JellyfinIncompatible(0, f'{baseUrl} is another server')
-    stored = StoredServer(baseUrl, info.server_id, info.name)
+    stored = StoredServer(baseUrl, info.server_id, info.name, version=info.version)
     saveServers([s for s in storedServers() if s.serverId != info.server_id] + [stored])
     util.DEBUG_LOG('Jellyfin: stored server ({})', info.version)
     return stored
