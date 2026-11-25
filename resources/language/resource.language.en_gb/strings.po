@@ -4397,3 +4397,11 @@ msgstr ""
 msgctxt "#35319"
 msgid "Can't reach the Jellyfin server. Check your connection and try again."
 msgstr ""
+
+msgctxt "#35320"
+msgid "Password for {name}"
+msgstr ""
+
+msgctxt "#35321"
+msgid "Other user"
+msgstr ""
