@@ -147,7 +147,7 @@ class JellyfinAccount:
         return bool(session and session.get('has_password'))
 
     def hasPlexPass(self):
-        return False
+        return True  # as SiloMod: Uno's Plex Pass gate is marker skipping, which Jellyfin's media segments support
 
     def hasSession(self, user_id):
         return bool(user_id and self.sessions.get(str(user_id), {}).get('access_token'))

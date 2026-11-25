@@ -124,11 +124,11 @@ class PlexPart(plexobjects.PlexObject):
 
         server = self.getServer()
         if hasattr(server, 'rememberStream'):
-            # a Jellyfin server keeps a show's choice for its episodes (JellyfinServer.rememberStream())
+            # a Silo server keeps a show's choice for its episodes (SiloServer.rememberStream())
             chosen = next((s for s in self.streams if s.id == streamId), None)
             args = (video, streamType, chosen, list(self.streams))
             if _async:
-                threading.Thread(target=server.rememberStream, args=args, name='jellyfin.trackpref').start()
+                threading.Thread(target=server.rememberStream, args=args, name='silo.trackpref').start()
             else:
                 server.rememberStream(*args)
             return self._markSelected(streamType, streamId)

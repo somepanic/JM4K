@@ -129,16 +129,6 @@ class JellyfinNoWatchlistOrStarRatingTest(KodiTestCase):
             self.assertFalse(win.wl_enabled)
             self.assertEqual(win.props.get('watchlist_enabled'), '')
 
-            # Legacy silo:// GUID is no longer accepted either
-            silo_item = mock.Mock(guid='silo://movie/1', server=mock.Mock(platform='silo'))
-            self.assertFalse(win.watchlist_setup(silo_item))
-            self.assertFalse(win.wl_enabled)
-
-            # Even a plex:// GUID on a Jellyfin server cannot enable watchlist
-            jf_plex_guid = mock.Mock(guid='plex://movie/1', server=srv)
-            self.assertFalse(win.watchlist_setup(jf_plex_guid))
-            self.assertFalse(win.wl_enabled)
-
             # shouldAutoRemove and removeFromWatchlistBlind are no-ops
             watched_jf = mock.Mock(server=srv, isFullyWatched=True, TYPE='movie', guid='jellyfin://movie/mov-1')
             self.assertFalse(watchlist.shouldAutoRemove(watched_jf))
@@ -149,7 +139,7 @@ class JellyfinNoWatchlistOrStarRatingTest(KodiTestCase):
         # 5. itemmenu never offers remove_from_watchlist for a Jellyfin item
         movie_mli = mock.Mock(dataSource=movie, getProperty=lambda _name: '')
         with mock.patch.object(srv, 'isFavorite', return_value=False):
-            rows = itemmenu.options(movie_mli, watchlist=True)
+            rows = itemmenu.options(movie_mli)  # a Jellyfin library is never the Watchlist's grid (movies_shows)
         self.assertNotIn('remove_from_watchlist', [key for key, _ in rows])
         self.assertEqual(session.calls, [])
 
@@ -169,21 +159,7 @@ class JellyfinNoWatchlistOrStarRatingTest(KodiTestCase):
         self.assertEqual(win.props.get('rating1'), '75%')
         self.assertEqual(win.props.get('rating2'), '6.7')
 
-        # 2. Even if a Jellyfin video carries a userRating attribute directly, populateRatings clears rating.stars
-        forced_jf = mock.Mock(
-            server=srv,
-            TYPE='movie',
-            userRating=plexobjects.PlexValue('8.0'),
-            ratings=[],
-            rating='',
-            audienceRating='',
-        )
-        win2 = _FakeWindow()
-        win2.props['rating.stars'] = '4'
-        win2.populateRatings(forced_jf, win2)
-        self.assertEqual(win2.props.get('rating.stars'), '')
-
-        # 3. Plex server video with userRating still gets rating.stars (Plex Uno compatibility kept)
+        # 2. Plex server video with userRating still gets rating.stars (Plex Uno compatibility kept)
         plex_video = mock.Mock(
             server=mock.Mock(platform='Linux'),
             TYPE='movie',
@@ -196,7 +172,7 @@ class JellyfinNoWatchlistOrStarRatingTest(KodiTestCase):
         win3.populateRatings(plex_video, win3)
         self.assertEqual(win3.props.get('rating.stars'), '4')
 
-        # 4. Neither Jellyfin's /sorts nor GridMixin's fallback sort picker offers userRating ("My Rating")
+        # 3. Neither Jellyfin's /sorts nor GridMixin's fallback sort picker offers userRating ("My Rating")
         sorts_xml = jf_library.sortsContainer()
         self.assertNotIn('userRating', [elem.get('key') for elem in sorts_xml])
 

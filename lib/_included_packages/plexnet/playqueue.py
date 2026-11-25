@@ -122,8 +122,8 @@ EPISODE_TYPE = 4
 
 
 def hasPlayQueues(server):
-    """Whether the server keeps play queues: Plex does, Jellyfin has none (JellyfinServer.platform), so JM4K builds
-    its queues itself (createLocalPlayQueue())."""
+    """Whether the server keeps play queues: Plex does, Silo has none (SiloServer.platform), so SiloMod builds its
+    queues itself (createLocalPlayQueue())."""
     return getattr(server, 'platform', None) != 'jellyfin'
 
 
@@ -136,10 +136,8 @@ def createLocalPlayQueue(item, children, contentType, options, args=None):
     args = dict(args or {})
     unwatched = args.pop('unwatched', None) == '1'
     args.pop('sourceType', None)
-    if options.shuffle:
-        args['sort'] = 'random'
     if item.TYPE == 'collection':
-        titles = list(item.all(params=args or None))
+        titles = list(item.all())
     else:
         titles = list(item.all(collections=False, params=args))
 

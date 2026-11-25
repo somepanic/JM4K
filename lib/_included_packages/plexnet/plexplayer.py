@@ -13,8 +13,8 @@ from lib.language_util import getNativeLanguages
 from six.moves import range
 
 DecisionFailure = serverdecision.DecisionFailure
-# getBifUrl()'s answer for a Jellyfin file with seek-bar previews, which the preview store has, not a URL
-JELLYFIN_PREVIEWS = 'jellyfin:previews'
+# getBifUrl()'s answer for a Silo file with seek-bar previews, which the preview store has, not a URL
+SILO_PREVIEWS = 'silo:previews'
 
 
 class BasePlayer(object):
@@ -100,9 +100,8 @@ class PlexPlayer(BasePlayer):
         return self._build(directPlay, "playback_remux" in features, features=features)
 
     def _build(self, directPlay=None, directStream=True, currentPartIndex=None, features=None):
-        server = self.item.getServer()
-        if getattr(server, 'platform', None) == 'jellyfin' or hasattr(server, 'startPlayback'):
-            return self._buildJellyfin(server)
+        if hasattr(self.item.getServer(), 'startPlayback'):
+            return self._buildSilo(self.item.getServer())
         isForced = directPlay is not None
         if isForced:
             util.LOG(directPlay and "Forced Direct Play" or "Forced Transcode; allowDirectStream={0}".format(directStream))
@@ -231,7 +230,7 @@ class PlexPlayer(BasePlayer):
 
         return self.metadata
 
-    def _buildJellyfin(self, server):
+    def _buildSilo(self, server):
         """A Jellyfin server's playback decision (jellynet.playback): POST /Items/{itemId}/PlaybackInfo yields
         a direct play URL for files Kodi plays natively (D11), or a transcode/remux URL when quality is capped
         or a format isn't direct-playable."""
@@ -273,7 +272,7 @@ class PlexPlayer(BasePlayer):
         if chapters:
             self.item.chapters = chapters
         if server.hasPreviews(part.id):
-            # its seek-bar previews: the preview store asks the server for them (JellyfinServer.trickplayIndex())
+            # its seek-bar previews: the preview store asks the server for them (SiloServer.trickplayIndex())
             part.set('indexes', 'sd')
 
         obj = util.AttributeDict()
@@ -339,9 +338,8 @@ class PlexPlayer(BasePlayer):
         return False
 
     def getServerDecision(self):
-        server = self.item.getServer()
-        if getattr(server, 'platform', None) == 'jellyfin' or hasattr(server, 'startPlayback'):
-            return self  # Jellyfin decided in PlaybackInfo
+        if hasattr(self.item.getServer(), 'startPlayback'):
+            return self  # Silo decided when the attempt started
         directPlay = not (self.metadata and self.metadata.isTranscoded)
         decisionPath = self.getDecisionPath(directPlay)
         newDecision = None
@@ -730,8 +728,8 @@ class PlexPlayer(BasePlayer):
     def getBifUrl(self, offset=0):
         server = self.item.getServer()
         if hasattr(server, 'trickplayIndex'):
-            # a Jellyfin file's previews are only the preview store's (JellyfinServer.trickplayIndex()): this says it has some
-            return JELLYFIN_PREVIEWS if self.media.parts and self.media.parts[0].isIndexed() else None
+            # a Silo file's previews are only the preview store's (SiloServer.trickplayIndex()): this says it has some
+            return SILO_PREVIEWS if self.media.parts and self.media.parts[0].isIndexed() else None
         startOffset = 0
         for part in self.media.parts:
             duration = part.duration.asInt()

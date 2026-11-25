@@ -7,7 +7,8 @@ Skip markers, seek-bar previews, and chapters from Jellyfin 10.11.5 (Task 6.1):
   decoded sheets, authenticated via MediaBrowser Authorization header (never query param or logs).
 - Chapters from cached item metadata (or /Items/{itemId}?fields=Chapters fallback) with 100ns tick -> ms
   conversion and /Items/{itemId}/Images/Chapter/{index} thumbs.
-- SeekDialog enables marker skip on Jellyfin despite hasPlexPass() == False and knows all five types.
+- SeekDialog enables marker skip on Jellyfin (JellyfinAccount.hasPlexPass() is True, as on SiloMod) and knows all
+  five types.
 
 Responses are written inline in the shape of Jellyfin 10.11.5 OpenAPI (MediaSegmentDtoQueryResult,
 TrickplayInfoDto, ChapterInfo, PlaybackInfoResponse).
@@ -187,20 +188,16 @@ class MediaSegmentsTest(KodiTestCase):
         # Every marker id parses via asInt() (seekdialog.py reads m.id.asInt()).
         self.assertEqual([m.id.asInt() for m in movie.markers], [1, 2, 3, 4, 5])
 
-        # SeekDialog enables marker skipping on Jellyfin even though JellyfinAccount.hasPlexPass() is False.
+        # SeekDialog enables marker skipping on Jellyfin: Uno gates it on Plex Pass, which JellyfinAccount says it has.
         account = JellyfinAccount(srv.client)
-        self.assertFalse(account.hasPlexPass())
         handler = mock.Mock()
         handler.player.video = movie
-        with mock.patch.object(plexapp, 'ACCOUNT', account):
-            dialog = seekdialog.SeekDialog.__new__(seekdialog.SeekDialog)
-            dialog.handler = handler
-            server = getattr(getattr(getattr(dialog.handler, 'player', None), 'video', None), 'server', None)
-            self.assertEqual(getattr(server, 'platform', None), 'jellyfin')
-
-            # Exercise real __init__ marker-skip gating without needing Kodi window creation.
-            with mock.patch.object(seekdialog.kodigui.BaseDialog, '__init__', lambda self, *a, **kw: None):
-                real_dialog = seekdialog.SeekDialog('script-plex-seek_dialog.xml', '', handler=handler)
+        # Exercise real __init__ marker-skip gating without needing Kodi window creation.
+        with (
+            mock.patch.object(plexapp, 'ACCOUNT', account),
+            mock.patch.object(seekdialog.kodigui.BaseDialog, '__init__', lambda self, *a, **kw: None),
+        ):
+            real_dialog = seekdialog.SeekDialog('script-plex-seek_dialog.xml', '', handler=handler)
 
         self.assertTrue(real_dialog._enableMarkerSkip)
         with mock.patch.object(type(real_dialog), 'duration', 7_344_000, create=True):
@@ -306,8 +303,6 @@ class TrickplayTest(KodiTestCase):
             ],
         )
         self.assertEqual(len(idx._sheets), 2)
-        idx.close()
-        self.assertEqual(len(idx._sheets), 0)
 
     def test_widest_trickplay_under_320_chosen(self):
         # Widest <= 320 beats smaller (160) and larger (640).
@@ -352,7 +347,7 @@ class TrickplayTest(KodiTestCase):
         player.build()
 
         self.assertTrue(srv.hasPreviews('src-4k'))
-        self.assertEqual(player.getBifUrl(), plexplayer.JELLYFIN_PREVIEWS)
+        self.assertEqual(player.getBifUrl(), plexplayer.SILO_PREVIEWS)
         self.assertTrue(player.media.parts[0].getIndexPath('sd'))
 
         idx = srv.trickplayIndex('src-4k')
@@ -392,7 +387,7 @@ class TrickplayTest(KodiTestCase):
         self.assertIsNotNone(chosen_over)
         self.assertEqual(chosen_over[0], 480)
 
-        # PreviewStore integration writes cut JPEG and closes index on clear().
+        # PreviewStore integration writes cut JPEG and forgets the index on clear().
         tmpdir = tempfile.mkdtemp()
         try:
             store = previews.PreviewStore()
@@ -401,7 +396,7 @@ class TrickplayTest(KodiTestCase):
             special = store.picture('src-4k', 0)
             self.assertEqual(special, f'special://temp/{previews.FOLDER}/src-4k/0.jpg')
             store.clear()
-            self.assertEqual(len(idx._sheets), 0)
+            self.assertEqual(store._indexes, {})
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 

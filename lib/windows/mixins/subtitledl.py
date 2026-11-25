@@ -92,7 +92,7 @@ class PlexSubtitleDownloadMixin(object):
                     try:
                         downloaded = video.downloadSubtitles(sk_to_k[choice])
                         if hasattr(video.server, 'downloadSubtitle'):
-                            # Jellyfin's download comes back as the selected stream (JellyfinServer.downloadSubtitle()):
+                            # Silo's download comes back as the selected stream (SiloServer.downloadSubtitle()):
                             # nothing to wait for or reload
                             return downloaded or None
                         tries = 0

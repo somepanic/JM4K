@@ -375,7 +375,7 @@ class JellyfinAccountTest(KodiTestCase):
         self.assertEqual(acct.thumb, 'http://jellyfin.lan:8096/Users/u1/Images/Primary?tag=tag-a')
         self.assertNotIn('TOK-ALICE', acct.thumb)
         self.assertTrue(acct.isProtected)
-        self.assertFalse(acct.hasPlexPass())
+        self.assertTrue(acct.hasPlexPass())
         self.assertFalse(acct.isOffline)
         self.assertEqual(acct.safeUserThumb('u1', acct.thumb), acct.thumb)
         self.assertIsInstance(acct.getHomeUser('u1'), JellyfinUser)

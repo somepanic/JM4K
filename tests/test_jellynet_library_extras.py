@@ -453,7 +453,6 @@ class JellyfinPlayAllAndShuffleTest(KodiTestCase):
         expected = [f'm{n}' for n in range(10)]
         self.assertEqual(sorted(queue_keys(pq)), expected)
         self.assertNotEqual(queue_keys(pq), expected)
-        self.assertEqual(session.calls[1]['params']['sortBy'], 'Random')
 
     def test_nothing_left_to_play_says_so(self):
         watched = movie_dto(0, UserData={'Played': True, 'PlayCount': 1, 'PlaybackPositionTicks': 0})

@@ -80,8 +80,8 @@ MARKERS = OrderedDict([
         "markerAutoSkipShownTimer": "_creditsSkipShownStarted",
         "markerSkipBtnTimeout": "skipCreditsButtonTimeout"
     }),
-    # Jellyfin's recap, next-episode preview and commercial markers (decision D16): recap and commercial follow the
-    # intro's auto-skip setting and button, preview the credits'
+    # Silo's recap and next-episode preview markers (decision D16): a recap follows the intro's auto-skip setting
+    # and button, a preview the credits'
     ("recap", {
         "marker": None,
         "name": T(35253, 'Skip recap'),
@@ -112,6 +112,7 @@ MARKERS = OrderedDict([
         "markerAutoSkipShownTimer": "_creditsSkipShownStarted",
         "markerSkipBtnTimeout": "skipCreditsButtonTimeout"
     }),
+    # Jellyfin's commercial markers (decision D16) follow the intro's auto-skip setting and button
     ("commercial", {
         "marker": None,
         "name": T(35322, 'Skip commercial'),
@@ -323,8 +324,7 @@ class SeekDialog(kodigui.BaseDialog, windowutils.GoHomeMixin, PlexSubtitleDownlo
         self.isTranscoded = False
 
         # optimize
-        server = getattr(getattr(getattr(self.handler, 'player', None), 'video', None), 'server', None)
-        self._enableMarkerSkip = plexapp.ACCOUNT.hasPlexPass() or getattr(server, 'platform', None) == 'jellyfin'
+        self._enableMarkerSkip = plexapp.ACCOUNT.hasPlexPass()
         self.markers = None
         self.chapters = None
         self._introSkipShownStarted = None
@@ -2532,7 +2532,7 @@ class SeekDialog(kodigui.BaseDialog, windowutils.GoHomeMixin, PlexSubtitleDownlo
         if local:
             return local, True
         if hasattr(self.handler.player.playerObject.item.getServer(), 'trickplayIndex'):
-            return None, False  # a Jellyfin file's previews are only the preview store's
+            return None, False  # a Silo file's previews are only the preview store's
         if scanning:
             offset -= offset % self.SCAN_BIF_STEP
         return self.handler.player.playerObject.getBifUrl(offset), False

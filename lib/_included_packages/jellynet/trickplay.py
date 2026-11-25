@@ -143,10 +143,3 @@ class SheetIndex:
                 evicted.close()
             self._sheets[sheet_index] = decoded
             return self._crop(decoded, local)
-
-    def close(self):
-        """Close all cached Pillow images and release decoded sheet memory."""
-        with self._lock:
-            while self._sheets:
-                _, img = self._sheets.popitem(last=False)
-                img.close()

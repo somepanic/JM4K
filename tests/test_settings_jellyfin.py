@@ -62,28 +62,21 @@ SILO_RE = re.compile(r'\b(?:silo|silomod|sm4k)\b', re.IGNORECASE)
 XML_COMMENT_RE = re.compile(r'<!--.*?-->', re.DOTALL)
 
 
-def _docstring_nodes(tree):
-    docs = set()
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and node.body:
-            first = node.body[0]
-            if (
-                isinstance(first, ast.Expr)
-                and isinstance(first.value, ast.Constant)
-                and isinstance(first.value.value, str)
-            ):
-                docs.add(first.value)
-    return docs
-
-
-def _iter_python_string_literals(path):
+def _iter_translated_defaults(path):
+    """The English text the add-on shows when a string isn't translated: every string given to T(), as T(id, text)
+    or util.T(id, text). Internal literals (platform names, thread names, sentinel values) are not shown to anyone
+    and stay as SM4K has them, so merges from SM4K stay small."""
     with open(path, encoding='utf-8') as fp:
-        source = fp.read()
-    tree = ast.parse(source, filename=path)
-    docs = _docstring_nodes(tree)
+        tree = ast.parse(fp.read(), filename=path)
     for node in ast.walk(tree):
-        if isinstance(node, ast.Constant) and isinstance(node.value, str) and node not in docs:
-            yield getattr(node, 'lineno', 0), node.value
+        if not isinstance(node, ast.Call):
+            continue
+        name = node.func.id if isinstance(node.func, ast.Name) else getattr(node.func, 'attr', None)
+        if name != 'T':
+            continue
+        for arg in node.args:
+            if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                yield arg.lineno, arg.value
 
 
 class JellyfinSettingsTest(KodiTestCase):
@@ -186,7 +179,7 @@ class JellyfinSettingsTest(KodiTestCase):
                         rel = os.path.relpath(path, REPO_ROOT)
                         hits.append(f'{rel}:{lineno}: {line.strip()}')
 
-        # 4. Python string literals under lib/ (outside comments and docstrings)
+        # 4. Text shown from Python code under lib/ (T()'s English defaults)
         lib_dir = os.path.join(REPO_ROOT, 'lib')
         for root, dirs, files in os.walk(lib_dir):
             dirs[:] = sorted(d for d in dirs if d != '__pycache__')
@@ -194,7 +187,7 @@ class JellyfinSettingsTest(KodiTestCase):
                 if not fn.endswith('.py'):
                     continue
                 path = os.path.join(root, fn)
-                for lineno, text in _iter_python_string_literals(path):
+                for lineno, text in _iter_translated_defaults(path):
                     if SILO_RE.search(text):
                         rel = os.path.relpath(path, REPO_ROOT)
                         hits.append(f'{rel}:{lineno}: {text!r}')

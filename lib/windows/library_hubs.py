@@ -1929,8 +1929,8 @@ class HubsMixin(object):
             'entry_section_id': self.entrySectionId,
             'entry_from_watchlist': self.entryFromWatchlist,
         }
-        # Jellyfin items are library items already: none of Discover's lookups
-        if self.section.TYPE == 'movies_shows' and getattr(self.section.server, 'platform', None) != 'jellyfin':
+        # a Silo watchlist's items are library items already: none of Discover's lookups
+        if self.section.TYPE == 'movies_shows' and getattr(self.section.server, 'platform', None) != 'silo':
             extra_kwargs['from_watchlist'] = True
             extra_kwargs['directly_from_watchlist'] = True
             extra_kwargs['external_item'] = True
