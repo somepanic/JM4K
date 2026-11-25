@@ -4377,3 +4377,23 @@ msgstr ""
 msgctxt "#35314"
 msgid "Too many sign-in attempts. Wait a moment and try again."
 msgstr ""
+
+msgctxt "#35315"
+msgid "Jellyfin servers on your network"
+msgstr ""
+
+msgctxt "#35316"
+msgid "Jellyfin server address, for example http://192.168.1.10:8096"
+msgstr ""
+
+msgctxt "#35317"
+msgid "Could not reach a Jellyfin server at {address}."
+msgstr ""
+
+msgctxt "#35318"
+msgid "{address} is not a Jellyfin server JellyMod can use."
+msgstr ""
+
+msgctxt "#35319"
+msgid "Can't reach the Jellyfin server. Check your connection and try again."
+msgstr ""
