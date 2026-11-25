@@ -134,13 +134,24 @@ class JellyfinServerTest(KodiTestCase):
         self.assertNotIn('Token=', thumb_url)
 
     def test_music_library_hidden_until_phase_10(self):
-        srv = make_server(FakeSession(USER_VIEWS))
+        session = FakeSession(
+            USER_VIEWS,
+            FakeResponse(200, {'CustomPrefs': {}}),
+            FakeResponse(200, {'Items': [], 'TotalRecordCount': 0}),
+            FakeResponse(200, {'Items': [], 'TotalRecordCount': 0}),
+            ME_ALICE,
+            USER_VIEWS,
+            FakeResponse(200, []),
+            FakeResponse(200, []),
+        )
+        srv = make_server(session)
 
         sections = plexlibrary.Library(None, server=srv).sections()
 
         self.assertNotIn('view-music', [s.key for s in sections])
         self.assertNotIn('Music', [s.title for s in sections])
         self.assertEqual(srv.hubs(), [])
+        self.assertNotIn('view-music', [c['params'].get('parentId') for c in session.calls if c.get('params')])
 
     def test_every_server_method_the_screens_call_exists(self):
         required = [
