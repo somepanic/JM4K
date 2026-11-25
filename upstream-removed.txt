@@ -59,3 +59,47 @@ tests/test_bif_index.py  # tested lib/windows/bif_index.py (removed)
 docs/preview-thumbnails.md  # the plan for Plex's BIF previews, built as bif_index.py and the BIF download (removed)
 resources/skins/Main/media/script.plex/home/type/artist.png  # Search's Music button and music sections' sidebar icon; Silo has no music (D4)
 resources/skins/Main/media/script.plex/home/type/photo.png  # Search's Photos button and photo sections' sidebar icon; Silo has no photos (D4)
+lib/_included_packages/silonet/  # Silo server layer; replaced by jellynet/
+lib/silo.py  # Silo session and start-up; replaced by lib/jellyfin.py
+lib/watch_together.py  # Silo watch party; replaced by Jellyfin SyncPlay in Phase 9 (J-D9)
+lib/windows/partydialog.py  # Silo watch party screen; replaced by Jellyfin SyncPlay in Phase 9 (J-D9)
+tests/silonet_fakes.py  # Silo HTTP test fakes; replaced by tests/jellynet_fakes.py
+tests/fixtures/silonet/  # Silo API test fixtures; replaced by tests/fixtures/jellynet/
+tests/test_episodes_watch_together.py  # tested Silo watch party in episodes (removed)
+tests/test_file_info.py  # tested silonet.detail file info (removed; Jellyfin detail tests land in Phase 4)
+tests/test_silo_map_path_menu.py  # tested Silo library path mapping menu (removed; Jellyfin lands in Phase 5)
+tests/test_silo_party_on_close.py  # tested Silo watch party on Home close (removed, J-D9)
+tests/test_silo_path_mapping.py  # tested Silo path mapping (removed; Jellyfin lands in Phase 5)
+tests/test_silo_play_queue.py  # tested Silo local play queue (removed; Jellyfin lands in Phase 3)
+tests/test_silo_servers.py  # tested lib/silo.py server picker; replaced by tests/test_jellyfin_servers.py
+tests/test_silo_session_end.py  # tested Silo session end; replaced by tests/test_jellynet_account.py and test_jellyfin_startup.py
+tests/test_silo_signin.py  # tested Silo sign-in card; replaced by tests/test_jellyfin_startup.py
+tests/test_silo_startup.py  # tested lib/silo.py start-up; replaced by tests/test_jellyfin_startup.py
+tests/test_silo_users.py  # tested Silo Refresh Users; replaced by tests/test_jellynet_account.py
+tests/test_silo_userselect.py  # tested Silo profile PIN picker; replaced by tests/test_jellynet_account.py
+tests/test_silonet_account.py  # tested silonet/account.py; replaced by tests/test_jellynet_account.py
+tests/test_silonet_auth.py  # tested silonet/auth.py; replaced by tests/test_jellynet_auth.py
+tests/test_silonet_client.py  # tested silonet/client.py; replaced by tests/test_jellynet_client.py
+tests/test_silonet_detail.py  # tested silonet/detail.py (removed; Jellyfin lands in Phase 4)
+tests/test_silonet_discovery.py  # tested silonet/discovery.py; replaced by tests/test_jellynet_discovery.py
+tests/test_silonet_favorites.py  # tested silonet favorites (removed; Jellyfin lands in Phase 7)
+tests/test_silonet_home.py  # tested silonet/home.py (removed; Jellyfin lands in Phase 2)
+tests/test_silonet_library.py  # tested silonet/library.py (removed; Jellyfin lands in Phase 3)
+tests/test_silonet_markers.py  # tested silonet skip markers (removed; Jellyfin lands in Phase 6)
+tests/test_silonet_people.py  # tested silonet/people.py (removed; Jellyfin lands in Phase 4)
+tests/test_silonet_playback.py  # tested silonet/playback.py (removed; Jellyfin lands in Phase 5)
+tests/test_silonet_probe.py  # tested silonet/server_info.py; replaced by tests/test_jellynet_probe.py
+tests/test_silonet_related.py  # tested silonet/related.py (removed; Jellyfin lands in Phase 4)
+tests/test_silonet_room.py  # tested silonet/room.py watch party (removed, J-D9)
+tests/test_silonet_search.py  # tested silonet/search.py (removed; Jellyfin lands in Phase 8)
+tests/test_silonet_server.py  # tested silonet/server.py; replaced by tests/test_jellyfin_startup.py
+tests/test_silonet_shows.py  # tested silonet/shows.py (removed; Jellyfin lands in Phase 4)
+tests/test_silonet_stream_info.py  # tested silonet/streaminfo.py (removed; Jellyfin lands in Phase 5)
+tests/test_silonet_subtitles.py  # tested silonet subtitles (removed; Jellyfin lands in Phase 5)
+tests/test_silonet_theme.py  # tested silonet theme music (removed; Jellyfin lands in Phase 4)
+tests/test_silonet_trackprefs.py  # tested silonet/trackprefs.py (removed; Jellyfin lands in Phase 5)
+tests/test_silonet_trickplay.py  # tested silonet/trickplay.py (removed; Jellyfin lands in Phase 6)
+tests/test_silonet_watchlist.py  # tested silonet watchlist (removed; Jellyfin lands in Phase 7)
+tests/test_silonet_watchstate.py  # tested silonet/watchstate.py (removed; Jellyfin lands in Phase 7)
+tests/test_silonet_ws.py  # tested silonet/ws.py watch party websocket (removed, J-D9)
+tests/test_watch_together.py  # tested lib/watch_together.py (removed, J-D9)
