@@ -227,6 +227,32 @@ class JellyfinAccountTest(KodiTestCase):
         self.assertEqual(session.calls[1]['json'], {'Username': 'kids', 'Pw': ''})
         self.assertEqual((acct.ID, acct.authToken), ('u3', 'TOK-KIDS'))
 
+    def test_number_keys_on_a_tile_never_sign_in(self):
+        # Jellyfin has no PINs: Uno's four-digit PIN entry sent the digits as a password, and a failed sign-in counts
+        # towards Jellyfin's lockout, so number keys on the user picker do nothing.
+        session = FakeSession(PUBLIC_USERS)
+        acct = make_account(session)
+        acct.updateHomeUsers()
+        window = userselect.UserSelectWindow.__new__(userselect.UserSelectWindow)
+        window.selected = None
+        window.userList = mock.Mock()
+        window.userList.getSelectedItem.return_value = FakeListItem(acct.getHomeUser('u2'))
+        window.setFocusId = mock.Mock()
+        window.doClose = mock.Mock()
+        with (
+            mock.patch.object(plexapp, 'ACCOUNT', acct),
+            mock.patch.object(userselect.busy.BusyWindow, 'create', side_effect=RuntimeError),
+            mock.patch.object(userselect.busy.update_restart, 'filesReplaced', return_value=True),
+            mock.patch.object(userselect.util, 'messageDialog'),
+            mock.patch.object(userselect.kodigui.BaseWindow, 'onAction'),
+        ):
+            for action_id in (59, 60, 61, 62, 142, 143, 144, 145):  # REMOTE_1..4, then the JumpSMS keys
+                window.onAction(mock.Mock(getId=mock.Mock(return_value=action_id)))
+
+        self.assertEqual(len(session.calls), 1)  # /Users/Public only: no sign-in attempt
+        self.assertIsNone(window.selected)
+        window.setFocusId.assert_not_called()
+
     def test_back_on_the_password_prompt_signs_nobody_in(self):
         # Back is not an empty password: no sign-in attempt (Jellyfin counts failed ones towards a lockout).
         session = FakeSession(PUBLIC_USERS)
