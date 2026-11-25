@@ -4,39 +4,32 @@ query() translates Plex paths into Jellyfin API calls as Plex-shaped XML so plex
 keep working. Paths not mapped yet return an empty <MediaContainer size="0"/> and log once per path.
 """
 
-from urllib.parse import parse_qsl, quote, urlencode, urlsplit
+import functools
+import re
+from urllib.parse import parse_qsl, urlencode, urlsplit
 from xml.etree import ElementTree
 
 from plexnet.signalsmixin import SignalsMixin
 
+from . import library, lists
 from .client import log
 from .errors import JellyfinError
+from .items import buildImageUrl, container
 
 # Jellyfin CollectionType values mapped to Plex section types.
-# boxsets is mapped in Phase 3; music is hidden until Phase 10/11 (D4); other types are left out.
-SECTION_TYPES = {'movies': 'movie', 'tvshows': 'show'}
+# music is hidden until Phase 10/11 (D4); other types are left out.
+SECTION_TYPES = {'movies': 'movie', 'tvshows': 'show', 'boxsets': 'movie'}
 
-
-def container(children=()):
-    root = ElementTree.Element('MediaContainer', {'size': str(len(children))})
-    for child in children:
-        root.append(child)
-    return root
-
-
-def buildImageUrl(base_url, item_id, image_type='Primary', tag=None, max_width=None, max_height=None):
-    """Build a public Jellyfin /Items/{itemId}/Images/{imageType} URL; never includes an auth token."""
-    params = {}
-    if max_width and int(max_width) > 0:
-        params['maxWidth'] = str(int(max_width))
-    if max_height and int(max_height) > 0:
-        params['maxHeight'] = str(int(max_height))
-    if tag:
-        params['tag'] = str(tag)
-    route = f'/Items/{quote(str(item_id), safe="")}/Images/{quote(str(image_type), safe="")}'
-    base = base_url.rstrip('/') if base_url else ''
-    query = urlencode(params)
-    return f'{base}{route}?{query}' if query else f'{base}{route}'
+# Library grid, sorts, filters, collections tab, and jump bar paths
+LIBRARY_PATH = re.compile(
+    r'^/library/sections/([^/]+)/(all|sorts|firstCharacter|filters|collections|genre|year|contentRating|label|tag)$'
+)
+# Collection contents (/library/collections/<id>/children and /library/metadata/<id>/children)
+COLLECTION_CHILDREN_PATH = re.compile(r'^/library/(?:collections|metadata)/([^/]+)/children$')
+# All episodes of a show (for expanding shows inside a collection's Play All queue)
+ALL_LEAVES_PATH = re.compile(r'^/library/metadata/([^/]+)/allLeaves$')
+# Recommended rows for one library section
+SECTION_HUBS_PATH = re.compile(r'^/hubs/sections/([^/]+)$')
 
 
 class JellyfinConnection:
@@ -74,6 +67,8 @@ class JellyfinServer(SignalsMixin):
         self._unmapped = set()
         self._routes = {'/library/sections': self._sections}
         self._libraryTypes = {}
+        self._collectionTypes = {}
+        self._jumpBarCache = {}
 
     def __repr__(self):
         return f'<JellyfinServer {self.uuid}>'
@@ -85,9 +80,107 @@ class JellyfinServer(SignalsMixin):
     def query(self, path, method=None, raw=False, **kwargs):
         """Return Plex-shaped XML for a mapped Plex path, empty container once-logged for unmapped paths,
         or None if Jellyfin failed to answer."""
-        route, _, _query_string = path.partition('?')
+        route, _, query_string = path.partition('?')
         route = route.rstrip('/') or '/'
+        args = dict(parse_qsl(query_string))
+        extra_params = kwargs.get('params')
+        if isinstance(extra_params, dict):
+            for key, value in extra_params.items():
+                if value is not None:
+                    args[str(key)] = str(value)
         handler = self._routes.get(route)
+        library_match = LIBRARY_PATH.match(route) if handler is None else None
+        if library_match:
+            section_id, action = library_match.group(1), library_match.group(2)
+            section_type = self._libraryTypes.get(section_id, '')
+            collection_type = self._collectionTypes.get(section_id, '')
+            if action == 'sorts':
+                handler = library.sortsContainer
+            elif action == 'filters':
+                handler = functools.partial(library.filtersContainer, section_id)
+            elif action in library.FILTER_CHOICE_KEYS:
+                handler = functools.partial(
+                    library.filterChoices,
+                    self.client,
+                    section_id,
+                    action,
+                    args=args,
+                    section_type=section_type,
+                    collection_type=collection_type,
+                )
+            elif action == 'collections':
+                handler = functools.partial(
+                    lists.collectionsGrid,
+                    self.client,
+                    library_id=section_id if collection_type == 'boxsets' else None,
+                    args=args,
+                    offset=kwargs.get('offset'),
+                    limit=kwargs.get('limit'),
+                    member_type=section_type or 'movie',
+                    section_id=section_id,
+                )
+            elif action == 'firstCharacter':
+                handler = functools.partial(
+                    library.jumpBar,
+                    self.client,
+                    section_id,
+                    args,
+                    section_type=section_type,
+                    collection_type=collection_type,
+                    cache=self._jumpBarCache,
+                )
+            else:
+                handler = functools.partial(
+                    library.libraryItems,
+                    self.client,
+                    section_id,
+                    args,
+                    offset=kwargs.get('offset'),
+                    limit=kwargs.get('limit'),
+                    section_type=section_type,
+                    collection_type=collection_type,
+                )
+        if handler is None and route.startswith(library.LIBRARY_ROW_PATH):
+            row_section_id, _, row_kind = route[len(library.LIBRARY_ROW_PATH) :].partition('/')
+            handler = functools.partial(
+                library.libraryRowItems,
+                self.client,
+                row_section_id,
+                row_kind,
+                args=args,
+                offset=kwargs.get('offset'),
+                limit=kwargs.get('limit'),
+            )
+        section_hubs_match = SECTION_HUBS_PATH.match(route) if handler is None else None
+        if section_hubs_match and section_hubs_match.group(1) != 'home':
+            hub_section_id = section_hubs_match.group(1)
+            raw_count = args.get('count')
+            hub_count = int(raw_count) if raw_count and str(raw_count).isdigit() else None
+            handler = functools.partial(
+                self._sectionHubsContainer,
+                hub_section_id,
+                hub_count,
+            )
+        collection_match = COLLECTION_CHILDREN_PATH.match(route) if handler is None else None
+        if collection_match:
+            handler = functools.partial(
+                lists.collectionItems,
+                self.client,
+                collection_match.group(1),
+                args=args,
+                offset=kwargs.get('offset'),
+                limit=kwargs.get('limit'),
+            )
+        leaves_match = ALL_LEAVES_PATH.match(route) if handler is None else None
+        if leaves_match:
+            handler = functools.partial(
+                lists.showLeaves,
+                self.client,
+                leaves_match.group(1),
+                args=args,
+                offset=kwargs.get('offset'),
+                limit=kwargs.get('limit'),
+            )
         if handler is None:
             if route not in self._unmapped:
                 self._unmapped.add(route)
@@ -111,6 +204,7 @@ class JellyfinServer(SignalsMixin):
                 continue
             item_id = str(entry['Id'])
             self._libraryTypes[item_id] = kind
+            self._collectionTypes[item_id] = collection_type
             image_tags = entry.get('ImageTags') or {}
             primary_tag = image_tags.get('Primary') if isinstance(image_tags, dict) else None
             thumb = buildImageUrl('', item_id, 'Primary', tag=primary_tag) if primary_tag else ''
@@ -241,8 +335,28 @@ class JellyfinServer(SignalsMixin):
     def dropIdleConnections(self):
         self.client.dropIdleConnections()
 
+    def _sectionHubsContainer(self, section_id, count=None):
+        rows = library.libraryRows(
+            self.client,
+            section_id,
+            count=count,
+            section_type=self._libraryTypes.get(section_id, ''),
+            collection_type=self._collectionTypes.get(section_id, ''),
+        )
+        return container(rows)
+
     def hubs(self, section=None, count=None, search_query=None, section_ids=None, continue_watching_count=None):
-        return []
+        if not section:
+            return []
+        from plexnet import plexlibrary, plexobjects, video  # noqa: F401
+
+        try:
+            root = self._sectionHubsContainer(str(section), count=count)
+        except JellyfinError as e:
+            log(f'library rows failed: {e.status}')
+            return []
+        hubs_container = plexobjects.PlexContainer(root, initpath='/hubs', server=self, address='/hubs')
+        return [plexlibrary.Hub(elem, server=self, container=hubs_container) for elem in root]
 
     def homeCapabilities(self):
         return {}
