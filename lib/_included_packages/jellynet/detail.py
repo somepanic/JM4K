@@ -8,7 +8,7 @@ Plex XML element plexnet's reload() expects (/library/metadata/<ratingKey>):
   attributes, Dolby Vision layers, chroma subsampling, ISO 639-2/B languages, and distinct stream IDs
 """
 
-from urllib.parse import quote
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 from xml.etree import ElementTree
 
 from . import library
@@ -222,10 +222,23 @@ def _fallbackVideoBitrateKbps(source, audio_streams):
     return rest // 1000 if rest > 0 else None
 
 
+def cleanDeliveryUrl(url):
+    """Normalize a Jellyfin DeliveryUrl, stripping any query credential parameters."""
+    if not url:
+        return ''
+    parsed = urlsplit(str(url))
+    if not parsed.query:
+        return str(url)
+    kept = [
+        (k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=True) if not k.lower().endswith(('key', 'token'))
+    ]
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(kept), parsed.fragment))
+
+
 def _externalSubtitleKey(item_id, source_id, stream_index, stream):
     delivery = stream.get('DeliveryUrl')
     if delivery:
-        return str(delivery)
+        return cleanDeliveryUrl(delivery)
     raw_codec = str(stream.get('Codec') or '').lower()
     fmt = SUBTITLE_FORMAT_MAP.get(raw_codec, raw_codec or 'srt')
     return (
@@ -363,13 +376,26 @@ def mediaElement(item_id, source, item_duration_ms=0):
     # Embedded subtitles before external so Uno's embedded position matches Kodi's embedded track order
     embedded_subs = [(pos, s) for pos, s in sub_streams if not s.get('IsExternal')]
     external_subs = [(pos, s) for pos, s in sub_streams if s.get('IsExternal')]
+    used_sub_indices = set()
     for pos, s in embedded_subs + external_subs:
         raw_index = s.get('Index')
-        stream_index = raw_index if raw_index is not None else pos
+        parsed_index = None
+        if raw_index is not None and raw_index != '':
+            try:
+                parsed_index = int(raw_index)
+            except (TypeError, ValueError):
+                parsed_index = None
+        if parsed_index is not None and parsed_index not in used_sub_indices:
+            stream_index = parsed_index
+        else:
+            stream_index = pos
+            while stream_index in used_sub_indices:
+                stream_index += 1
+        used_sub_indices.add(stream_index)
         is_external = bool(s.get('IsExternal'))
         display_title = s.get('DisplayTitle') or s.get('Title')
         sub_key = _externalSubtitleKey(item_id, source_id, stream_index, s) if is_external else None
-        is_selected = default_sub_idx is not None and raw_index is not None and int(raw_index) == default_sub_idx
+        is_selected = default_sub_idx is not None and parsed_index is not None and parsed_index == default_sub_idx
         stream_els.append(
             element(
                 'Stream',
@@ -548,7 +574,7 @@ def _clipBaseElement(item):
     )
 
 
-def detailElement(item, on_item=None):
+def detailElement(item, on_item=None, track_prefs=None):
     """Build a full Plex detail element from one Jellyfin BaseItemDto, or None if unsupported."""
     if not isinstance(item, dict):
         return None
@@ -596,6 +622,11 @@ def detailElement(item, on_item=None):
     root.extend(personElements(item))
     root.extend(mediaElement(item_id, source, item_duration_ms=item_duration_ms) for source in sources)
     root.extend(chapterElements(item_id, item.get('Chapters'), item_duration_ms=item_duration_ms))
+    if track_prefs is not None and item.get('Type') == 'Episode' and item.get('SeriesId'):
+        from . import trackprefs
+
+        audio_pref, sub_pref = track_prefs.get(str(item['SeriesId']))
+        trackprefs.apply(root, audio_pref, sub_pref)
     return root
 
 
@@ -631,7 +662,7 @@ def _attachOnDeck(client, series_id, root, on_item=None):
         ElementTree.SubElement(root, 'OnDeck').append(ep_el)
 
 
-def itemDetail(client, item_ids, params=None, on_item=None, extras_fetcher=None):
+def itemDetail(client, item_ids, params=None, on_item=None, extras_fetcher=None, track_prefs=None):
     """Answer /library/metadata/<id> (single item) or /library/metadata/<id1>,<id2>,... (batch reload)."""
     params = params or {}
     ids = [part.strip() for part in str(item_ids).split(',') if part.strip()]
@@ -641,7 +672,7 @@ def itemDetail(client, item_ids, params=None, on_item=None, extras_fetcher=None)
     if len(ids) == 1:
         item_id = ids[0]
         dto = client.get(f'/Items/{quote(item_id, safe="")}', params={'fields': DETAIL_FIELDS}) or {}
-        root = detailElement(dto, on_item=on_item)
+        root = detailElement(dto, on_item=on_item, track_prefs=track_prefs)
         if root is None:
             return container()
         if dto.get('Type') == 'Series' and _isTruthy(params.get('includeOnDeck')):
@@ -677,7 +708,7 @@ def itemDetail(client, item_ids, params=None, on_item=None, extras_fetcher=None)
         dto = by_id.get(item_id)
         if dto is None:
             continue
-        elem = detailElement(dto, on_item=on_item)
+        elem = detailElement(dto, on_item=on_item, track_prefs=track_prefs)
         if elem is not None:
             elements.append(elem)
     return container(elements)

@@ -45,7 +45,7 @@ def seasons(client, series_id, on_item=None):
     return container(elements, totalSize=total)
 
 
-def episodes(client, series_id, season_id=None, args=None, offset=None, limit=None, on_item=None):
+def episodes(client, series_id, season_id=None, args=None, offset=None, limit=None, on_item=None, track_prefs=None):
     """Fetch episodes from GET /Shows/{seriesId}/Episodes (optionally filtered to one seasonId)."""
     series_id = str(series_id)
     start, size = library.window(args or {}, offset, limit)
@@ -82,18 +82,37 @@ def episodes(client, series_id, season_id=None, args=None, offset=None, limit=No
         item.setdefault('SeriesId', series_id)
         if season_id:
             item.setdefault('SeasonId', str(season_id))
-        elem = detail.detailElement(item, on_item=on_item)
+        elem = detail.detailElement(item, on_item=on_item, track_prefs=track_prefs)
         if elem is not None:
             elements.append(elem)
     return container(elements, totalSize=total, offset=start)
 
 
-def allEpisodes(client, series_id, args=None, offset=None, limit=None, on_item=None):
+def allEpisodes(client, series_id, args=None, offset=None, limit=None, on_item=None, track_prefs=None):
     """Answer /library/metadata/<seriesId>/allLeaves via GET /Shows/{seriesId}/Episodes."""
-    return episodes(client, series_id, season_id=None, args=args, offset=offset, limit=limit, on_item=on_item)
+    return episodes(
+        client,
+        series_id,
+        season_id=None,
+        args=args,
+        offset=offset,
+        limit=limit,
+        on_item=on_item,
+        track_prefs=track_prefs,
+    )
 
 
-def children(client, item_id, item_types=None, season_series=None, args=None, offset=None, limit=None, on_item=None):
+def children(
+    client,
+    item_id,
+    item_types=None,
+    season_series=None,
+    args=None,
+    offset=None,
+    limit=None,
+    on_item=None,
+    track_prefs=None,
+):
     """Answer /library/metadata/<id>/children for Series (seasons), Season (episodes), or BoxSet (collection items).
     Uses cached item types and season->series links when known; fetches GET /Items/{id} only when unknown."""
     item_id = str(item_id)
@@ -114,7 +133,16 @@ def children(client, item_id, item_types=None, season_series=None, args=None, of
     if kind == 'Season':
         if not series_id:
             return container()
-        return episodes(client, series_id, season_id=item_id, args=args, offset=offset, limit=limit, on_item=on_item)
+        return episodes(
+            client,
+            series_id,
+            season_id=item_id,
+            args=args,
+            offset=offset,
+            limit=limit,
+            on_item=on_item,
+            track_prefs=track_prefs,
+        )
     if kind == 'BoxSet':
         return lists.collectionItems(client, item_id, args=args, offset=offset, limit=limit)
     return container()

@@ -11,10 +11,15 @@ from xml.etree import ElementTree
 
 from plexnet.signalsmixin import SignalsMixin
 
-from . import detail, home, library, lists, people, playback, related, shows, trickplay, watch
+from . import detail, home, library, lists, people, playback, related, shows, streaminfo, trackprefs, trickplay, watch
 from .client import log
 from .errors import JellyfinError
 from .items import buildImageUrl, container, ticks_to_ms
+
+# Jellyfin subtitle route fallback: /Videos/<item>/<source>/Subtitles/<index>/Stream.<ext>
+SUBTITLE_ROUTE_PATH = re.compile(r'^/Videos/([^/]+)/([^/]+)/Subtitles/(\d+)/Stream\.[^/?]+$')
+# PlexStream.getSubtitlePath() appends ?encoding=utf-8[&format=srt][&autoAdjustSubtitle=1] to stream.key
+PLEX_SUBTITLE_SUFFIX = re.compile(r'\?encoding=utf-8(?:&(?:format=[^&]*|autoAdjustSubtitle=[^&]*))*$')
 
 # Jellyfin CollectionType values mapped to Plex section types.
 # music is hidden until Phase 10/11 (D4); other types are left out.
@@ -96,6 +101,9 @@ class JellyfinServer(SignalsMixin):
         self._trickplayMeta = {}
         self._personNames = {}
         self._personIds = {}
+        self._virtualFolders = None
+        self._subtitleResults = {}
+        self.trackPrefs = trackprefs.TrackPrefsStore()
         self.playback = playback.Playback(client)
 
     def __repr__(self):
@@ -103,7 +111,7 @@ class JellyfinServer(SignalsMixin):
 
     @property
     def anyLANConnection(self):
-        return False
+        return self.isLocalConnection()
 
     def query(self, path, method=None, raw=False, **kwargs):
         """Return Plex-shaped XML for a mapped Plex path, empty container once-logged for unmapped paths,
@@ -208,6 +216,7 @@ class JellyfinServer(SignalsMixin):
                 params=args,
                 on_item=self._rememberItem,
                 extras_fetcher=related.extrasElement,
+                track_prefs=self.trackPrefs,
             )
         metadata_children_match = METADATA_CHILDREN_PATH.match(route) if handler is None else None
         if metadata_children_match:
@@ -221,6 +230,7 @@ class JellyfinServer(SignalsMixin):
                 offset=kwargs.get('offset'),
                 limit=kwargs.get('limit'),
                 on_item=self._rememberItem,
+                track_prefs=self.trackPrefs,
             )
         collection_match = COLLECTION_CHILDREN_PATH.match(route) if handler is None else None
         if collection_match:
@@ -242,6 +252,7 @@ class JellyfinServer(SignalsMixin):
                 offset=kwargs.get('offset'),
                 limit=kwargs.get('limit'),
                 on_item=self._rememberItem,
+                track_prefs=self.trackPrefs,
             )
         similar_match = SIMILAR_PATH.match(route) if handler is None else None
         if similar_match:
@@ -404,16 +415,54 @@ class JellyfinServer(SignalsMixin):
             )
         return container(sections)
 
+    def _loadVirtualFolders(self):
+        """Fetch and cache GET /Library/VirtualFolders; 403 caches empty, transient errors return None to retry."""
+        if self._virtualFolders is None:
+            try:
+                data = self.client.get('/Library/VirtualFolders')
+            except JellyfinError as e:
+                if e.status == 403:
+                    self._virtualFolders = []
+                    return self._virtualFolders
+                log(f'virtual folders failed: {e.status}')
+                return None
+            self._virtualFolders = [f for f in (data or ()) if isinstance(f, dict)]
+        return self._virtualFolders
+
     def libraryLocations(self, libraryId):
+        """Return a library's server-side folder paths from GET /Library/VirtualFolders, or [] on 403/error."""
+        folders = self._loadVirtualFolders()
+        if not folders:
+            return []
+        if not libraryId:
+            locations = []
+            for folder in folders:
+                locations.extend(str(p) for p in (folder.get('Locations') or ()) if p)
+            return locations
+        wanted = str(libraryId)
+        wanted_norm = wanted.replace('-', '').lower()
+        for folder in folders:
+            item_id = str(folder.get('ItemId') or '')
+            if item_id == wanted or item_id.replace('-', '').lower() == wanted_norm:
+                return [str(p) for p in (folder.get('Locations') or ()) if p]
         return []
 
     def buildUrl(self, path, includeToken=False):
         if not path:
             return ''
-        if '://' in path:
-            return path
-        clean = path if path.startswith('/') else '/' + path
-        return self.client.base_url + clean
+        cleaned = PLEX_SUBTITLE_SUFFIX.sub('', str(path))
+        cleaned = detail.cleanDeliveryUrl(cleaned)
+        if '://' in cleaned:
+            return cleaned
+        clean_path = cleaned if cleaned.startswith('/') else '/' + cleaned
+        sub_match = SUBTITLE_ROUTE_PATH.match(clean_path)
+        if sub_match:
+            session = self.playback.session_for(sub_match.group(2))
+            if session is not None:
+                delivery = session.external_subtitle_url(sub_match.group(3))
+                if delivery:
+                    return delivery
+        return self.client.base_url + clean_path
 
     def getImageTranscodeURL(self, path, width, height, **extraOpts):
         if not path:
@@ -443,9 +492,22 @@ class JellyfinServer(SignalsMixin):
         return True
 
     def isLocalConnection(self):
-        return True
+        return streaminfo.is_local_url(self.client.base_url)
 
     def supportsFeature(self, feature):
+        if feature == 'subtitleSearch':
+            folders = self._loadVirtualFolders()
+            if not folders:
+                return False
+            for folder in folders:
+                opts = folder.get('LibraryOptions')
+                if not isinstance(opts, dict):
+                    continue
+                order = [str(p) for p in (opts.get('SubtitleFetcherOrder') or ()) if p]
+                disabled = {str(p) for p in (opts.get('DisabledSubtitleFetchers') or ()) if p}
+                if any(provider not in disabled for provider in order):
+                    return True
+            return False
         return False
 
     def startPlayback(
@@ -454,6 +516,14 @@ class JellyfinServer(SignalsMixin):
         """Negotiate a Jellyfin playback session for item and its chosen part (version)."""
         item_id = str(item.ratingKey)
         media_source_id = str(part.id) if part is not None and part.id else None
+        video_stream_id, audio_stream_id, subtitle_stream_id = _partStreamIds(part, audioIndex, subtitleIndex)
+        fallback_tracks = None
+        if getattr(item, 'TYPE', None) == 'episode':
+            series_id = str(item.get('grandparentRatingKey') or '')
+            if series_id:
+                audio_pref, sub_pref = self.trackPrefs.get(series_id)
+                if audio_pref or sub_pref:
+                    fallback_tracks = (audio_pref, sub_pref)
         return self.playback.start(
             item_id,
             media_source_id=media_source_id,
@@ -462,6 +532,10 @@ class JellyfinServer(SignalsMixin):
             subtitle_index=subtitleIndex,
             bandwidth_cap_kbps=bandwidthCap,
             hdr=hdr,
+            video_stream_id=video_stream_id,
+            audio_stream_id=audio_stream_id,
+            subtitle_stream_id=subtitle_stream_id,
+            fallback_tracks=fallback_tracks,
         )
 
     def fileId(self, video):
@@ -615,13 +689,115 @@ class JellyfinServer(SignalsMixin):
         return playback.attach_auth_header(stream_url, self.client.auth_header())
 
     def rememberStream(self, video, streamType, stream, streams):
-        return None
+        """Remember an episode's chosen audio/subtitle stream per show (D13); movies are not stored per-show."""
+        series_id = (
+            video is not None
+            and getattr(video, 'TYPE', None) == 'episode'
+            and str(video.get('grandparentRatingKey') or '')
+        )
+        if series_id:
+            self.trackPrefs.remember(series_id, streamType, stream, streams)
 
     def searchSubtitles(self, video, language='en', hearingImpaired=0, forced=0):
-        return []
+        """Search remote subtitle providers via GET /Items/{itemId}/RemoteSearch/Subtitles/{language} (D14)."""
+        from plexnet import media
+
+        item_id = str(getattr(video, 'ratingKey', '') or '')
+        if not item_id:
+            return []
+        lang_code = _subtitleLanguageCode(language)
+        try:
+            results = (
+                self.client.get(f'/Items/{quote(item_id, safe="")}/RemoteSearch/Subtitles/{quote(lang_code, safe="")}')
+                or []
+            )
+        except JellyfinError as e:
+            log(f'subtitle search for {item_id} failed: {e.status}')
+            return []
+        if not isinstance(results, list):
+            return []
+
+        want_hi = bool(hearingImpaired)
+        want_forced = bool(forced)
+        found = []
+        for entry in results:
+            if not isinstance(entry, dict) or not entry.get('Id'):
+                continue
+            is_hi = bool(entry.get('HearingImpaired'))
+            is_forced = bool(entry.get('Forced'))
+            if want_hi and not is_hi:
+                continue
+            if want_forced and not is_forced:
+                continue
+            sub_id = str(entry['Id'])
+            provider = str(entry.get('ProviderName') or '')
+            raw_lang = entry.get('ThreeLetterISOLanguageName') or lang_code
+            norm_lang = detail.languageAttrs(raw_lang).get('languageCode') or lang_code
+            self._subtitleResults[sub_id] = dict(entry)
+            attrs = {
+                'key': sub_id,
+                'sourceKey': f'{provider}:{sub_id}',
+                'providerTitle': provider,
+                'title': str(entry.get('Name') or ''),
+                'score': str(_remoteSubtitleScore(entry)),
+                'hearingImpaired': '1' if is_hi else '0',
+                'forced': '1' if is_forced else '0',
+                'downloaded': '0',
+                'codec': str(entry.get('Format') or 'srt').lower(),
+                'languageCode': norm_lang,
+            }
+            found.append(media.SubtitleStream(ElementTree.Element('Stream', attrs), server=self))
+        return found
 
     def downloadSubtitle(self, video, key):
-        return None
+        """Download a remote subtitle via POST /Items/{itemId}/RemoteSearch/Subtitles/{subtitleId} and select it."""
+        from plexnet import media
+
+        item_id = str(getattr(video, 'ratingKey', '') or '')
+        part = _part(video)
+        if not item_id or not key or part is None:
+            return None
+        try:
+            self.client.post(f'/Items/{quote(item_id, safe="")}/RemoteSearch/Subtitles/{quote(str(key), safe="")}')
+        except JellyfinError as e:
+            log(f'subtitle download for {item_id} failed: {e.status}')
+            return None
+
+        old_ids = {str(s.id) for s in part.streams if s.streamType.asInt() == 3}
+        try:
+            refreshed = (
+                self.client.get(f'/Items/{quote(item_id, safe="")}', params={'fields': 'MediaSources,MediaStreams'})
+                or {}
+            )
+        except JellyfinError as e:
+            log(f'subtitle refresh for {item_id} failed: {e.status}')
+            return None
+
+        sources = [s for s in (refreshed.get('MediaSources') or ()) if isinstance(s, dict)]
+        source = next((s for s in sources if str(s.get('Id') or '') == str(part.id)), None)
+        if source is None and sources:
+            source = sources[0]
+        if source is None:
+            return None
+
+        media_el = detail.mediaElement(item_id, source)
+        part_el = media_el.find('Part')
+        if part_el is None:
+            return None
+        sub_elems = [el for el in part_el.findall('Stream') if el.get('streamType') == '3']
+        new_ext = [el for el in sub_elems if el.get('key') and el.get('id') not in old_ids]
+        chosen_el = (
+            new_ext[-1] if new_ext else next((el for el in reversed(sub_elems) if el.get('id') not in old_ids), None)
+        )
+        if chosen_el is None:
+            return None
+
+        stream = media.SubtitleStream(chosen_el, server=self, part=part)
+        part.streams.append(stream)
+        part._markSelected(3, stream.id)
+        if hasattr(video, '_subtitleStreams'):
+            video._subtitleStreams = None
+        return stream
 
     def findVideoSession(self, sessionId, ratingKey):
         """Return the active playback session in Plex /status/sessions shape, or raise NotFound."""
@@ -630,7 +806,7 @@ class JellyfinServer(SignalsMixin):
         session = self.playback.find_session(session_id=sessionId, rating_key=ratingKey)
         if session is None:
             raise exceptions.NotFound
-        return plexobjects.buildItem(self, playback.session_element(session), '/status/sessions')
+        return plexobjects.buildItem(self, streaminfo.sessionElement(session), '/status/sessions')
 
     def reportTimeline(self, params):
         """Translate a NowPlayingManager timeline update into Jellyfin session reporting."""
@@ -713,6 +889,69 @@ def _item_duration_ms(item):
         return int(raw)
     except (TypeError, ValueError):
         return 0
+
+
+def _subtitleLanguageCode(language):
+    """Normalize a 2-letter or 3-letter language code to Jellyfin's 3-letter ISO-639-2 language parameter."""
+    raw = str(language or '').strip().lower().replace('_', '-').split('-')[0]
+    if not raw:
+        return 'eng'
+    if raw == 'pob':
+        return 'por'
+    attrs = detail.languageAttrs(raw)
+    code = attrs.get('languageCode')
+    if code and len(code) == 3:
+        return code
+    return raw if len(raw) == 3 else 'eng'
+
+
+def _remoteSubtitleScore(entry):
+    if entry.get('IsHashMatch'):
+        return 100
+    rating = entry.get('CommunityRating')
+    if rating is not None:
+        try:
+            val = float(rating)
+        except (TypeError, ValueError):
+            return 0
+        scaled = round(val * 10) if val <= 10 else round(val)
+        return max(0, min(100, int(scaled)))
+    return 0
+
+
+def _partStreamIds(part, audio_index=None, subtitle_index=None):
+    """Find Plex stream IDs on part matching the chosen video, audio, and subtitle streams for Stream Info."""
+    if part is None:
+        return None, None, None
+    streams = getattr(part, 'streams', None) or ()
+    video_id = None
+    audio_id = None
+    subtitle_id = None
+    fallback_video = None
+    fallback_audio = None
+    for stream in streams:
+        stype = stream.streamType.asInt()
+        sid = str(stream.id) if stream.id else None
+        if not sid:
+            continue
+        if stype == 1:
+            if fallback_video is None:
+                fallback_video = sid
+            if stream.isSelected():
+                video_id = sid
+        elif stype == 2:
+            if audio_index is not None and stream.index and stream.index.asInt() == int(audio_index):
+                audio_id = sid
+            elif stream.isSelected() and fallback_audio is None:
+                fallback_audio = sid
+        elif stype == 3:
+            matches_explicit = (
+                subtitle_index is not None and stream.index and stream.index.asInt() == int(subtitle_index)
+            )
+            matches_selected = subtitle_index is None and stream.isSelected() and subtitle_id is None
+            if matches_explicit or matches_selected:
+                subtitle_id = sid
+    return video_id or fallback_video, audio_id or fallback_audio, subtitle_id
 
 
 def _part(video):
