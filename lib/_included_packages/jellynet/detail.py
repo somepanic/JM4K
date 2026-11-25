@@ -14,7 +14,16 @@ from xml.etree import ElementTree
 from . import library
 from .client import log
 from .errors import JellyfinAuthError, JellyfinError
-from .items import buildImageUrl, container, itemArt, itemElement, itemThumb, ticks_to_ms
+from .items import (
+    AUDIENCE_RATING_IMAGE,
+    buildImageUrl,
+    container,
+    criticRatingImage,
+    itemArt,
+    itemElement,
+    itemThumb,
+    ticks_to_ms,
+)
 
 DETAIL_FIELDS = (
     'Overview,Genres,People,Studios,MediaSources,MediaStreams,Chapters,Trickplay,ProviderIds,Taglines,DateCreated,Path'
@@ -459,7 +468,7 @@ def ratingElements(item):
                 element(
                     'Rating',
                     {
-                        'image': 'themoviedb://image.rating',
+                        'image': AUDIENCE_RATING_IMAGE,
                         'value': f'{float(community):.1f}',
                         'type': 'audience',
                     },
@@ -471,8 +480,9 @@ def ratingElements(item):
     if critic is not None:
         try:
             score = float(critic)
-            icon = 'rottentomatoes://image.rating.ripe' if score >= 60 else 'rottentomatoes://image.rating.rotten'
-            elements.append(element('Rating', {'image': icon, 'value': f'{score / 10:.1f}', 'type': 'critic'}))
+            elements.append(
+                element('Rating', {'image': criticRatingImage(score), 'value': f'{score / 10:.1f}', 'type': 'critic'})
+            )
         except (TypeError, ValueError):
             pass
     return elements

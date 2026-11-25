@@ -17,6 +17,15 @@ TICKS_PER_SECOND = 10_000_000
 
 _ISO_RE = re.compile(r'^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.(\d+))?(Z|[+-]\d\d:\d\d)$')
 
+# The rating icons Uno draws for a Jellyfin score, as Plex names them: TMDb for CommunityRating
+AUDIENCE_RATING_IMAGE = 'themoviedb://image.rating'
+
+
+def criticRatingImage(score):
+    """Rotten Tomatoes' ripe or rotten tomato for a 0-100 CriticRating."""
+    return 'rottentomatoes://image.rating.ripe' if score >= 60 else 'rottentomatoes://image.rating.rotten'
+
+
 # Jellyfin BaseItemKind -> (Plex XML tag, Plex type attribute)
 ITEM_TYPES = {
     'Movie': ('Video', 'movie'),
@@ -192,7 +201,14 @@ def itemElement(item, section_id=None, member_type=None, section_title=None, sec
     setIf(attrs, 'lastViewedAt', epoch(user_data.get('LastPlayedDate')))
     setIf(attrs, 'summary', item.get('Overview'))
     setIf(attrs, 'contentRating', item.get('OfficialRating'))
-    setIf(attrs, 'rating', item.get('CommunityRating'))
+    # Plex's rating is the critic score (0-10), its audienceRating the audience one
+    critic = item.get('CriticRating')
+    if critic is not None:
+        attrs['rating'] = f'{float(critic) / 10:.1f}'
+        attrs['ratingImage'] = criticRatingImage(float(critic))
+    if item.get('CommunityRating') is not None:
+        attrs['audienceRating'] = str(item['CommunityRating'])
+        attrs['audienceRatingImage'] = AUDIENCE_RATING_IMAGE
     setIf(attrs, 'thumb', itemThumb(item))
     setIf(attrs, 'art', itemArt(item))
     setIf(attrs, 'librarySectionID', section_id)

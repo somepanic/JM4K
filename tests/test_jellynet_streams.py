@@ -373,10 +373,11 @@ class JellyfinSubtitleSearchTest(KodiTestCase):
         for label, vf_response in (
             ('empty_fetchers', VIRTUAL_FOLDERS_NO_PROVIDER),
             ('all_disabled', VIRTUAL_FOLDERS_DISABLED_PROVIDER),
-            ('forbidden_403', problem(403, 'Forbidden')),
+            ('not_admin_without_subtitle_management', problem(403, 'Forbidden')),
         ):
             with self.subTest(case=label):
-                session = FakeSession(FakeResponse(200, MOVIE_DETAIL), vf_response)
+                me = FakeResponse(200, {'Id': 'u2', 'Policy': {'EnableSubtitleManagement': False}})
+                session = FakeSession(FakeResponse(200, MOVIE_DETAIL), vf_response, me)
                 srv = make_server(session)
                 movie = make_tile(srv, MOVIE_DETAIL).reload()
 
@@ -389,6 +390,19 @@ class JellyfinSubtitleSearchTest(KodiTestCase):
                 mixin = PlexSubtitleDownloadMixin()
                 self.assertIsNone(mixin.downloadPlexSubtitles(movie, non_playback=True))
                 self.assertFalse(any('/RemoteSearch/Subtitles' in c['url'] for c in session.calls))
+
+        # A user who isn't an administrator can't read /Library/VirtualFolders (which names the providers), but
+        # searching needs only Jellyfin's SubtitleManagement policy: Download subtitles follows the user's policy.
+        me = FakeResponse(200, {'Id': 'u2', 'Policy': {'EnableSubtitleManagement': True}})
+        user_session = FakeSession(FakeResponse(200, MOVIE_DETAIL), problem(403, 'Forbidden'), me)
+        user_srv = make_server(user_session)
+        user_movie = make_tile(user_srv, MOVIE_DETAIL).reload()
+        self.assertTrue(user_srv.supportsFeature('subtitleSearch'))
+        options, _ = playersettings.subtitleOptions(user_movie, with_download=True, player=None)
+        self.assertIn(playersettings.DOWNLOAD_SUBTITLES, [opt[0] for opt in options])
+        self.assertEqual(
+            [c['url'] for c in user_session.calls[1:]], [f'{LAN_BASE}/Library/VirtualFolders', f'{LAN_BASE}/Users/Me']
+        )
 
         # When a subtitle fetcher IS enabled, Download subtitles is offered.
         ok_session = FakeSession(FakeResponse(200, MOVIE_DETAIL), VIRTUAL_FOLDERS_WITH_PROVIDER)
