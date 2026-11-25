@@ -13,8 +13,8 @@ from lib.language_util import getNativeLanguages
 from six.moves import range
 
 DecisionFailure = serverdecision.DecisionFailure
-# getBifUrl()'s answer for a Silo file with seek-bar previews, which the preview store has, not a URL
-SILO_PREVIEWS = 'silo:previews'
+# getBifUrl()'s answer for a Jellyfin file with seek-bar previews, which the preview store has, not a URL
+JELLYFIN_PREVIEWS = 'jellyfin:previews'
 
 
 class BasePlayer(object):
@@ -724,8 +724,8 @@ class PlexPlayer(BasePlayer):
     def getBifUrl(self, offset=0):
         server = self.item.getServer()
         if hasattr(server, 'trickplayIndex'):
-            # a Silo file's previews are only the preview store's (SiloServer.trickplayIndex()): this says it has some
-            return SILO_PREVIEWS if self.media.parts and self.media.parts[0].isIndexed() else None
+            # a Jellyfin file's previews are only the preview store's (JellyfinServer.trickplayIndex()): this says it has some
+            return JELLYFIN_PREVIEWS if self.media.parts and self.media.parts[0].isIndexed() else None
         startOffset = 0
         for part in self.media.parts:
             duration = part.duration.asInt()
