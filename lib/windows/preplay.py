@@ -550,7 +550,9 @@ class PrePlayWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutils
             options.append(('to_show', T(32323, 'Go to Show')))
 
         if self.video.type in ('episode', 'movie'):
-            options.append(('to_section', T(32324, u'Go to {0}').format(self.video.getLibrarySectionTitle())))
+            sectionTitle = self.video.getLibrarySectionTitle()
+            if sectionTitle and sectionTitle != 'None':
+                options.append(('to_section', T(32324, u'Go to {0}').format(sectionTitle)))
 
         if getattr(self.video.server, 'platform', None) == 'jellyfin':
             options.append(('watch_together', T(35330, 'Watch together')))

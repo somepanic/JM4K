@@ -206,8 +206,8 @@ msgstr "Server-Erkennung (GDM)"
 
 #: 
 msgctxt "#32043"
-msgid "Start SM4K On Kodi Startup"
-msgstr "SM4K mit Kodi starten"
+msgid "Start JM4K On Kodi Startup"
+msgstr "JM4K mit Kodi starten"
 
 #: 
 msgctxt "#32044"
@@ -536,8 +536,8 @@ msgstr "Beenden bestätigen"
 
 #: 
 msgctxt "#32335"
-msgid "Are you ready to exit SM4K?"
-msgstr "Bereit, um SM4K zu beenden?"
+msgid "Are you ready to exit JM4K?"
+msgstr "Bereit, um JM4K zu beenden?"
 
 #: 
 msgctxt "#32336"
@@ -1557,8 +1557,8 @@ msgstr "Virtuelle Kapitel verwenden"
 
 #: 
 msgctxt "#33604"
-msgid "When the above is enabled and no video chapters are available, simulate them by using the markers identified by the Silo Server (Intro, Credits)."
-msgstr "Wenn die obige Option aktiviert ist und keine Video-Kapitel verfügbar sind, virtuelle Kapitel aus den Silo-Server-Markern (Intro, Abspann) erzeugen."
+msgid "When the above is enabled and no video chapters are available, simulate them by using the markers identified by the Jellyfin Server (Intro, Credits)."
+msgstr "Wenn die obige Option aktiviert ist und keine Video-Kapitel verfügbar sind, virtuelle Kapitel aus den Jellyfin-Server-Markern (Intro, Abspann) erzeugen."
 
 #:
 msgctxt "#35001"
@@ -1707,7 +1707,7 @@ msgstr "Auto-Überspringen-Versatz"
 
 #: 
 msgctxt "#33630"
-msgid "Intro/credits markers might be a little early in Silo. When auto skipping add (or subtract) this many seconds from the marker. This avoids cutting off content, while possibly skipping the marker a little late."
+msgid "Intro/credits markers might be a little early in Jellyfin. When auto skipping add (or subtract) this many seconds from the marker. This avoids cutting off content, while possibly skipping the marker a little late."
 msgstr "Intro-/Abspann-Markierungen können zeitversetzt sein. Um passend automatisch zu überspringen, addiere (oder subtrahiere) die eingestellte Menge an Sekunden. Das verhindert das verfrühte Abschneiden von Inhalten, kann aber zu etwas verspätetem Springen führen."
 
 #: 
@@ -3043,8 +3043,8 @@ msgid "Ask"
 msgstr "Fragen"
 
 msgctxt "#33695"
-msgid "Where do you want to download subtitles from? Applies to Download subtitles in the player, from the Subtitles button or the player's Settings. Before playback it always uses Silo."
-msgstr "Woher möchtest du Untertitel herunterladen? Gilt für „Untertitel herunterladen“ im Player, über die Untertitel-Taste oder die Einstellungen des Players. Vor der Wiedergabe wird immer Silo benutzt."
+msgid "Where do you want to download subtitles from? Applies to Download subtitles in the player, from the Subtitles button or the player's Settings. Before playback it always uses Jellyfin."
+msgstr "Woher möchtest du Untertitel herunterladen? Gilt für „Untertitel herunterladen“ im Player, über die Untertitel-Taste oder die Einstellungen des Players. Vor der Wiedergabe wird immer Jellyfin benutzt."
 
 msgctxt "#33696"
 msgid "No subtitles found."
@@ -3074,8 +3074,8 @@ msgid "Fallback to Kodi"
 msgstr "Falle auf Kodi zurück"
 
 msgctxt "#33702"
-msgid "When no subtitles are found via the Silo subtitle search, fall back to Kodi subtitle search. Only in the player: before playback, subtitles always come from Silo."
-msgstr "Werden keine Untertitel über die Silo-Untertitel-Suche gefunden, auf Kodi zurück fallen. Nur im Player: Vor der Wiedergabe kommen Untertitel immer von Silo."
+msgid "When no subtitles are found via the Jellyfin subtitle search, fall back to Kodi subtitle search. Only in the player: before playback, subtitles always come from Jellyfin."
+msgstr "Werden keine Untertitel über die Jellyfin-Untertitel-Suche gefunden, auf Kodi zurück fallen. Nur im Player: Vor der Wiedergabe kommen Untertitel immer von Jellyfin."
 
 msgctxt "#33703"
 msgid "Download subtitles"
@@ -3264,8 +3264,8 @@ msgid "Use Watchlist"
 msgstr "Merkliste verwenden"
 
 msgctxt "#34008"
-msgid "Activates the current user's Silo watchlist as a section item. Adds watchlist functionality to certain media screens. Per-user setting. Default: On"
-msgstr "Aktiviert die Silo Merkliste des aktuellen Nutzers. Fügt Merklistenfunktionalität zu bestimmten Ansichten hinzu. Pro-Nutzer Einstellung. Standard: An"
+msgid "Activates the current user's Jellyfin watchlist as a section item. Adds watchlist functionality to certain media screens. Per-user setting. Default: On"
+msgstr "Aktiviert die Jellyfin Merkliste des aktuellen Nutzers. Fügt Merklistenfunktionalität zu bestimmten Ansichten hinzu. Pro-Nutzer Einstellung. Standard: An"
 
 msgctxt "#34009"
 msgid "Watchlist auto-remove"

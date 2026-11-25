@@ -1600,7 +1600,7 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
 
         button = optionsdialog.show(
             T(32334, 'Confirm Exit'),
-            T(32335, 'Are you ready to exit SM4K?'),
+            T(32335, 'Are you ready to exit JM4K?'),
             modifier == "exit" and lBtnExit or lBtnQuit,
             T(32924, 'Minimize'),
             T(32337, 'Cancel'),

@@ -177,10 +177,10 @@ def _checkSmallFont():
     skin = xbmcaddon.Addon(xbmc.getSkinDir())
     name, version = skin.getAddonInfo('name'), skin.getAddonInfo('version')
     util.LOG("Skin check: {} {} has no font8", xbmc.getSkinDir(), version)
-    message = T(35116, "{0} {1} is older than SM4K needs, so some small text will come out too large. Updates "
+    message = T(35116, "{0} {1} is older than JM4K needs, so some small text will come out too large. Updates "
                        "come from the {2} repository.").format(name, version, REPOSITORY_NAME) + '\n\n' + \
-        T(35123, "Update now closes SM4K and opens Kodi's list of installed skins: select {0} there, then "
-                 "Update. Start SM4K again once it's updated.").format(name)
+        T(35123, "Update now closes JM4K and opens Kodi's list of installed skins: select {0} there, then "
+                 "Update. Start JM4K again once it's updated.").format(name)
     button = _ask(message, T(35124, 'Update now'), T(35120, 'Not now'), T(35117, "Don't remind me again"))
     if button == 2:
         util.setSetting('plextuary_offer', False)
@@ -217,7 +217,7 @@ def _offerSkin():
     lines = []
     # Only worth explaining when leaving a non-Plextuary skin; the variants share their fonts
     if not util.SKIN_PLEXTUARY:
-        lines.append(T(35104, "SM4K is designed to be used with the Plextuary skins. If you use a different skin, "
+        lines.append(T(35104, "JM4K is designed to be used with the Plextuary skins. If you use a different skin, "
                               "text and layouts can appear wrong."))
     skin = name if util.getSetting('plextuary_variant', AUTO) == AUTO else \
         T(35122, '{0} (chosen in settings)').format(name)
@@ -253,7 +253,7 @@ def _offerFontset():
 
     util.LOG("Skin check: font set is {}, offering {}", fontset, PLEXTUARY_FONTSET)
     lines = [
-        T(35113, "SM4K is designed to use Plextuary's default font (Inter UI). If you use a different font, text "
+        T(35113, "JM4K is designed to use Plextuary's default font (Inter UI). If you use a different font, text "
                  "and layouts can appear wrong."),
         T(35114, 'Current font: {0}.').format(fontset),
         T(35115, 'Switching fonts will change the font for all of Kodi. Switch to Inter UI now?'),
