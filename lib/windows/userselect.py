@@ -3,13 +3,24 @@ from __future__ import absolute_import
 from kodi_six import xbmc
 from kodi_six import xbmcgui
 from plexnet import plexapp
-from silonet.errors import SiloError, SiloRateLimited, SiloUnavailable
+from jellynet.errors import JellyfinError, JellyfinUnavailable
 
 from lib import util
 from lib.util import T
 from . import busy
 from . import dropdown
 from . import kodigui
+
+
+class _OtherUser:
+    id = None
+    title = ''
+    isProtected = False
+    isAdmin = False
+    isOtherUser = True
+
+
+OTHER_USER = _OtherUser()
 
 
 class UserSelectWindow(kodigui.BaseWindow):
@@ -73,12 +84,14 @@ class UserSelectWindow(kodigui.BaseWindow):
     def onClick(self, controlID):
         if controlID == self.USER_LIST_ID:
             item = self.userList.getSelectedItem()
-            if item.dataSource.isProtected:
-                # Silo PINs are 1 to 72 characters; the keypad below the list only takes four digits
-                pin = xbmcgui.Dialog().input(T(35250, 'PIN for {name}').format(name=item.dataSource.title),
-                                             option=xbmcgui.ALPHANUM_HIDE_INPUT)
-                if pin:
-                    self.userSelected(item, pin)
+            if getattr(item.dataSource, 'isOtherUser', False):
+                username = xbmcgui.Dialog().input(T(35301, 'Username'))
+                if username:
+                    password = xbmcgui.Dialog().input(
+                        T(35320, 'Password for {name}').format(name=username),
+                        option=xbmcgui.ALPHANUM_HIDE_INPUT,
+                    )
+                    self.userSelected(item, password, username=username)
 
             # refresh clicked
             elif not item.dataSource:
@@ -86,13 +99,23 @@ class UserSelectWindow(kodigui.BaseWindow):
                 with self.propertyContext('busy'):
                     try:
                         plexapp.ACCOUNT.updateHomeUsers(refreshSubscription=True)
-                    except SiloError:
-                        # the profiles as they were, shown again below
+                    except JellyfinError:
+                        # the users as they were, shown again below
                         util.showNotification(
-                            T(35252, "Can't reach the Silo server. Check your connection and try again."))
+                            T(35319, "Can't reach the Jellyfin server. Check your connection and try again."))
                     self.userList.reset()
                     self.setProperty('initialized', '')
                     self.start(with_busy=False)
+            elif (
+                item.dataSource.isProtected
+                and not getattr(plexapp.ACCOUNT, 'hasSession', lambda _uid: False)(item.dataSource.id)
+            ):
+                password = xbmcgui.Dialog().input(
+                    T(35320, 'Password for {name}').format(name=item.dataSource.title),
+                    option=xbmcgui.ALPHANUM_HIDE_INPUT,
+                )
+                if password:
+                    self.userSelected(item, password)
             else:
                 self.userSelected(item)
         elif 200 < controlID < 212:
@@ -115,17 +138,28 @@ class UserSelectWindow(kodigui.BaseWindow):
             selectIndex = None
             for idx, user in enumerate(users):
                 thumb = plexapp.ACCOUNT.safeUserThumb(user.id, thumb=user.thumb)
-                mli = kodigui.ManagedListItem(user.title, user.title[0].upper(), thumbnailImage=thumb,
+                letter = user.title[0].upper() if user.title else '?'
+                mli = kodigui.ManagedListItem(user.title, letter, thumbnailImage=thumb,
                                               data_source=user)
                 mli.setProperty('back.image', user.id)
                 mli.setProperty('pin', user.title)
-                mli.setProperty('protected', user.isProtected and '1' or '')
+                needs_pw = user.isProtected and not getattr(plexapp.ACCOUNT, 'hasSession', lambda _uid: False)(user.id)
+                mli.setProperty('protected', needs_pw and '1' or '')
                 mli.setProperty('admin', user.isAdmin and '1' or '')
 
                 if plexapp.ACCOUNT.ID == user.id:
                    selectIndex = idx
 
                 items.append(mli)
+
+            # hidden user sign-in tile
+            otherLabel = T(35321, 'Other user')
+            other = kodigui.ManagedListItem(otherLabel, '+', data_source=OTHER_USER)
+            other.setProperty('back.image', 'other')
+            other.setProperty('pin', otherLabel)
+            other.setProperty('protected', '')
+            other.setProperty('admin', '')
+            items.append(other)
 
             # append refresh button
             mli = kodigui.ManagedListItem("", "", data_source=kodigui.EmptyDataSource(), properties={"empty": '1'})
@@ -202,26 +236,25 @@ class UserSelectWindow(kodigui.BaseWindow):
             item.setProperty('editing.pin', '')
 
     @busy.dialog()
-    def userSelected(self, item, pin=None):
+    def userSelected(self, item, pin=None, username=None):
         user = item.dataSource
         # xbmc.sleep(500)
         util.DEBUG_LOG('Home user selected: {0}', user)
 
         try:
-            if not plexapp.ACCOUNT.switchHomeUser(user.id, pin):
+            switched = (
+                plexapp.ACCOUNT.switchHomeUser(user.id, pin, username=username)
+                if username is not None
+                else plexapp.ACCOUNT.switchHomeUser(user.id, pin)
+            )
+            if not switched:
                 item.setProperty('pin', item.dataSource.title)
                 item.setProperty('editing.pin', '')
-                util.messageDialog(T(32427, 'Failed'), T(32926, 'Wrong pin entered!'))
+                util.messageDialog(T(32427, 'Failed'), T(35303, 'Wrong username or password.'))
                 return
-        except SiloRateLimited as e:
-            # Silo locks a profile for five minutes after five wrong PINs
-            minutes = max(1, ((e.retryAfter or 60) + 59) // 60)
+        except (JellyfinUnavailable, JellyfinError):
             util.messageDialog(T(32427, 'Failed'),
-                               T(35251, 'Too many wrong PINs. Try again in {minutes} minutes.').format(minutes=minutes))
-            return
-        except SiloUnavailable:
-            util.messageDialog(T(32427, 'Failed'),
-                               T(35252, "Can't reach the Silo server. Check your connection and try again."))
+                               T(35319, "Can't reach the Jellyfin server. Check your connection and try again."))
             return
 
         self.selected = True

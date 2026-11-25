@@ -4109,30 +4109,6 @@ msgctxt "#35246"
 msgid "Couldn't sign in. Please try again."
 msgstr ""
 
-msgctxt "#35247"
-msgid "Silo server address, for example http://192.168.1.10:8090"
-msgstr ""
-
-msgctxt "#35248"
-msgid "Could not reach a Silo server at {address}."
-msgstr ""
-
-msgctxt "#35249"
-msgid "{address} is not a Silo server SiloMod can use."
-msgstr ""
-
-msgctxt "#35250"
-msgid "PIN for {name}"
-msgstr ""
-
-msgctxt "#35251"
-msgid "Too many wrong PINs. Try again in {minutes} minutes."
-msgstr ""
-
-msgctxt "#35252"
-msgid "Can't reach the Silo server. Check your connection and try again."
-msgstr ""
-
 msgctxt "#35253"
 msgid "Skip recap"
 msgstr ""
@@ -4159,167 +4135,6 @@ msgstr ""
 
 msgctxt "#35259"
 msgid "Favorites"
-msgstr ""
-
-msgctxt "#35260"
-msgid "Watch together"
-msgstr ""
-
-msgctxt "#35261"
-msgid "Join watch party"
-msgstr ""
-
-msgctxt "#35262"
-msgid "Party code"
-msgstr ""
-
-
-msgctxt "#35264"
-msgid "Waiting for the host to start something..."
-msgstr ""
-
-msgctxt "#35265"
-msgid "The watch party has ended"
-msgstr ""
-
-msgctxt "#35266"
-msgid "This profile joined the watch party on another device"
-msgstr ""
-
-msgctxt "#35267"
-msgid "Only the host controls playback"
-msgstr ""
-
-msgctxt "#35268"
-msgid "In a watch party, the host picks what plays"
-msgstr ""
-
-msgctxt "#35269"
-msgid "End watch party"
-msgstr ""
-
-msgctxt "#35270"
-msgid "Couldn't start the watch party"
-msgstr ""
-
-msgctxt "#35271"
-msgid "Watch party"
-msgstr ""
-
-msgctxt "#35272"
-msgid "No watch party has that code"
-msgstr ""
-
-msgctxt "#35273"
-msgid "Leave the watch party?"
-msgstr ""
-
-msgctxt "#35274"
-msgid "End the watch party for everyone?"
-msgstr ""
-
-msgctxt "#35275"
-msgid "You stopped watching."
-msgstr ""
-
-msgctxt "#35276"
-msgid "Stop for everyone"
-msgstr ""
-
-msgctxt "#35277"
-msgid "Keep watching"
-msgstr ""
-
-msgctxt "#35278"
-msgid "Nothing picked yet"
-msgstr ""
-
-msgctxt "#35279"
-msgid "Up next: {0}"
-msgstr ""
-
-msgctxt "#35280"
-msgid "Playing: {0}"
-msgstr ""
-
-msgctxt "#35281"
-msgid "{0} of {1} ready"
-msgstr ""
-
-msgctxt "#35282"
-msgid "Start for everyone"
-msgstr ""
-
-msgctxt "#35283"
-msgid "Guests can play and pause"
-msgstr ""
-
-msgctxt "#35284"
-msgid "I'm ready"
-msgstr ""
-
-msgctxt "#35285"
-msgid "Leave watch party"
-msgstr ""
-
-msgctxt "#35286"
-msgid "In the party"
-msgstr ""
-
-msgctxt "#35287"
-msgid "Host"
-msgstr ""
-
-msgctxt "#35288"
-msgid "Ready"
-msgstr ""
-
-msgctxt "#35289"
-msgid "Not ready"
-msgstr ""
-
-msgctxt "#35290"
-msgid "Watch party · {0}"
-msgstr ""
-
-msgctxt "#35291"
-msgid "Couldn't suggest it"
-msgstr ""
-
-msgctxt "#35292"
-msgid "Vote on what to watch"
-msgstr ""
-
-msgctxt "#35293"
-msgid "Choose a suggestion to play it for everyone"
-msgstr ""
-
-msgctxt "#35294"
-msgid "The host plays one"
-msgstr ""
-
-msgctxt "#35295"
-msgid "Members vote on what to watch"
-msgstr ""
-
-msgctxt "#35296"
-msgid "Suggestions"
-msgstr ""
-
-msgctxt "#35297"
-msgid "No suggestions yet"
-msgstr ""
-
-msgctxt "#35298"
-msgid "Suggest something with Watch together on its screen"
-msgstr ""
-
-msgctxt "#35299"
-msgid "1 vote"
-msgstr ""
-
-msgctxt "#35300"
-msgid "{0} votes"
 msgstr ""
 
 msgctxt "#35301"
@@ -4350,10 +4165,6 @@ msgctxt "#35307"
 msgid "Enter address"
 msgstr ""
 
-msgctxt "#35308"
-msgid "Silo servers on your network"
-msgstr ""
-
 msgctxt "#35309"
 msgid "Sign in with your password"
 msgstr ""
@@ -4376,4 +4187,32 @@ msgstr ""
 
 msgctxt "#35314"
 msgid "Too many sign-in attempts. Wait a moment and try again."
+msgstr ""
+
+msgctxt "#35315"
+msgid "Jellyfin servers on your network"
+msgstr ""
+
+msgctxt "#35316"
+msgid "Jellyfin server address, for example http://192.168.1.10:8096"
+msgstr ""
+
+msgctxt "#35317"
+msgid "Could not reach a Jellyfin server at {address}."
+msgstr ""
+
+msgctxt "#35318"
+msgid "{address} is not a Jellyfin server JellyMod can use."
+msgstr ""
+
+msgctxt "#35319"
+msgid "Can't reach the Jellyfin server. Check your connection and try again."
+msgstr ""
+
+msgctxt "#35320"
+msgid "Password for {name}"
+msgstr ""
+
+msgctxt "#35321"
+msgid "Other user"
 msgstr ""

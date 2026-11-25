@@ -17,14 +17,13 @@ from plexnet import exceptions as plexExceptions
 from plexnet import plexapp
 from plexnet import plexobjects
 from plexnet import util as pnUtil
-from silonet.errors import SiloError
+from jellynet.errors import JellyfinError
 from six.moves import range
 
 from lib import backgroundthread
 from lib import player
 from lib import update_restart
 from lib import util
-from lib import watch_together
 from lib.util import T
 from . import background
 from . import busy
@@ -1666,16 +1665,9 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
                 options.append(('switch', T(32342, 'Switch User')))
             else:
                 options.append(('refresh_users', T(32980, 'Refresh Users')))
-            if getattr(plexapp.SERVERMANAGER.selectedServer, 'platform', None) == 'silo':
+            if getattr(plexapp.SERVERMANAGER.selectedServer, 'platform', None) == 'jellyfin':
                 options.append(('server', T(35311, 'Switch server')))
         options.append(('settings', T(32343, 'Settings')))
-        # a watch party on a Silo server (decision D26): join one by its code, or end the one this profile hosts
-        server = plexapp.SERVERMANAGER.selectedServer
-        if hasattr(server, 'pinnedFiles'):
-            if watch_together.current(server) is None:
-                options.append(('join_party', T(35261, 'Join watch party')))
-            else:
-                options.append(('party', T(35271, 'Watch party')))
         if plexapp.ACCOUNT.isSignedIn:
             options.append(('signout', T(32344, 'Sign Out')))
         else:
@@ -1699,11 +1691,6 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
         just closed that nested instance, revealing the library grid underneath instead of
         exiting (live-confirmed regression, fixed here).
         """
-        if option != 'recompile':
-            # Home closing for another session (sign out, another profile or server, an ended session, exit): a
-            # watch party in progress ends for this Kodi, and a room it hosts for everyone. Not when Home only
-            # restarts with its new templates.
-            watch_together.leaveCurrent()
         target = windowutils.HOME
         if shutting_down:
             target._shuttingDown = True
@@ -1801,24 +1788,16 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
             self.setProperty('busy', '1')
             self._sidebarTarget().setFocusId(self.SECTION_LIST_ID)
             util.setGlobalProperty('update_requested', '1', wait=True)
-        elif option == 'join_party':
-            watch_together.joinParty(plexapp.SERVERMANAGER.selectedServer, watch_together.playerFor(self))
-            return
-        elif option == 'party':
-            session = watch_together.current()
-            if session is not None:
-                watch_together.runParty(session, watch_together.playerFor(self))
-            return
         elif option == 'refresh_users':
             try:
                 plexapp.ACCOUNT.updateHomeUsers(refreshSubscription=True)
-            except SiloError:
-                # the profiles as they were
-                util.showNotification(T(35252, "Can't reach the Silo server. Check your connection and try again."))
+            except JellyfinError:
+                # the users as they were
+                util.showNotification(T(35319, "Can't reach the Jellyfin server. Check your connection and try again."))
             return True
         elif option == 'server':
-            from lib import silo
-            previous = silo.pickServer(silo.deviceIdentity(), dialog_props=getattr(self, 'carriedProps', None))
+            from lib import jellyfin
+            previous = jellyfin.pickServer(jellyfin.deviceIdentity(), dialog_props=getattr(self, 'carriedProps', None))
             if previous:
                 # start-up again on the server picked (lib/main.py), back on this one if its sign-in is given up
                 self._closeSessionWithOption({'switch_server': previous})

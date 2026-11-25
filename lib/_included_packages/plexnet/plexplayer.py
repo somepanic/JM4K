@@ -235,8 +235,7 @@ class PlexPlayer(BasePlayer):
         original, which Kodi plays and seeks itself. A plan whose timeline Kodi can seek on its own (the original, or
         a transcode with the whole timeline) plays as a direct play; one whose window is still growing (a copy remux)
         as a transcode, which starts a new attempt where a seek lands."""
-        from silonet.errors import SiloError
-        from silonet.playback import PlaybackRefused
+        from jellynet.errors import JellyfinError
 
         part = self.media.parts[0]
         position = self.seekValue
@@ -256,10 +255,8 @@ class PlexPlayer(BasePlayer):
                                            None,
                                            bandwidthCap=cap or None,
                                            hdr=not self.item.settings.getPreference("disable_hdr", False))
-        except PlaybackRefused as e:
-            raise DecisionFailure(e.reason, e.message)
-        except SiloError as e:
-            raise DecisionFailure(e.type, e.detail or e.type)
+        except JellyfinError as e:
+            raise DecisionFailure(str(e.status), e.message or str(e.status))
 
         # the played file's skip markers and chapters, which the player reads off the item (decision D16)
         self.item.markers, chapters = server.watchInfo(self.item, part.id)

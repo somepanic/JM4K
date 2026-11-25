@@ -1,12 +1,12 @@
 """
-SiloServerManager: what plexapp.SERVERMANAGER was for Plex, for the Silo servers SM4K knows. Silo has no plex.tv
-discovery, reachability polling or Discover service, so those calls the screens still make do nothing.
+JellyfinServerManager: what plexapp.SERVERMANAGER was for Plex, for the Jellyfin servers JM4K knows.
+Jellyfin has no plex.tv discovery, reachability polling or Discover service, so those calls do nothing.
 """
 
 from plexnet import signalsmixin
 
 
-class SiloServerManager(signalsmixin.SignalsMixin):
+class JellyfinServerManager(signalsmixin.SignalsMixin):
     def __init__(self, servers):
         signalsmixin.SignalsMixin.__init__(self)
         self.servers = list(servers)
@@ -30,10 +30,9 @@ class SiloServerManager(signalsmixin.SignalsMixin):
         return True
 
     def getDiscoverServer(self):
-        return None  # plex.tv's Discover; Silo has none
+        return None
 
     def getWatchlistServer(self):
-        """The server whose watchlist the Watchlist screen and buttons use (decision D18): the selected one."""
         return self.selectedServer
 
     def periodicReachabilityCheck(self, *args, **kwargs):

@@ -14,7 +14,6 @@ from lib import backgroundthread
 from lib import metadata
 from lib import player
 from lib import util
-from lib import watch_together
 from lib.util import T
 from lib.language_util import getNativeLanguages
 from . import busy
@@ -2201,10 +2200,6 @@ class EpisodesWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutil
 
         options.append(('to_show', T(32323, 'Go To Show')))
 
-        # a watch party on a Silo server (decision D26): this episode up next for everyone, as pre-play offers a film
-        if not isSeasonCard and hasattr(mli.dataSource.getServer(), 'pinnedFiles'):
-            options.append(('watch_together', T(35260, 'Watch together')))
-
         if 'items' in util.getSetting('cache_requests'):
             options.append(('cache_reset', T(33728, "Clear cache for item")))
 
@@ -2227,9 +2222,6 @@ class EpisodesWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutil
             self.toggleWatched(item=self.season, state=False, heading=T(32320, 'Mark Season Unplayed'), confirmed=True)
         elif key == 'to_show':
             self._goToShow()
-        elif key == 'watch_together':
-            episode = mli.dataSource
-            watch_together.pickItem(episode, episode.getServer().fileId(episode), watch_together.playerFor(self))
         elif key == 'delete':
             # rebuilt only once deleted (not on a No), and season card and all (_rebuildEpisodeList()),
             # on the episode _delete() left selected in its place
