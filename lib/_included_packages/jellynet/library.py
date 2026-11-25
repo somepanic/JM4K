@@ -261,7 +261,7 @@ def itemsListing(client, base_params, args, offset=None, limit=None, section_id=
 
 
 def libraryItems(client, library_id, args, offset=None, limit=None, section_type='', collection_type=''):
-    """Answer /library/sections/<id>/all from Jellyfin GET /Items (or collections when boxsets / type=18)."""
+    """Answer /library/sections/<id>/all from Jellyfin GET /Items (or its collections in a boxsets library)."""
     from . import lists
 
     if collection_type == 'boxsets':
@@ -274,17 +274,6 @@ def libraryItems(client, library_id, args, offset=None, limit=None, section_type
             member_type='movie',
             section_id=library_id,
         )
-    if args.get('type') == COLLECTION_TYPE:
-        return lists.collectionsGrid(
-            client,
-            library_id=None,
-            args=args,
-            offset=offset,
-            limit=limit,
-            member_type=section_type or 'movie',
-            section_id=library_id,
-        )
-
     base_params = {
         'parentId': library_id,
         'recursive': 'true',
