@@ -11,7 +11,7 @@ from xml.etree import ElementTree
 
 from plexnet.signalsmixin import SignalsMixin
 
-from . import library, lists
+from . import library, lists, playback
 from .client import log
 from .errors import JellyfinError
 from .items import buildImageUrl, container
@@ -69,6 +69,7 @@ class JellyfinServer(SignalsMixin):
         self._libraryTypes = {}
         self._collectionTypes = {}
         self._jumpBarCache = {}
+        self.playback = playback.Playback(client)
 
     def __repr__(self):
         return f'<JellyfinServer {self.uuid}>'
@@ -269,7 +270,18 @@ class JellyfinServer(SignalsMixin):
     def startPlayback(
         self, item, part, seconds=0.0, audioIndex=None, subtitleIndex=None, quality='auto', bandwidthCap=None, hdr=True
     ):
-        raise JellyfinError(501, 'Playback not mapped yet')
+        """Negotiate a Jellyfin playback session for item and its chosen part (version)."""
+        item_id = str(item.ratingKey)
+        media_source_id = str(part.id) if part is not None and part.id else None
+        return self.playback.start(
+            item_id,
+            media_source_id=media_source_id,
+            seconds=seconds,
+            audio_index=audioIndex,
+            subtitle_index=subtitleIndex,
+            bandwidth_cap_kbps=bandwidthCap,
+            hdr=hdr,
+        )
 
     def fileId(self, video):
         part = _part(video)
@@ -319,12 +331,22 @@ class JellyfinServer(SignalsMixin):
         return None
 
     def findVideoSession(self, sessionId, ratingKey):
-        from plexnet import exceptions
+        """Return the active playback session in Plex /status/sessions shape, or raise NotFound."""
+        from plexnet import exceptions, plexobjects, video  # noqa: F401
 
-        raise exceptions.NotFound
+        session = self.playback.find_session(session_id=sessionId, rating_key=ratingKey)
+        if session is None:
+            raise exceptions.NotFound
+        return plexobjects.buildItem(self, playback.session_element(session), '/status/sessions')
 
     def reportTimeline(self, params):
-        return None
+        """Translate a NowPlayingManager timeline update into Jellyfin session reporting."""
+        if not isinstance(params, dict):
+            return
+        rating_key = params.get('ratingKey')
+        if rating_key is None:
+            return
+        self.playback.timeline(str(rating_key), params.get('state'), params.get('time'))
 
     def updateReachability(self, force=True, allowFallback=False):
         pass
