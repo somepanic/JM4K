@@ -23,6 +23,14 @@ class _OtherUser:
 OTHER_USER = _OtherUser()
 
 
+def askPassword(name):
+    """The password typed for name ('' when OK is pressed on nothing), or None for Back. Jellyfin 12 says every user
+    has a password, so a user without one is asked too and signs in with an empty one."""
+    keyboard = xbmc.Keyboard('', T(35320, 'Password for {name}').format(name=name), True)
+    keyboard.doModal()
+    return keyboard.getText() if keyboard.isConfirmed() else None
+
+
 class UserSelectWindow(kodigui.BaseWindow):
     xmlFile = 'script-plex-user_select.xml'
     path = util.ADDON.getAddonInfo('path')
@@ -87,11 +95,9 @@ class UserSelectWindow(kodigui.BaseWindow):
             if getattr(item.dataSource, 'isOtherUser', False):
                 username = xbmcgui.Dialog().input(T(35301, 'Username'))
                 if username:
-                    password = xbmcgui.Dialog().input(
-                        T(35320, 'Password for {name}').format(name=username),
-                        option=xbmcgui.ALPHANUM_HIDE_INPUT,
-                    )
-                    self.userSelected(item, password, username=username)
+                    password = askPassword(username)
+                    if password is not None:
+                        self.userSelected(item, password, username=username)
 
             # refresh clicked
             elif not item.dataSource:
@@ -110,11 +116,8 @@ class UserSelectWindow(kodigui.BaseWindow):
                 item.dataSource.isProtected
                 and not getattr(plexapp.ACCOUNT, 'hasSession', lambda _uid: False)(item.dataSource.id)
             ):
-                password = xbmcgui.Dialog().input(
-                    T(35320, 'Password for {name}').format(name=item.dataSource.title),
-                    option=xbmcgui.ALPHANUM_HIDE_INPUT,
-                )
-                if password:
+                password = askPassword(item.dataSource.title)
+                if password is not None:
                     self.userSelected(item, password)
             else:
                 self.userSelected(item)

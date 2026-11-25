@@ -89,6 +89,29 @@ class FakeListItem:
         return self.props.get(key, '')
 
 
+def keyboard(*answers):
+    """Patch xbmc.Keyboard so each prompt is answered in turn by (text, confirmed); confirmed False is Back.
+    Returns the patch and the list of (heading, hidden) of every prompt shown."""
+    queue = deque(answers)
+    prompts = []
+
+    class Keyboard:
+        def __init__(self, line='', heading='', hidden=False):
+            prompts.append((heading, hidden))
+            self.text, self.confirmed = queue.popleft()
+
+        def doModal(self, autoclose=0):
+            pass
+
+        def isConfirmed(self):
+            return self.confirmed
+
+        def getText(self):
+            return self.text
+
+    return mock.patch.object(userselect.xbmc, 'Keyboard', Keyboard), prompts
+
+
 def click_user_tile(account, data_source):
     window = userselect.UserSelectWindow.__new__(userselect.UserSelectWindow)
     window.selected = None
@@ -166,8 +189,8 @@ class JellyfinAccountTest(KodiTestCase):
         bob = acct.getHomeUser('u2')
 
         # Wrong password keeps current user active, never ends active session, and tells the user.
-        ENV.dialog_answers = deque(['wrong-pw'])
-        with mock.patch.object(pnUtil, 'APP') as app:
+        typed, _ = keyboard(('wrong-pw', True))
+        with typed, mock.patch.object(pnUtil, 'APP') as app:
             window, dialog = click_user_tile(acct, bob)
         self.assertIsNone(window.selected)
         self.assertEqual(acct.ID, 'u1')
@@ -176,12 +199,48 @@ class JellyfinAccountTest(KodiTestCase):
         app.trigger.assert_not_called()
 
         # Correct password uses hidden keyboard input and signs Bob in.
-        with mock.patch.object(userselect.xbmcgui.Dialog, 'input', return_value='good-pw') as prompt:
+        typed, prompts = keyboard(('good-pw', True))
+        with typed:
             window, dialog = click_user_tile(acct, bob)
         self.assertTrue(window.selected)
         self.assertEqual((acct.ID, acct.authToken), ('u2', 'TOK-BOB'))
         dialog.assert_not_called()
-        prompt.assert_called_once_with('Password for bob', option=userselect.xbmcgui.ALPHANUM_HIDE_INPUT)
+        self.assertEqual(prompts, [('Password for bob', True)])
+
+    def test_empty_password_signs_in_a_user_jellyfin_12_calls_protected(self):
+        # Jellyfin 12 says HasPassword=true for every user, so a user without a password is asked too:
+        # OK on an empty password signs them in with an empty one.
+        session = FakeSession(
+            FakeResponse(200, [user_dto('u3', 'kids', has_password=True)]),
+            auth_ok('TOK-KIDS', 'u3', 'kids'),
+        )
+        acct = make_account(session)
+        acct.updateHomeUsers()
+
+        typed, prompts = keyboard(('', True))
+        with typed:
+            window, dialog = click_user_tile(acct, acct.getHomeUser('u3'))
+
+        self.assertTrue(window.selected)
+        dialog.assert_not_called()
+        self.assertEqual(prompts, [('Password for kids', True)])
+        self.assertEqual(session.calls[1]['json'], {'Username': 'kids', 'Pw': ''})
+        self.assertEqual((acct.ID, acct.authToken), ('u3', 'TOK-KIDS'))
+
+    def test_back_on_the_password_prompt_signs_nobody_in(self):
+        # Back is not an empty password: no sign-in attempt (Jellyfin counts failed ones towards a lockout).
+        session = FakeSession(PUBLIC_USERS)
+        acct = make_account(session)
+        acct.updateHomeUsers()
+
+        typed, _ = keyboard(('half-typed', False))
+        with typed:
+            window, dialog = click_user_tile(acct, acct.getHomeUser('u2'))
+
+        self.assertIsNone(window.selected)
+        dialog.assert_not_called()
+        self.assertEqual(len(session.calls), 1)
+        self.assertEqual(acct.ID, 'u1')
 
     def test_user_without_password_switches_directly(self):
         session = FakeSession(PUBLIC_USERS, auth_ok('TOK-KIDS', 'u3', 'kids'))
@@ -207,9 +266,12 @@ class JellyfinAccountTest(KodiTestCase):
         )
         acct = make_account(session)
         acct.updateHomeUsers()
-        ENV.dialog_answers = deque(['ghost', 'ghost-pw'])
+        ENV.dialog_answers = deque(['ghost'])
 
-        window, dialog = click_user_tile(acct, userselect.OTHER_USER)
+        typed, prompts = keyboard(('ghost-pw', True))
+        with typed:
+            window, dialog = click_user_tile(acct, userselect.OTHER_USER)
+        self.assertEqual(prompts, [('Password for ghost', True)])
 
         self.assertTrue(window.selected)
         dialog.assert_not_called()
