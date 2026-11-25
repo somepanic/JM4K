@@ -206,8 +206,14 @@ def hideToken(token):
 
 
 def cleanToken(url):
-    # Plex's token, and the one a Silo stream URL carries (st, silonet.playback)
-    return re.sub(r'([?&]st=)[^&]+', r'\1****', re.sub(r'X-Plex-Token=[^&]+', 'X-Plex-Token=****', url))
+    # Strip Plex tokens, Kodi pipe Authorization headers, and Jellyfin MediaBrowser tokens before logging
+    cleaned = re.sub(r'X-Plex-Token=[^&]+', 'X-Plex-Token=****', url)
+    cleaned = re.sub(r'([?&]st=)[^&]+', r'\1****', cleaned)
+    cleaned = re.sub(r'([?&]api_key=)[^&|]+', r'\1****', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'([|&?]Authorization=)[^&\s]+', r'\1****', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'(Token=)"[^"]*"', r'\1"****"', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'(Token=)[^",\s&|]+', r'\1****', cleaned, flags=re.IGNORECASE)
+    return re.sub(r'(Token%3D(?:%22)?)(?:(?!%22|%2C|&|\s).)+', r'\1****', cleaned, flags=re.IGNORECASE)
 
 
 def mask(v):

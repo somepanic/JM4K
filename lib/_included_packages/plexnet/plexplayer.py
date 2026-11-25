@@ -100,8 +100,9 @@ class PlexPlayer(BasePlayer):
         return self._build(directPlay, "playback_remux" in features, features=features)
 
     def _build(self, directPlay=None, directStream=True, currentPartIndex=None, features=None):
-        if hasattr(self.item.getServer(), 'startPlayback'):
-            return self._buildSilo(self.item.getServer())
+        server = self.item.getServer()
+        if getattr(server, 'platform', None) == 'jellyfin' or hasattr(server, 'startPlayback'):
+            return self._buildJellyfin(server)
         isForced = directPlay is not None
         if isForced:
             util.LOG(directPlay and "Forced Direct Play" or "Forced Transcode; allowDirectStream={0}".format(directStream))
@@ -230,31 +231,34 @@ class PlexPlayer(BasePlayer):
 
         return self.metadata
 
-    def _buildSilo(self, server):
-        """A Silo server's attempt (silonet.playback): its plan's stream is the URL - for nearly every file the
-        original, which Kodi plays and seeks itself. A plan whose timeline Kodi can seek on its own (the original, or
-        a transcode with the whole timeline) plays as a direct play; one whose window is still growing (a copy remux)
-        as a transcode, which starts a new attempt where a seek lands."""
+    def _buildJellyfin(self, server):
+        """A Jellyfin server's playback decision (jellynet.playback): POST /Items/{itemId}/PlaybackInfo yields
+        a direct play URL for files Kodi plays natively (D11), or a transcode/remux URL when quality is capped
+        or a format isn't direct-playable."""
         from jellynet.errors import JellyfinError
 
-        part = self.media.parts[0]
+        part = self.choice.part or self.media.parts[0]
         position = self.seekValue
         if position > 0:
             position = max(0, position + self.item.settings.getPreference("resume_offset", -3500))
         audio = self.choice.audioStream
         subtitle = None if self.shouldSuppressSubtitleForAudioLanguage() else self.choice.subtitleStream
-        # the Quality setting (decision D12): Original lets Silo send the file, a lower one caps its bitrate
+        audio_index = audio.index.asInt() if audio and audio.index else None
+        subtitle_index = subtitle.index.asInt() if subtitle and subtitle.index else None
+        # the Quality setting (decision D12): Original leaves bitrate uncapped, a lower one caps MaxStreamingBitrate
         quality = self.item.settings.getQualityIndex(self.item.getQualityType(server))
         bitrates = self.item.settings.getGlobal("transcodeVideoBitrates")
         cap = int(bitrates[quality]) if 0 <= quality < len(bitrates) else 0
         try:
-            # no subtitle index: Kodi renders the file's own subtitles, and Silo's subtitle index is another
-            # numbering (playback protocol v3, section 8)
-            attempt = server.startPlayback(self.item, part, position / 1000.0,
-                                           audio.index.asInt() if audio else None,
-                                           None,
-                                           bandwidthCap=cap or None,
-                                           hdr=not self.item.settings.getPreference("disable_hdr", False))
+            session = server.startPlayback(
+                self.item,
+                part,
+                position / 1000.0,
+                audio_index,
+                subtitle_index,
+                bandwidthCap=cap or None,
+                hdr=not self.item.settings.getPreference("disable_hdr", False),
+            )
         except JellyfinError as e:
             raise DecisionFailure(str(e.status), e.message or str(e.status))
 
@@ -263,11 +267,9 @@ class PlexPlayer(BasePlayer):
         if chapters:
             self.item.chapters = chapters
         if server.hasPreviews(part.id):
-            # its seek-bar previews: the preview store asks the server for them (SiloServer.trickplayIndex())
+            # its seek-bar previews: the preview store asks the server for them (JellyfinServer.trickplayIndex())
             part.set('indexes', 'sd')
 
-        timeline = attempt.timeline
-        seekable = bool(timeline.get('can_seek_anywhere')) and not timeline.get('stream_origin_seconds')
         obj = util.AttributeDict()
         obj.duration = self.media.duration.asInt()
         obj.fullHD = self.media.getVideoResolution() >= 1080
@@ -280,19 +282,19 @@ class PlexPlayer(BasePlayer):
         obj.size = part.size and int(part.size) or ''
         obj.isMapped = False
         obj.isRequestToServer = True
-        obj.isTranscoded = not (attempt.delivery == 'original_http' or seekable)
-        obj.streamUrls = [attempt.url]
-        # path mapping: the original straight from the Kodi source its folder maps to (path_mapping.json), the
-        # attempt still Silo's (its progress, markers and subtitles); a remux or transcode is never the file itself
-        mapped = attempt.delivery == 'original_http' and part.getPathMappedUrl()
+        obj.isTranscoded = session.is_transcoded
+        obj.streamUrls = [session.url]
+        # path mapping: direct play straight from the Kodi source its folder maps to (path_mapping.json);
+        # a remux or transcode is never the file itself
+        mapped = session.is_direct_play and part.getPathMappedUrl()
         if mapped:
             obj.streamUrls, obj.isMapped, obj.isRequestToServer = [mapped], True, False
-        obj.playStart = int(timeline.get('player_start_seconds') or 0)
-        if subtitle and attempt.delivery == 'original_http' \
+        obj.playStart = int(session.start_seconds)
+        if subtitle and session.is_direct_play \
                 and self.choice.subtitleDecision == self.choice.SUBTITLES_SOFT_DP:
             obj.subtitleConfig = {'TrackName': "mkv/" + str(subtitle.index.asInt() + 1)}
         self.metadata = obj
-        util.LOG("Constructed Silo video item for playback: {0}", util.cleanObjTokens(dict(obj)))
+        util.LOG("Constructed Jellyfin video item for playback: {0}", util.cleanObjTokens(dict(obj)))
         return self.metadata
 
     @property
@@ -331,8 +333,9 @@ class PlexPlayer(BasePlayer):
         return False
 
     def getServerDecision(self):
-        if hasattr(self.item.getServer(), 'startPlayback'):
-            return self  # Silo decided when the attempt started
+        server = self.item.getServer()
+        if getattr(server, 'platform', None) == 'jellyfin' or hasattr(server, 'startPlayback'):
+            return self  # Jellyfin decided in PlaybackInfo
         directPlay = not (self.metadata and self.metadata.isTranscoded)
         decisionPath = self.getDecisionPath(directPlay)
         newDecision = None

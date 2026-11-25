@@ -9,6 +9,7 @@ from xml.etree import ElementTree
 
 from plexnet.signalsmixin import SignalsMixin
 
+from . import playback
 from .client import log
 from .errors import JellyfinError
 
@@ -74,6 +75,7 @@ class JellyfinServer(SignalsMixin):
         self._unmapped = set()
         self._routes = {'/library/sections': self._sections}
         self._libraryTypes = {}
+        self.playback = playback.Playback(client)
 
     def __repr__(self):
         return f'<JellyfinServer {self.uuid}>'
@@ -175,7 +177,18 @@ class JellyfinServer(SignalsMixin):
     def startPlayback(
         self, item, part, seconds=0.0, audioIndex=None, subtitleIndex=None, quality='auto', bandwidthCap=None, hdr=True
     ):
-        raise JellyfinError(501, 'Playback not mapped yet')
+        """Negotiate a Jellyfin playback session for item and its chosen part (version)."""
+        item_id = str(item.ratingKey)
+        media_source_id = str(part.id) if part is not None and part.id else None
+        return self.playback.start(
+            item_id,
+            media_source_id=media_source_id,
+            seconds=seconds,
+            audio_index=audioIndex,
+            subtitle_index=subtitleIndex,
+            bandwidth_cap_kbps=bandwidthCap,
+            hdr=hdr,
+        )
 
     def fileId(self, video):
         part = _part(video)
