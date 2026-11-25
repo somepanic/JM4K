@@ -104,3 +104,25 @@ tests/test_silonet_watchlist.py  # tested silonet watchlist (removed; Jellyfin l
 tests/test_silonet_watchstate.py  # tested silonet/watchstate.py (removed; Jellyfin lands in Phase 7)
 tests/test_silonet_ws.py  # tested silonet/ws.py watch party websocket (removed, J-D9)
 tests/test_watch_together.py  # tested lib/watch_together.py (removed, J-D9)
+resources/skins/Main/media/script.plex/buttons/next-focus.png  # the user picker's now-playing strip, gone with the Jellyfin sign-in look
+resources/skins/Main/media/script.plex/buttons/next.png  # the user picker's now-playing strip, gone with the Jellyfin sign-in look
+resources/skins/Main/media/script.plex/buttons/pause-focus.png  # the user picker's now-playing strip, gone with the Jellyfin sign-in look
+resources/skins/Main/media/script.plex/buttons/pause.png  # the user picker's now-playing strip, gone with the Jellyfin sign-in look
+resources/skins/Main/media/script.plex/buttons/play-focus.png  # the user picker's now-playing strip, gone with the Jellyfin sign-in look
+resources/skins/Main/media/script.plex/buttons/play.png  # the user picker's now-playing strip, gone with the Jellyfin sign-in look
+resources/skins/Main/media/script.plex/buttons/stop-focus.png  # the user picker's now-playing strip, gone with the Jellyfin sign-in look
+resources/skins/Main/media/script.plex/buttons/stop.png  # the user picker's now-playing strip, gone with the Jellyfin sign-in look
+resources/skins/Main/media/script.plex/glow.png  # SiloMod's sign-in spotlights; the card has Jellyfin's slate backdrop
+resources/skins/Main/media/script.plex/home/background-fallback_black.png  # the user picker's Plex backdrop; it has Jellyfin's slate backdrop
+resources/skins/Main/media/script.plex/indicators/dropdown-triangle.png  # the user picker's Plex power menu arrow; the Jellyfin top bar has none
+resources/skins/Main/media/script.plex/user_select/admin-back.png  # the user picker's admin badge; Jellyfin's sign-in shows none
+resources/skins/Main/media/script.plex/user_select/admin-icon.png  # the user picker's admin badge; Jellyfin's sign-in shows none
+resources/skins/Main/media/script.plex/user_select/avatar-background.png  # the user picker's Plex tile; Jellyfin's tiles are rounded slate squares
+resources/skins/Main/media/script.plex/user_select/avatar-diffuse.png  # the user picker's Plex tile; Jellyfin's tiles are rounded slate squares
+resources/skins/Main/media/script.plex/user_select/backspace.png  # the user picker's PIN pad; Jellyfin has no PINs
+resources/skins/Main/media/script.plex/user_select/backspace_nf.png  # the user picker's PIN pad; Jellyfin has no PINs
+resources/skins/Main/media/script.plex/user_select/item-background-bottom.png  # the user picker's Plex tile; Jellyfin's tiles are rounded slate squares
+resources/skins/Main/media/script.plex/user_select/item-background-top.png  # the user picker's Plex tile; Jellyfin's tiles are rounded slate squares
+resources/skins/Main/media/script.plex/user_select/item-background.png  # the user picker's Plex tile; Jellyfin's tiles are rounded slate squares
+resources/skins/Main/media/script.plex/user_select/protected-back.png  # the user picker's lock badge; Jellyfin's sign-in shows none
+resources/skins/Main/media/script.plex/user_select/protected-icon.png  # the user picker's lock badge; Jellyfin's sign-in shows none

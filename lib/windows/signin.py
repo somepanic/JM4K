@@ -64,8 +64,8 @@ class PinLoginWindow(kodigui.BaseWindow):
             ('username', util.T(35301, 'Username')),
             ('password', util.T(35302, 'Password')),
             ('signin', util.T(32460, 'Sign In')),
-            ('password.heading', util.T(35309, 'Sign in with your password')),
-            ('phone', util.T(35304, 'Use your phone instead')),
+            ('heading', util.T(35309, 'Sign in to continue')),
+            ('phone', util.T(35304, 'Quick Connect')),
             ('server', util.T(35305, 'Server')),
             ('change', util.T(35306, 'Change')),
         ):
@@ -82,7 +82,6 @@ class PinLoginWindow(kodigui.BaseWindow):
         base = (address or getattr(self, '_address', '')).rstrip('/')
         page_url = f'{base}/web/#/quickconnect' if base else ''
         qr_url = f'{page_url}?code={quote(str(code.code), safe="")}' if page_url else str(code.code)
-        self.setProperty('heading', util.T(32460, 'Sign In'))
         self.setProperty(
             'instructions',
             util.T(35243, 'On a phone or computer, open {link} and enter this code:').format(link=page_url),

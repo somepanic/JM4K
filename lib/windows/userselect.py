@@ -40,7 +40,6 @@ class UserSelectWindow(kodigui.BaseWindow):
     height = 1080
 
     USER_LIST_ID = 101
-    PIN_ENTRY_GROUP_ID = 400
     SHUTDOWN_BUTTON_ID = 500
 
     def __init__(self, *args, **kwargs):
@@ -55,31 +54,9 @@ class UserSelectWindow(kodigui.BaseWindow):
 
     def onAction(self, action):
         try:
+            # Jellyfin has no PINs: number keys do nothing here (Uno's four-digit entry sent them as a password)
             ID = action.getId()
-            if 57 < ID < 68:
-                if not xbmc.getCondVisibility('ControlGroup({0}).HasFocus(0)'.format(self.PIN_ENTRY_GROUP_ID)):
-                    item = self.userList.getSelectedItem()
-                    if not item.dataSource.isProtected:
-                        return
-                    self.setFocusId(self.PIN_ENTRY_GROUP_ID)
-                self.pinEntryClicked(ID + 142)
-                return
-            elif 142 <= ID <= 149:  # JumpSMS action
-                if not xbmc.getCondVisibility('ControlGroup({0}).HasFocus(0)'.format(self.PIN_ENTRY_GROUP_ID)):
-                    item = self.userList.getSelectedItem()
-                    if not item.dataSource.isProtected:
-                        return
-                    self.setFocusId(self.PIN_ENTRY_GROUP_ID)
-                self.pinEntryClicked(ID + 60)
-                return
-            elif ID in (xbmcgui.ACTION_NAV_BACK, xbmcgui.ACTION_PREVIOUS_MENU,  xbmcgui.ACTION_BACKSPACE):
-                item = self.userList.getSelectedItem()
-                if xbmc.getCondVisibility('ControlGroup({0}).HasFocus(0)'.format(self.PIN_ENTRY_GROUP_ID)):
-                    if item.getProperty('editing.pin'):
-                        self.pinEntryClicked(211)
-                    else:
-                        self.setFocusId(self.USER_LIST_ID)
-                    return
+            if ID in (xbmcgui.ACTION_NAV_BACK, xbmcgui.ACTION_PREVIOUS_MENU,  xbmcgui.ACTION_BACKSPACE):
                 # return to selected user
                 self.selected = 'cancel'
                 self.doClose()
@@ -121,15 +98,8 @@ class UserSelectWindow(kodigui.BaseWindow):
                     self.userSelected(item, password)
             else:
                 self.userSelected(item)
-        elif 200 < controlID < 212:
-            self.pinEntryClicked(controlID)
         elif controlID == self.SHUTDOWN_BUTTON_ID:
             self.shutdownClicked()
-
-    def onFocus(self, controlID):
-        if controlID == self.USER_LIST_ID:
-            item = self.userList.getSelectedItem()
-            item.setProperty('editing.pin', '')
 
     def start(self, with_busy=True):
         if with_busy:
@@ -144,11 +114,6 @@ class UserSelectWindow(kodigui.BaseWindow):
                 letter = user.title[0].upper() if user.title else '?'
                 mli = kodigui.ManagedListItem(user.title, letter, thumbnailImage=thumb,
                                               data_source=user)
-                mli.setProperty('back.image', user.id)
-                mli.setProperty('pin', user.title)
-                needs_pw = user.isProtected and not getattr(plexapp.ACCOUNT, 'hasSession', lambda _uid: False)(user.id)
-                mli.setProperty('protected', needs_pw and '1' or '')
-                mli.setProperty('admin', user.isAdmin and '1' or '')
 
                 if plexapp.ACCOUNT.ID == user.id:
                    selectIndex = idx
@@ -156,12 +121,8 @@ class UserSelectWindow(kodigui.BaseWindow):
                 items.append(mli)
 
             # hidden user sign-in tile
-            otherLabel = T(35321, 'Other user')
-            other = kodigui.ManagedListItem(otherLabel, '+', data_source=OTHER_USER)
-            other.setProperty('back.image', 'other')
-            other.setProperty('pin', otherLabel)
-            other.setProperty('protected', '')
-            other.setProperty('admin', '')
+            # no letter: the tile shows a + (the skin tests an empty Label2)
+            other = kodigui.ManagedListItem(T(35321, 'Manual Login'), '', data_source=OTHER_USER)
             items.append(other)
 
             # append refresh button
@@ -212,32 +173,6 @@ class UserSelectWindow(kodigui.BaseWindow):
         elif choice['key'] == 'reboot':
             xbmc.executebuiltin('Reset()')
 
-    def pinEntryClicked(self, controlID):
-        item = self.userList.getSelectedItem()
-        if item.getProperty('editing.pin'):
-            pin = item.getProperty('editing.pin')
-        else:
-            pin = ''
-
-        if len(pin) > 3:
-            return
-
-        if controlID < 210:
-            pin += str(controlID - 200)
-        elif controlID == 210:
-            pin += '0'
-        elif controlID == 211:
-            pin = pin[:-1]
-
-        if pin:
-            item.setProperty('pin', ' '.join(list(u"\u2022" * len(pin))))
-            item.setProperty('editing.pin', pin)
-            if len(pin) > 3:
-                self.userSelected(item, pin)
-        else:
-            item.setProperty('pin', item.dataSource.title)
-            item.setProperty('editing.pin', '')
-
     @busy.dialog()
     def userSelected(self, item, pin=None, username=None):
         user = item.dataSource
@@ -251,8 +186,6 @@ class UserSelectWindow(kodigui.BaseWindow):
                 else plexapp.ACCOUNT.switchHomeUser(user.id, pin)
             )
             if not switched:
-                item.setProperty('pin', item.dataSource.title or item.getLabel())
-                item.setProperty('editing.pin', '')
                 util.messageDialog(T(32427, 'Failed'), T(35303, 'Wrong username or password.'))
                 return
         except (JellyfinUnavailable, JellyfinError):
