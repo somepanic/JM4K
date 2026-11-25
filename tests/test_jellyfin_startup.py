@@ -143,6 +143,7 @@ class JellyfinServerTest(KodiTestCase):
             USER_VIEWS,
             FakeResponse(200, []),
             FakeResponse(200, []),
+            FakeResponse(200, {'Items': [], 'TotalRecordCount': 0}),
         )
         srv = make_server(session)
 

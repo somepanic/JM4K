@@ -174,6 +174,7 @@ class JellyfinHomeRowsTest(KodiTestCase):
             FakeResponse(200, [movie_dto('m1', 'Dune')]),
             query_result([episode_dto('e2', 'Episode 2', 'sh1', 'Andor', 1, 2)], total=1),
             query_result([movie_dto('m0', 'Arrival', position_ticks=6_000_000_000)], total=1),
+            query_result([], total=0),
         )
         srv = make_server(session)
 
@@ -190,6 +191,7 @@ class JellyfinHomeRowsTest(KodiTestCase):
                 '/Items/Latest',
                 '/Shows/NextUp',
                 '/UserItems/Resume',
+                '/Items',
             ],
         )
         self.assertEqual(session.calls[0]['params'], {'client': 'emby'})
@@ -213,6 +215,7 @@ class JellyfinHomeRowsTest(KodiTestCase):
             user_views(*DEFAULT_VIEWS),
             FakeResponse(200, [movie_dto('m1', 'Dune')]),
             FakeResponse(200, [series_dto('sh1', 'Andor')]),
+            query_result([], total=0),
         )
         fallback_hubs = make_server(fallback_session).hubs(None, count=20)
         self.assertEqual(
@@ -229,6 +232,7 @@ class JellyfinHomeRowsTest(KodiTestCase):
             user_views(*DEFAULT_VIEWS),
             FakeResponse(200, [movie_dto('m1', 'Dune')]),
             FakeResponse(200, [series_dto('sh1', 'Andor')]),
+            query_result([], total=0),
         )
         empty_prefs_hubs = make_server(empty_prefs_session).hubs(None, count=20)
         self.assertEqual(
@@ -265,6 +269,7 @@ class JellyfinHomeRowsTest(KodiTestCase):
             # view-anime (LatestItemsExcludes) and music/boxsets/livetv/playlists are never queried.
             FakeResponse(200, [series_dto('sh1', 'Andor')]),
             FakeResponse(200, [movie_dto('m1', 'Dune')]),
+            query_result([], total=0),
         )
         srv = make_server(session)
 
@@ -290,6 +295,7 @@ class JellyfinHomeRowsTest(KodiTestCase):
             user_views(*numeric_views),
             FakeResponse(200, [movie_dto('m1', 'Dune')]),
             FakeResponse(200, [series_dto('sh1', 'Andor')]),
+            query_result([], total=0),
         )
         hubs_a = make_server(session_a).hubs(None, count=20)
 
@@ -302,6 +308,7 @@ class JellyfinHomeRowsTest(KodiTestCase):
             FakeResponse(200, [movie_dto('m1', 'Dune')]),
             query_result([episode_dto('e1', 'Pilot', 'sh1', 'Andor', 1, 1)], total=1),
             query_result([movie_dto('m0', 'Arrival', position_ticks=3_000_000_000)], total=1),
+            query_result([], total=0),
         )
         hubs_b = make_server(session_b).hubs(None, count=20)
 
@@ -330,6 +337,7 @@ class JellyfinHomeRowsTest(KodiTestCase):
             user_views(*DEFAULT_VIEWS),
             FakeResponse(200, []),
             problem(500, 'Internal Server Error'),
+            query_result([], total=0),
         )
         srv = make_server(session)
 
@@ -341,6 +349,7 @@ class JellyfinHomeRowsTest(KodiTestCase):
         unsupported_only = FakeSession(
             display_prefs({'homesection0': 'resume'}),
             query_result([{'Id': 'a1', 'Name': 'Track 1', 'Type': 'Audio'}], total=1),
+            query_result([], total=0),
         )
         self.assertEqual(make_server(unsupported_only).hubs(None, count=20), [])
 
@@ -358,6 +367,7 @@ class JellyfinHomeRowsTest(KodiTestCase):
             user_me(),
             user_views(view_dto('view-movies', 'Movies', 'movies')),
             FakeResponse(200, [movie_dto(f'm{i}', f'Film {i}') for i in range(2)]),
+            query_result([], total=0),  # empty favorites row
             # See more: Resume limit=0 count, then page offset=2 limit=2
             query_result([], total=5),
             query_result([movie_dto('r2', 'Resume 2'), movie_dto('r3', 'Resume 3')], total=5, start=2),
@@ -385,15 +395,15 @@ class JellyfinHomeRowsTest(KodiTestCase):
         resume_count = srv.query(resume_hub.key, limit=0)
         self.assertEqual(resume_count.get('totalSize'), '5')
         self.assertEqual(len(resume_count), 0)
-        self.assertEqual(session.calls[6]['params']['limit'], 0)
-        self.assertEqual(session.calls[6]['params']['mediaTypes'], 'Video')
+        self.assertEqual(session.calls[7]['params']['limit'], 0)
+        self.assertEqual(session.calls[7]['params']['mediaTypes'], 'Video')
 
         resume_page = plexobjects.listItems(srv, resume_hub.key, offset=2, limit=2)
         self.assertEqual([i.title for i in resume_page], ['Resume 2', 'Resume 3'])
         self.assertEqual(resume_page.totalSize.asInt(), 5)
         self.assertEqual(resume_page.offset.asInt(), 2)
-        self.assertEqual(session.calls[7]['params']['startIndex'], 2)
-        self.assertEqual(session.calls[7]['params']['limit'], 2)
+        self.assertEqual(session.calls[8]['params']['startIndex'], 2)
+        self.assertEqual(session.calls[8]['params']['limit'], 2)
 
         # Next Up count & page
         nextup_count = srv.query(nextup_hub.key, limit=0)
@@ -404,8 +414,8 @@ class JellyfinHomeRowsTest(KodiTestCase):
         self.assertEqual([i.title for i in nextup_page], ['Next 2', 'Next 3'])
         self.assertEqual(nextup_page.totalSize.asInt(), 4)
         self.assertEqual(nextup_page.offset.asInt(), 2)
-        self.assertEqual(session.calls[9]['params']['startIndex'], 2)
-        self.assertEqual(session.calls[9]['params']['limit'], 2)
+        self.assertEqual(session.calls[10]['params']['startIndex'], 2)
+        self.assertEqual(session.calls[10]['params']['limit'], 2)
 
         # Latest count & page (sliced client-side since /Items/Latest has no startIndex)
         latest_count = srv.query(latest_hub.key, limit=0)
@@ -449,6 +459,7 @@ class JellyfinHomeRowsTest(KodiTestCase):
         session = FakeSession(
             display_prefs({'homesection0': 'resume'}),
             query_result([resumed_movie, resumed_ep], total=2),
+            query_result([], total=0),
         )
         srv = make_server(session)
 
