@@ -11,10 +11,10 @@ from xml.etree import ElementTree
 
 from plexnet.signalsmixin import SignalsMixin
 
-from . import library, lists, playback
+from . import detail, library, lists, playback, shows
 from .client import log
 from .errors import JellyfinError
-from .items import buildImageUrl, container
+from .items import buildImageUrl, container, ticks_to_ms
 
 # Jellyfin CollectionType values mapped to Plex section types.
 # music is hidden until Phase 10/11 (D4); other types are left out.
@@ -24,12 +24,25 @@ SECTION_TYPES = {'movies': 'movie', 'tvshows': 'show', 'boxsets': 'movie'}
 LIBRARY_PATH = re.compile(
     r'^/library/sections/([^/]+)/(all|sorts|firstCharacter|filters|collections|genre|year|contentRating|label|tag)$'
 )
-# Collection contents (/library/collections/<id>/children and /library/metadata/<id>/children)
-COLLECTION_CHILDREN_PATH = re.compile(r'^/library/(?:collections|metadata)/([^/]+)/children$')
-# All episodes of a show (for expanding shows inside a collection's Play All queue)
+# Item detail (/library/metadata/<id> or comma-separated batch /library/metadata/<id1>,<id2>)
+METADATA_PATH = re.compile(r'^/library/metadata/([^/]+)$')
+# Metadata children: Series -> seasons, Season -> episodes, BoxSet -> collection items
+METADATA_CHILDREN_PATH = re.compile(r'^/library/metadata/([^/]+)/children$')
+# Dedicated collection contents route (/library/collections/<id>/children)
+COLLECTION_CHILDREN_PATH = re.compile(r'^/library/collections/([^/]+)/children$')
+# All episodes of a show (/library/metadata/<id>/allLeaves)
 ALL_LEAVES_PATH = re.compile(r'^/library/metadata/([^/]+)/allLeaves$')
 # Recommended rows for one library section
 SECTION_HUBS_PATH = re.compile(r'^/hubs/sections/([^/]+)$')
+
+# Plex element type -> Jellyfin BaseItemKind for caching types from XML listings
+PLEX_TYPE_TO_KIND = {
+    'movie': 'Movie',
+    'show': 'Series',
+    'season': 'Season',
+    'episode': 'Episode',
+    'collection': 'BoxSet',
+}
 
 
 class JellyfinConnection:
@@ -69,6 +82,11 @@ class JellyfinServer(SignalsMixin):
         self._libraryTypes = {}
         self._collectionTypes = {}
         self._jumpBarCache = {}
+        self._itemTypes = {}
+        self._seasonSeries = {}
+        self._itemMeta = {}
+        self._trickplayMeta = {}
+        self._personNames = {}
         self.playback = playback.Playback(client)
 
     def __repr__(self):
@@ -162,6 +180,28 @@ class JellyfinServer(SignalsMixin):
                 hub_section_id,
                 hub_count,
             )
+        metadata_match = METADATA_PATH.match(route) if handler is None else None
+        if metadata_match:
+            handler = functools.partial(
+                detail.itemDetail,
+                self.client,
+                metadata_match.group(1),
+                params=args,
+                on_item=self._rememberItem,
+            )
+        metadata_children_match = METADATA_CHILDREN_PATH.match(route) if handler is None else None
+        if metadata_children_match:
+            handler = functools.partial(
+                shows.children,
+                self.client,
+                metadata_children_match.group(1),
+                item_types=self._itemTypes,
+                season_series=self._seasonSeries,
+                args=args,
+                offset=kwargs.get('offset'),
+                limit=kwargs.get('limit'),
+                on_item=self._rememberItem,
+            )
         collection_match = COLLECTION_CHILDREN_PATH.match(route) if handler is None else None
         if collection_match:
             handler = functools.partial(
@@ -175,12 +215,13 @@ class JellyfinServer(SignalsMixin):
         leaves_match = ALL_LEAVES_PATH.match(route) if handler is None else None
         if leaves_match:
             handler = functools.partial(
-                lists.showLeaves,
+                shows.allEpisodes,
                 self.client,
                 leaves_match.group(1),
                 args=args,
                 offset=kwargs.get('offset'),
                 limit=kwargs.get('limit'),
+                on_item=self._rememberItem,
             )
         if handler is None:
             if route not in self._unmapped:
@@ -188,10 +229,83 @@ class JellyfinServer(SignalsMixin):
                 log(f'not mapped yet: {route}')
             return container()
         try:
-            return handler()
+            result = handler()
         except JellyfinError as e:
             log(f'{route} failed: {e.status}')
             return None
+        if isinstance(result, ElementTree.Element):
+            self._cacheTypesFromXml(result)
+        return result
+
+    def _rememberItem(self, dto):
+        """Cache item type, season->series linkage, chapters, trickplay metadata, and person names from a BaseItemDto."""
+        if not isinstance(dto, dict):
+            return
+        item_id = dto.get('Id')
+        if not item_id:
+            return
+        item_id = str(item_id)
+        kind = dto.get('Type')
+        if kind:
+            self._itemTypes[item_id] = str(kind)
+        if kind == 'Season' and dto.get('SeriesId'):
+            self._seasonSeries[item_id] = str(dto['SeriesId'])
+        elif kind == 'Episode':
+            series_id = dto.get('SeriesId')
+            season_id = dto.get('SeasonId')
+            if series_id:
+                self._itemTypes[str(series_id)] = 'Series'
+            if season_id:
+                self._itemTypes[str(season_id)] = 'Season'
+                if series_id:
+                    self._seasonSeries[str(season_id)] = str(series_id)
+
+        for person in dto.get('People') or ():
+            if isinstance(person, dict) and person.get('Id') and person.get('Name'):
+                self._personNames[str(person['Id'])] = str(person['Name'])
+
+        chapters = dto.get('Chapters')
+        trickplay = dto.get('Trickplay')
+        media_sources = dto.get('MediaSources')
+        if chapters is not None or trickplay is not None or media_sources is not None:
+            existing = self._itemMeta.get(item_id, {})
+            duration_ms = ticks_to_ms(dto.get('RunTimeTicks')) or existing.get('duration_ms', 0)
+            self._itemMeta[item_id] = {
+                'chapters': list(chapters) if isinstance(chapters, list) else existing.get('chapters', []),
+                'trickplay': dict(trickplay) if isinstance(trickplay, dict) else existing.get('trickplay', {}),
+                'duration_ms': duration_ms,
+                'media_sources': (
+                    list(media_sources) if isinstance(media_sources, list) else existing.get('media_sources', [])
+                ),
+            }
+        if isinstance(trickplay, dict):
+            for source_id, res_map in trickplay.items():
+                if source_id and isinstance(res_map, dict) and res_map:
+                    self._trickplayMeta[str(source_id)] = {
+                        'item_id': item_id,
+                        'media_source_id': str(source_id),
+                        'trickplay': dict(res_map),
+                    }
+
+    def _cacheTypesFromXml(self, root):
+        """Record item types and season->series links from any Plex XML returned by query()."""
+        for elem in root.iter():
+            plex_type = elem.get('type')
+            rating_key = elem.get('ratingKey')
+            if not rating_key or plex_type not in PLEX_TYPE_TO_KIND:
+                continue
+            self._itemTypes.setdefault(rating_key, PLEX_TYPE_TO_KIND[plex_type])
+            if plex_type == 'season' and elem.get('parentRatingKey'):
+                self._seasonSeries.setdefault(rating_key, elem.get('parentRatingKey'))
+            elif plex_type == 'episode':
+                parent_key = elem.get('parentRatingKey')
+                gp_key = elem.get('grandparentRatingKey')
+                if gp_key:
+                    self._itemTypes.setdefault(gp_key, 'Series')
+                if parent_key:
+                    self._itemTypes.setdefault(parent_key, 'Season')
+                    if gp_key:
+                        self._seasonSeries.setdefault(parent_key, gp_key)
 
     def _sections(self):
         data = self.client.get('/UserViews') or {}
