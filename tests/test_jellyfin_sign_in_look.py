@@ -59,6 +59,14 @@ class SignInLookTest(KodiTestCase):
         # shown whenever Jellyfin offers Quick Connect: no button to press first
         self.assertEqual(conditions, {'!String.IsEmpty(Window.Property(quickconnect.enabled))'})
 
+    def test_card_for_another_user_has_no_server_change(self):
+        card = self.rendered('pin_login')
+        change = [c for c in card.iter('control') if c.get('id') == '204']
+        server_row = [c for c in card.iter('control') if 'Window.Property(label.server)' in (c.findtext('label') or '')]
+        for control in change + server_row:
+            self.assertEqual(control.findtext('visible'), '!String.IsEmpty(Window.Property(change.enabled))')
+        self.assertEqual((len(change), len(server_row)), (1, 1))
+
     def test_user_picker_reads_like_jellyfins(self):
         acct = make_account(FakeSession(PUBLIC_USERS))
         acct.updateHomeUsers()

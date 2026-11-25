@@ -10,6 +10,7 @@ from unittest import mock
 
 import requests
 from jellynet import auth
+from jellynet.account import JellyfinAccount
 from jellynet.client import ClientIdentity, JellyfinClient
 from jellynet.discovery import Found
 from jellynet.server import JellyfinServer
@@ -383,6 +384,64 @@ class JellyfinStartupTest(KodiTestCase):
         self.assertEqual(off_props.get('quickconnect.enabled'), '')
         self.assertEqual(off_props.get('pin', ''), '')
         self.assertEqual(off_props.get('qr', ''), '')
+
+    def test_another_user_signs_in_on_the_card(self):
+        # One more user on this Kodi (a user tile without a stored session, or Manual Login) signs in on the sign-in
+        # card: their name filled in and the password next, no server Change; their token joins the others'.
+        window = pin_window()
+        ENV.dialog_answers = deque(['bob-pw'])
+
+        def step_wait(_seconds):
+            if not getattr(step_wait, 'done', False):
+                window.onClick(window.PASSWORD_ID)
+                window.onClick(window.SIGN_IN_ID)
+                step_wait.done = True
+            return False
+
+        bob_ok = FakeResponse(
+            200,
+            {
+                'AccessToken': 'TOK-BOB',
+                'ServerId': 'srv-1',
+                'User': {'Id': 'u2', 'Name': 'bob', 'ServerId': 'srv-1', 'Policy': {'IsAdministrator': False}},
+                'SessionInfo': {'UserId': 'u2', 'UserName': 'bob'},
+            },
+        )
+        session = FakeSession(FakeResponse(200, False), FakeResponse(200, {'LoginDisclaimer': ''}), bob_ok)
+        client = JellyfinClient('http://jellyfin.lan:8096', IDENTITY, session=session)
+        account = JellyfinAccount(
+            client,
+            sessions={'u1': {'user_id': 'u1', 'username': 'alice', 'access_token': 'TOK-ALICE'}},
+            active_user_id='u1',
+        )
+        manager = mock.Mock()
+        manager.selectedServer.name = 'Home Jellyfin'
+        with (
+            mock.patch.object(signin.PinLoginWindow, 'create', return_value=window),
+            mock.patch.object(jellyfin, 'WAIT_STEP', 0.5),
+            mock.patch.object(jellyfin.util.MONITOR, 'waitForAbort', side_effect=step_wait),
+            mock.patch.object(jellyfin.plexapp, 'SERVERMANAGER', manager),
+        ):
+            self.assertTrue(jellyfin.signInUser(account, 'bob'))
+
+        props = ENV.window_props[13001]
+        self.assertEqual(props.get('username'), 'bob')
+        self.assertFalse(props.get('change.enabled'))
+        self.assertEqual(window.focused, window.PASSWORD_ID)
+        self.assertEqual(session.calls[2]['json'], {'Username': 'bob', 'Pw': 'bob-pw'})
+        self.assertEqual((account.ID, account.authToken), ('u2', 'TOK-BOB'))
+        self.assertEqual(account.sessions['u1']['access_token'], 'TOK-ALICE')
+
+        # Back on the card signs nobody in
+        session.queue(FakeResponse(200, False), FakeResponse(200, {'LoginDisclaimer': ''}))
+        back = pin_window()
+        back.abort = True
+        with (
+            mock.patch.object(signin.PinLoginWindow, 'create', return_value=back),
+            mock.patch.object(jellyfin.plexapp, 'SERVERMANAGER', manager),
+        ):
+            self.assertFalse(jellyfin.signInUser(account, ''))
+        self.assertEqual(account.ID, 'u2')
 
     def test_sign_in_card_password_login_and_change_and_unreachable(self):
         # Password sign-in when Quick Connect is disabled: wrong password shows error, then valid password signs in.
