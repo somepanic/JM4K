@@ -40,7 +40,7 @@ HOME_SECTION_SLOTS = 10
 
 # Video library collection types eligible for Latest rows (music hidden until Phase 11;
 # boxsets, livetv, and playlists have no home Latest video row).
-LATEST_COLLECTION_TYPES = frozenset(('movies', 'tvshows'))
+LATEST_COLLECTION_TYPES = frozenset(('movies', 'tvshows', library.MIXED))
 
 HOME_FIELDS = library.GRID_FIELDS
 LATEST_SEE_MORE_MIN = library.LATEST_SEE_MORE_MIN
@@ -126,7 +126,7 @@ def latestLibraries(client):
     for idx, entry in enumerate(views_resp.get('Items') or ()):
         if not isinstance(entry, dict) or not entry.get('Id'):
             continue
-        collection_type = (entry.get('CollectionType') or '').lower()
+        collection_type = library.collectionType(entry)
         if collection_type not in LATEST_COLLECTION_TYPES:
             continue
         lib_id = str(entry['Id'])

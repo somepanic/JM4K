@@ -38,8 +38,8 @@ SUBTITLE_ROUTE_PATH = re.compile(r'^/Videos/([^/]+)/([^/]+)/Subtitles/(\d+)/Stre
 PLEX_SUBTITLE_SUFFIX = re.compile(r'\?encoding=utf-8(?:&(?:format=[^&]*|autoAdjustSubtitle=[^&]*))*$')
 
 # Jellyfin CollectionType values mapped to Plex section types.
-# music is hidden until Phase 10/11 (D4); other types are left out.
-SECTION_TYPES = {'movies': 'movie', 'tvshows': 'show', 'boxsets': 'movie'}
+# music is hidden until Phase 10/11 (D4); other types are left out. A mixed library is a film library's grid.
+SECTION_TYPES = {'movies': 'movie', 'tvshows': 'show', 'boxsets': 'movie', library.MIXED: 'movie'}
 
 # Library grid, sorts, filters, collections tab, and jump bar paths
 LIBRARY_PATH = re.compile(
@@ -572,7 +572,7 @@ class JellyfinServer(SignalsMixin):
         for entry in data.get('Items') or []:
             if not isinstance(entry, dict) or not entry.get('Id'):
                 continue
-            collection_type = (entry.get('CollectionType') or '').lower()
+            collection_type = library.collectionType(entry)
             kind = SECTION_TYPES.get(collection_type)
             if kind is None:
                 continue
@@ -593,6 +593,8 @@ class JellyfinServer(SignalsMixin):
                         'title': entry.get('Name') or '',
                         'type': kind,
                         'thumb': thumb,
+                        # a mixed library's grid is a film library's; its count says "Movies & Shows" (library_grid)
+                        **({'mixed': '1'} if collection_type == library.MIXED else {}),
                     },
                 )
             )
