@@ -114,11 +114,6 @@ class UserSelectWindow(kodigui.BaseWindow):
                 letter = user.title[0].upper() if user.title else '?'
                 mli = kodigui.ManagedListItem(user.title, letter, thumbnailImage=thumb,
                                               data_source=user)
-                mli.setProperty('back.image', user.id)
-                mli.setProperty('pin', user.title)
-                needs_pw = user.isProtected and not getattr(plexapp.ACCOUNT, 'hasSession', lambda _uid: False)(user.id)
-                mli.setProperty('protected', needs_pw and '1' or '')
-                mli.setProperty('admin', user.isAdmin and '1' or '')
 
                 if plexapp.ACCOUNT.ID == user.id:
                    selectIndex = idx
@@ -126,12 +121,8 @@ class UserSelectWindow(kodigui.BaseWindow):
                 items.append(mli)
 
             # hidden user sign-in tile
-            otherLabel = T(35321, 'Other user')
-            other = kodigui.ManagedListItem(otherLabel, '+', data_source=OTHER_USER)
-            other.setProperty('back.image', 'other')
-            other.setProperty('pin', otherLabel)
-            other.setProperty('protected', '')
-            other.setProperty('admin', '')
+            # no letter: the tile shows a + (the skin tests an empty Label2)
+            other = kodigui.ManagedListItem(T(35321, 'Manual Login'), '', data_source=OTHER_USER)
             items.append(other)
 
             # append refresh button
@@ -195,8 +186,6 @@ class UserSelectWindow(kodigui.BaseWindow):
                 else plexapp.ACCOUNT.switchHomeUser(user.id, pin)
             )
             if not switched:
-                item.setProperty('pin', item.dataSource.title or item.getLabel())
-                item.setProperty('editing.pin', '')
                 util.messageDialog(T(32427, 'Failed'), T(35303, 'Wrong username or password.'))
                 return
         except (JellyfinUnavailable, JellyfinError):

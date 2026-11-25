@@ -4150,7 +4150,7 @@ msgid "Wrong username or password."
 msgstr ""
 
 msgctxt "#35304"
-msgid "Use your phone instead"
+msgid "Quick Connect"
 msgstr ""
 
 msgctxt "#35305"
@@ -4166,7 +4166,7 @@ msgid "Enter address"
 msgstr ""
 
 msgctxt "#35309"
-msgid "Sign in with your password"
+msgid "Sign in to continue"
 msgstr ""
 
 msgctxt "#35310"
@@ -4214,7 +4214,7 @@ msgid "Password for {name}"
 msgstr ""
 
 msgctxt "#35321"
-msgid "Other user"
+msgid "Manual Login"
 msgstr ""
 
 msgctxt "#35322"

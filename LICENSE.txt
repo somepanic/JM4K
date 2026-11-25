@@ -1364,3 +1364,12 @@ SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
 CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+-------------------------------------------------------------------------
+
+Jellyfin logo
+
+resources/skins/Main/media/script.plex/jellyfin/logo.png is the Jellyfin icon from
+https://github.com/jellyfin/jellyfin-ux (branding/ios/icon-transparent.png), resized to 160 x 160 pixels.
+Copyright the Jellyfin project, licensed under CC BY-SA 4.0: https://creativecommons.org/licenses/by-sa/4.0/
+JellyMod shows it on its sign-in screens to name the server it signs in to; it is not JellyMod's own logo or icon.

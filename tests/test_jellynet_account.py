@@ -432,9 +432,6 @@ class JellyfinAccountTest(KodiTestCase):
 
         items = window.userList.addItems.call_args[0][0]
         self.assertEqual([i.dataSource.id for i in items[:3]], ['u1', 'u2', 'u3'])
-        self.assertEqual(items[0].getProperty('protected'), '')  # u1 already has a stored session
-        self.assertEqual(items[1].getProperty('protected'), '1')  # u2 needs password
-        self.assertEqual(items[2].getProperty('protected'), '')  # u3 has no password
         self.assertIs(items[3].dataSource, userselect.OTHER_USER)
         self.assertFalse(items[4].dataSource)  # refresh button
 

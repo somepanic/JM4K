@@ -1,116 +1,119 @@
 {% extends "base.xml.tpl" %}
 {% block headers %}<defaultcontrol always="true">201</defaultcontrol>{% endblock %}
 {% block controls %}
-<control type="image">
+{% include "includes/jellyfin_backdrop.xml.tpl" %}
+<control type="label">
+    <posx>124</posx>
+    <posy>{{ vscale(14) }}</posy>
+    <width>1000</width>
+    <height>{{ vscale(44) }}</height>
+    <font>font12</font>
+    <aligny>center</aligny>
+    <textcolor>FFD7DBE2</textcolor>
+    <label>$INFO[Window.Property(server.name)]</label>
+</control>
+<control type="label">
     <posx>0</posx>
-    <posy>0</posy>
+    <posy>{{ vscale(140) }}</posy>
     <width>1920</width>
-    <height>1080</height>
-    <texture colordiffuse="FF141417">script.plex/white-square.png</texture>
+    <height>{{ vscale(80) }}</height>
+    <font>font32_title</font>
+    <align>center</align>
+    <aligny>center</aligny>
+    <textcolor>FFFFFFFF</textcolor>
+    <label>$INFO[Window.Property(label.heading)]</label>
 </control>
-<!-- two soft spotlights behind everything: script.plex/glow.png is a white disc fading to transparent, dithered -->
-<control type="image">
-    <posx>-300</posx>
-    <posy>{{ vscale(-420) }}</posy>
+<control type="label">
+    <posx>360</posx>
+    <posy>{{ vscale(216) }}</posy>
     <width>1200</width>
-    <height>{{ vscale(1200) }}</height>
-    <texture>script.plex/glow.png</texture>
+    <height>{{ vscale(40) }}</height>
+    <font>font10</font>
+    <align>center</align>
+    <textcolor>FF9AA3AF</textcolor>
+    <label>$INFO[Window.Property(subtitle)]</label>
 </control>
 <control type="image">
-    <posx>1100</posx>
-    <posy>{{ vscale(-520) }}</posy>
+    <posx>360</posx>
+    <posy>{{ vscale(270) }}</posy>
     <width>1200</width>
-    <height>{{ vscale(1200) }}</height>
-    <texture>script.plex/glow.png</texture>
+    <height>{{ vscale(620) }}</height>
+    <texture colordiffuse="FF1B2433" border="10">script.plex/white-square-rounded.png</texture>
 </control>
+<!-- the password form, as Jellyfin's Manual Login -->
 <control type="group">
-    <posx>140</posx>
-    <posy>0</posy>
-        <control type="label">
-            <posx>0</posx>
-            <posy>{{ vscale(80) }}</posy>
-            <width>760</width>
-            <height>{{ vscale(80) }}</height>
-            <font>font45_title</font>
-            <textcolor>FFFFFFFF</textcolor>
-            <label>$INFO[Window.Property(server.name)]</label>
-        </control>
-        <control type="label">
-            <posx>0</posx>
-            <posy>{{ vscale(160) }}</posy>
-            <width>760</width>
-            <height>{{ vscale(44) }}</height>
-            <font>font12</font>
-            <textcolor>FF9A9AA3</textcolor>
-            <label>$INFO[Window.Property(subtitle)]</label>
-        </control>
-</control>
-<control type="group">
-    <posx>140</posx>
+    <posx>420</posx>
     <posy>0</posy>
     <visible>!String.IsEmpty(Window.Property(password.enabled))</visible>
         <control type="label">
             <posx>0</posx>
-            <posy>{{ vscale(290) }}</posy>
-            <width>760</width>
-            <height>{{ vscale(50) }}</height>
-            <font>font13</font>
-            <textcolor>FFFFFFFF</textcolor>
-            <label>$INFO[Window.Property(label.password.heading)]</label>
-        </control>
-        <control type="label">
-            <posx>0</posx>
-            <posy>{{ vscale(370) }}</posy>
-            <width>760</width>
+            <posy>{{ vscale(310) }}</posy>
+            <width>540</width>
             <height>{{ vscale(40) }}</height>
             <font>font10</font>
-            <textcolor>FFD4D4D8</textcolor>
+            <textcolor>FFFFFFFF</textcolor>
             <label>$INFO[Window.Property(label.username)]</label>
         </control>
         <control type="button" id="201">
             <posx>0</posx>
-            <posy>{{ vscale(412) }}</posy>
-            <width>760</width>
-            <height>{{ vscale(84) }}</height>
+            <posy>{{ vscale(354) }}</posy>
+            <width>540</width>
+            <height>{{ vscale(72) }}</height>
             <font>font12</font>
             <aligny>center</aligny>
-            <textoffsetx>26</textoffsetx>
+            <textoffsetx>22</textoffsetx>
             <textcolor>FFFFFFFF</textcolor>
             <focusedcolor>FFFFFFFF</focusedcolor>
-            <texturefocus colordiffuse="FFFFFFFF" border="10">script.plex/white-outline-rounded.png</texturefocus>
-            <texturenofocus colordiffuse="40FFFFFF" border="10">script.plex/white-outline-rounded.png</texturenofocus>
+            <texturefocus colordiffuse="FF414C60" border="10">script.plex/white-square-rounded.png</texturefocus>
+            <texturenofocus colordiffuse="FF384252" border="10">script.plex/white-square-rounded.png</texturenofocus>
             <ondown>202</ondown>
             <label>$INFO[Window.Property(username)]</label>
         </control>
+        <control type="image">
+            <visible>Control.HasFocus(201)</visible>
+            <posx>-4</posx>
+            <posy>{{ vscale(350) }}</posy>
+            <width>548</width>
+            <height>{{ vscale(80) }}</height>
+            <texture colordiffuse="FF2563EB" border="10">script.plex/white-outline-rounded.png</texture>
+        </control>
         <control type="label">
             <posx>0</posx>
-            <posy>{{ vscale(522) }}</posy>
-            <width>760</width>
+            <posy>{{ vscale(446) }}</posy>
+            <width>540</width>
             <height>{{ vscale(40) }}</height>
             <font>font10</font>
-            <textcolor>FFD4D4D8</textcolor>
+            <textcolor>FFFFFFFF</textcolor>
             <label>$INFO[Window.Property(label.password)]</label>
         </control>
         <control type="button" id="202">
             <posx>0</posx>
-            <posy>{{ vscale(564) }}</posy>
-            <width>760</width>
-            <height>{{ vscale(84) }}</height>
+            <posy>{{ vscale(490) }}</posy>
+            <width>540</width>
+            <height>{{ vscale(72) }}</height>
             <font>font12</font>
             <aligny>center</aligny>
-            <textoffsetx>26</textoffsetx>
+            <textoffsetx>22</textoffsetx>
             <textcolor>FFFFFFFF</textcolor>
             <focusedcolor>FFFFFFFF</focusedcolor>
-            <texturefocus colordiffuse="FFFFFFFF" border="10">script.plex/white-outline-rounded.png</texturefocus>
-            <texturenofocus colordiffuse="40FFFFFF" border="10">script.plex/white-outline-rounded.png</texturenofocus>
+            <texturefocus colordiffuse="FF414C60" border="10">script.plex/white-square-rounded.png</texturefocus>
+            <texturenofocus colordiffuse="FF384252" border="10">script.plex/white-square-rounded.png</texturenofocus>
             <onup>201</onup>
             <ondown>203</ondown>
             <label>$INFO[Window.Property(password)]</label>
         </control>
+        <control type="image">
+            <visible>Control.HasFocus(202)</visible>
+            <posx>-4</posx>
+            <posy>{{ vscale(486) }}</posy>
+            <width>548</width>
+            <height>{{ vscale(80) }}</height>
+            <texture colordiffuse="FF2563EB" border="10">script.plex/white-outline-rounded.png</texture>
+        </control>
         <control type="label">
             <posx>0</posx>
-            <posy>{{ vscale(660) }}</posy>
-            <width>760</width>
+            <posy>{{ vscale(574) }}</posy>
+            <width>540</width>
             <height>{{ vscale(40) }}</height>
             <font>font10</font>
             <textcolor>FFF87171</textcolor>
@@ -118,99 +121,101 @@
         </control>
         <control type="button" id="203">
             <posx>0</posx>
-            <posy>{{ vscale(712) }}</posy>
-            <width>760</width>
-            <height>{{ vscale(84) }}</height>
+            <posy>{{ vscale(624) }}</posy>
+            <width>540</width>
+            <height>{{ vscale(76) }}</height>
             <font>font12</font>
             <align>center</align>
             <aligny>center</aligny>
-            <textcolor>FF18181B</textcolor>
-            <focusedcolor>FF000000</focusedcolor>
-            <texturefocus colordiffuse="FFFFFFFF" border="10">script.plex/white-square-rounded.png</texturefocus>
-            <texturenofocus colordiffuse="FFB4B4BB" border="10">script.plex/white-square-rounded.png</texturenofocus>
+            <textcolor>FFFFFFFF</textcolor>
+            <focusedcolor>FFFFFFFF</focusedcolor>
+            <texturefocus colordiffuse="FF4F46E5" border="10">script.plex/white-square-rounded.png</texturefocus>
+            <texturenofocus colordiffuse="FF3D36B2" border="10">script.plex/white-square-rounded.png</texturenofocus>
             <onup>202</onup>
             <ondown>204</ondown>
             <label>$INFO[Window.Property(label.signin)]</label>
         </control>
+        <control type="image">
+            <visible>Control.HasFocus(203)</visible>
+            <posx>-4</posx>
+            <posy>{{ vscale(620) }}</posy>
+            <width>548</width>
+            <height>{{ vscale(84) }}</height>
+            <texture colordiffuse="FFFFFFFF" border="10">script.plex/white-outline-rounded.png</texture>
+        </control>
 </control>
 <control type="image">
-    <visible>!String.IsEmpty(Window.Property(quickconnect.enabled))</visible>
-    <posx>959</posx>
-    <posy>{{ vscale(290) }}</posy>
-    <width>2</width>
-    <height>{{ vscale(600) }}</height>
-    <texture colordiffuse="1FFFFFFF">script.plex/white-square.png</texture>
+    <visible>!String.IsEmpty(Window.Property(password.enabled)) + !String.IsEmpty(Window.Property(quickconnect.enabled))</visible>
+    <posx>1000</posx>
+    <posy>{{ vscale(310) }}</posy>
+    <width>1</width>
+    <height>{{ vscale(540) }}</height>
+    <texture colordiffuse="FF47505C">script.plex/white-square-1px.png</texture>
 </control>
+<!-- Quick Connect, shown at once beside the form: one button press less on a remote than Jellyfin's dialog -->
 <control type="group">
     <visible>!String.IsEmpty(Window.Property(quickconnect.enabled))</visible>
-    <posx>1060</posx>
+    <posx>1040</posx>
     <posy>0</posy>
         <control type="label">
             <posx>0</posx>
-            <posy>{{ vscale(290) }}</posy>
-            <width>760</width>
-            <height>{{ vscale(50) }}</height>
+            <posy>{{ vscale(310) }}</posy>
+            <width>460</width>
+            <height>{{ vscale(40) }}</height>
             <font>font13</font>
             <textcolor>FFFFFFFF</textcolor>
             <label>$INFO[Window.Property(label.phone)]</label>
         </control>
         <control type="image">
             <posx>0</posx>
-            <posy>{{ vscale(360) }}</posy>
-            <width>380</width>
-            <height>{{ vscale(380) }}</height>
+            <posy>{{ vscale(366) }}</posy>
+            <width>280</width>
+            <height>{{ vscale(280) }}</height>
             <aspectratio aligny="top">keep</aspectratio>
             <texture background="true">$INFO[Window.Property(qr)]</texture>
         </control>
         <control type="label">
             <posx>0</posx>
-            <posy>{{ vscale(760) }}</posy>
-            <width>760</width>
-            <height>{{ vscale(84) }}</height>
+            <posy>{{ vscale(662) }}</posy>
+            <width>460</width>
+            <height>{{ vscale(80) }}</height>
             <font>font10</font>
-            <textcolor>FFA1A1AA</textcolor>
+            <textcolor>FF9AA3AF</textcolor>
             <wrapmultiline>true</wrapmultiline>
             <label>$INFO[Window.Property(instructions)]</label>
         </control>
         <control type="label">
             <posx>0</posx>
-            <posy>{{ vscale(846) }}</posy>
-            <width>760</width>
+            <posy>{{ vscale(752) }}</posy>
+            <width>460</width>
             <height>{{ vscale(70) }}</height>
             <font>font32_title</font>
             <textcolor>FFFFFFFF</textcolor>
             <label>$INFO[Window.Property(pin)]</label>
         </control>
 </control>
-<control type="image">
-    <posx>140</posx>
-    <posy>{{ vscale(950) }}</posy>
-    <width>1640</width>
-    <height>1</height>
-    <texture colordiffuse="1FFFFFFF">script.plex/white-square-1px.png</texture>
-</control>
 <control type="label">
-    <posx>140</posx>
-    <posy>{{ vscale(972) }}</posy>
-    <width>1400</width>
+    <posx>360</posx>
+    <posy>{{ vscale(920) }}</posy>
+    <width>1000</width>
     <height>{{ vscale(60) }}</height>
     <font>font10</font>
     <aligny>center</aligny>
-    <textcolor>FFA1A1AA</textcolor>
+    <textcolor>FF9AA3AF</textcolor>
     <label>$INFO[Window.Property(label.server)]  [COLOR FFFFFFFF]$INFO[Window.Property(address)][/COLOR]</label>
 </control>
 <control type="button" id="204">
-    <posx>1600</posx>
-    <posy>{{ vscale(972) }}</posy>
+    <posx>1380</posx>
+    <posy>{{ vscale(920) }}</posy>
     <width>180</width>
     <height>{{ vscale(60) }}</height>
     <font>font10</font>
     <align>center</align>
     <aligny>center</aligny>
-    <textcolor>FFD4D4D8</textcolor>
+    <textcolor>FFFFFFFF</textcolor>
     <focusedcolor>FFFFFFFF</focusedcolor>
-    <texturefocus colordiffuse="FFFFFFFF" border="10">script.plex/white-outline-rounded.png</texturefocus>
-    <texturenofocus colordiffuse="40FFFFFF" border="10">script.plex/white-outline-rounded.png</texturenofocus>
+    <texturefocus colordiffuse="FF3D36B2" border="10">script.plex/white-square-rounded.png</texturefocus>
+    <texturenofocus colordiffuse="FF47505C" border="10">script.plex/white-outline-rounded.png</texturenofocus>
     <onup>203</onup>
     <label>$INFO[Window.Property(label.change)]</label>
 </control>
