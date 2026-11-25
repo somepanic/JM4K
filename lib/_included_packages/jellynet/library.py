@@ -32,6 +32,20 @@ SECTION_TYPE_TO_JELLYFIN = {
     'show': 'Series',
 }
 
+# A library of films and shows together, which Jellyfin gives no CollectionType: one grid, a film library's whose
+# tiles open as their own type (SiloMod's D24), listing both kinds
+MIXED = 'mixed'
+MIXED_ITEM_TYPES = 'Movie,Series'
+
+
+def collectionType(view):
+    """A library view's CollectionType, MIXED for a library of films and shows together (Jellyfin gives it none)."""
+    collection_type = (view.get('CollectionType') or '').lower()
+    if not collection_type and view.get('Type') == 'CollectionFolder':
+        return MIXED
+    return collection_type
+
+
 # ItemFields requested on /Items, /UserItems/Resume, /Shows/NextUp, and /Items/Latest listings
 # (every value verified in Jellyfin 10.11.5 OpenAPI ItemFields enum)
 GRID_FIELDS = 'Overview,Genres,DateCreated,OriginalTitle,SortName,RecursiveItemCount,ChildCount'
@@ -221,8 +235,12 @@ def resolveItemTypes(args, section_type='', collection_type=''):
         if len(parts) > 1 and COLLECTION_TYPE in parts:
             parts = [p for p in parts if p != COLLECTION_TYPE]
         mapped = [PLEX_TYPE_TO_JELLYFIN[p] for p in parts if p in PLEX_TYPE_TO_JELLYFIN]
+        if mapped == ['Movie'] and collection_type == MIXED:
+            return MIXED_ITEM_TYPES  # a mixed library's grid asks for its film type
         if mapped:
             return ','.join(mapped)
+    if collection_type == MIXED:
+        return MIXED_ITEM_TYPES
     return SECTION_TYPE_TO_JELLYFIN.get(section_type, '')
 
 
@@ -405,7 +423,7 @@ def libraryRows(client, library_id, count=None, section_type='', collection_type
                 )
             )
 
-        if section_type == 'show':
+        if section_type == 'show' or collection_type == MIXED:
             next_up_params = {
                 'parentId': library_id,
                 'fields': GRID_FIELDS,

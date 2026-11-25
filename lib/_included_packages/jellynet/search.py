@@ -5,6 +5,7 @@ Search titles and people on Jellyfin (decision D20: this server's libraries only
 - GET /Persons?searchTerm=...&enableImages=true mapped to an actor <Hub> whose entries open the person screen.
 """
 
+from . import library
 from .client import log
 from .detail import element
 from .errors import JellyfinAuthError, JellyfinError
@@ -94,6 +95,8 @@ def _resolveScope(section_ids, library_types=None, collection_types=None):
             lib_type = library_types.get(token, '')
             if coll_type == 'boxsets':
                 add_types(('BoxSet',))
+            elif coll_type == library.MIXED:
+                add_types(('Movie', 'Series', 'Episode'))
             elif lib_type == 'movie':
                 add_types(('Movie',))
             elif lib_type == 'show':
