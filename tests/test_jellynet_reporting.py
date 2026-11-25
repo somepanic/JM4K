@@ -67,7 +67,7 @@ class JellyfinReportingTest(KodiTestCase):
         manager = nowplayingmanager.NowPlayingManager()
         item = util.AttributeDict(ratingKey='item-1', duration=7_200_000, key=movie.key)
 
-        with mock.patch.object(nowplayingmanager.NowPlayingManager, 'JELLYFIN_IDLE', 0.05):
+        with mock.patch.object(nowplayingmanager.NowPlayingManager, 'SILO_IDLE', 0.05):
             manager.updatePlaybackState('video', item, 'playing', 1000, server=srv)
             manager.updatePlaybackState('video', item, 'playing', 30_000, force=True, server=srv)
             manager.updatePlaybackState('video', item, 'stopped', 90_000, force_time=True, server=srv)
@@ -76,10 +76,10 @@ class JellyfinReportingTest(KodiTestCase):
             manager.waitForTimelines(5)
 
             deadline = time.time() + 5
-            while time.time() < deadline and any(t.name == 'jellyfin.timelines' for t in threading.enumerate()):
+            while time.time() < deadline and any(t.name == 'silo.timelines' for t in threading.enumerate()):
                 time.sleep(0.02)
 
-        self.assertFalse(any(t.name == 'jellyfin.timelines' for t in threading.enumerate()))
+        self.assertFalse(any(t.name == 'silo.timelines' for t in threading.enumerate()))
 
         report_calls = session.calls[1:]
         self.assertEqual(

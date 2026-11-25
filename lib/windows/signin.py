@@ -43,12 +43,12 @@ class PinLoginWindow(kodigui.BaseWindow):
     SIGN_IN_ID = 203
     CHANGE_ID = 204
 
-    # what the user did on the card, read by lib/jellyfin.py's signIn() while it waits
+    # what the user did on the card, read by lib/silo.py's signIn() while it waits
     abort = submitted = change = False
     username = password = ''
 
     def setOptions(self, options, address, username):
-        """The server's name and disclaimer (jellynet.server_info.LoginOptions), its address and the last username."""
+        """The server's name and subtitle (silonet.server_info.LoginOptions), its address and the last username."""
         self._address = address
         self.username = username
         self.setProperty('server.name', options.name or util.T(32460, 'Sign In'))

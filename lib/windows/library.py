@@ -1802,7 +1802,7 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
             try:
                 plexapp.ACCOUNT.updateHomeUsers(refreshSubscription=True)
             except JellyfinError:
-                # the users as they were
+                # the profiles as they were
                 util.showNotification(T(35319, "Can't reach the Jellyfin server. Check your connection and try again."))
             return True
         elif option == 'syncplay':

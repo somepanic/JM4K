@@ -131,8 +131,8 @@ TYPE_PLURAL = {
 
 
 def typePlural(section, itemType):
-    """What the grid lists, as its count and type picker name it: a mixed library's films are "Movies & Shows"
-    (mixed="1")."""
+    """What the grid lists, as its count and type picker name it: a Silo mixed library's films are "Movies & Shows"
+    (silonet lists it as a film library, mixed="1")."""
     key = itemType or section.TYPE
     if key == 'movie' and section.get('mixed').asBool():
         key = 'movies_shows'
@@ -1384,8 +1384,8 @@ class GridMixin(object):
 
         extra_kwargs = {}
 
-        # watchlist: Discover's items, found again in a library; Jellyfin's items are library items already
-        discoverWatchlist = sectionType == 'movies_shows' and getattr(self.section.server, 'platform', None) != 'jellyfin'
+        # watchlist: Discover's items, found again in a library; a Silo watchlist's are library items already
+        discoverWatchlist = sectionType == 'movies_shows' and getattr(self.section.server, 'platform', None) != 'silo'
         if discoverWatchlist:
             extra_kwargs['from_watchlist'] = True
             extra_kwargs['directly_from_watchlist'] = True

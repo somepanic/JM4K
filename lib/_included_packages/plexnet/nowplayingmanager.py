@@ -81,10 +81,10 @@ class NowPlayingManager(object):
 
         # timeline reports sent and not answered yet (waitForTimelines())
         self._pendingTimelines = set()
-        # a Jellyfin server's reports, sent in order by one worker (_toJellyfin())
-        self._jellyfinReports = queue.Queue()
-        self._jellyfinLock = threading.Lock()
-        self._jellyfinWorker = None
+        # a Silo server's reports, sent in order by one worker (_toSilo())
+        self._siloReports = queue.Queue()
+        self._siloLock = threading.Lock()
+        self._siloWorker = None
 
         # Initialization
         self.reset()
@@ -173,8 +173,8 @@ class NowPlayingManager(object):
         if timeline.playQueue:
             params["playQueueItemID"] = timeline.playQueue.selectedId
 
-        if getattr(server, 'platform', None) == 'jellyfin' or hasattr(server, 'reportTimeline'):
-            self._toJellyfin(server, params)
+        if hasattr(server, 'reportTimeline'):
+            self._toSilo(server, params)
             return
 
         path = "/:/timeline"
@@ -193,29 +193,29 @@ class NowPlayingManager(object):
 
     # how long the worker waits for another report before it ends: the add-on's exit waits for every thread
     # (lib/main.py waitForThreads()), so it mustn't outlive the last one
-    JELLYFIN_IDLE = 1.0
+    SILO_IDLE = 1.0
 
-    def _toJellyfin(self, server, params):
-        """A Jellyfin server's timeline (JellyfinServer.reportTimeline(): start, progress, or stop), off the player's
+    def _toSilo(self, server, params):
+        """A Silo server's timeline (SiloServer.reportTimeline(): its attempt's progress or stop), off the player's
         thread and in order, by one worker, started as needed and ended when idle; waitForTimelines() waits for it
         as for Plex's."""
         token = object()
         self._pendingTimelines.add(token)
-        with self._jellyfinLock:
-            self._jellyfinReports.put((server, dict(params), token))
-            if self._jellyfinWorker is None:
-                self._jellyfinWorker = threading.Thread(target=self._sendJellyfinReports, name='jellyfin.timelines')
-                self._jellyfinWorker.daemon = True
-                self._jellyfinWorker.start()
+        with self._siloLock:
+            self._siloReports.put((server, dict(params), token))
+            if self._siloWorker is None:
+                self._siloWorker = threading.Thread(target=self._sendSiloReports, name='silo.timelines')
+                self._siloWorker.daemon = True
+                self._siloWorker.start()
 
-    def _sendJellyfinReports(self):
+    def _sendSiloReports(self):
         while True:
             try:
-                server, params, token = self._jellyfinReports.get(timeout=self.JELLYFIN_IDLE)
+                server, params, token = self._siloReports.get(timeout=self.SILO_IDLE)
             except queue.Empty:
-                with self._jellyfinLock:
-                    if self._jellyfinReports.empty():
-                        self._jellyfinWorker = None
+                with self._siloLock:
+                    if self._siloReports.empty():
+                        self._siloWorker = None
                         return
                 continue
             try:

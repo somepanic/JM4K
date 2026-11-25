@@ -107,8 +107,7 @@ class Setting(object):
 
 def plexOnly():
     """show_cb for a setting only a Plex server reads (its transcoder, subtitle auto-sync, cinema trailers and pre-rolls,
-    its request cache, Plex watchlist): it keeps its default, which code still reads, but Jellyfin has nothing for it
-    to change."""
+    its request cache): it keeps its default, which code still reads, but Silo has nothing for it to change."""
     return False
 
 

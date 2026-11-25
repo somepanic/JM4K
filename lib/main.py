@@ -306,7 +306,7 @@ def _main():
     util.setGlobalProperty('is_active', '1')
 
     try:
-        previousServer = None  # the Jellyfin server the user menu's Switch server left (jellyfin.initAfterSwitch())
+        previousServer = None  # the Silo server the user menu's Switch server left (silo.initAfterSwitch())
         while not util.MONITOR.abortRequested():
             ready = jellyfin.initAfterSwitch(previousServer) if previousServer else jellyfin.init()
             previousServer = None
@@ -401,10 +401,10 @@ def _main():
                             plexapp.ACCOUNT.isAuthenticated = False
                             fromSwitch = True
                         elif closeOption == 'session_ended':
-                            # Jellyfin refused the session: start-up again, which signs in (jellyfin.init())
+                            # Silo refused the session: start-up again, which signs in (silo.init())
                             break
                         elif isinstance(closeOption, dict) and closeOption.get('switch_server'):
-                            # another Jellyfin server picked: start-up again, on it
+                            # another Silo server picked: start-up again, on it
                             previousServer = closeOption['switch_server']
                             break
                         elif isinstance(closeOption, dict):

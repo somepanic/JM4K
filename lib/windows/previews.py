@@ -1,6 +1,6 @@
 # coding=utf-8
 """
-Seek-bar preview pictures: a played file's index (Jellyfin's trickplay sheets, jellynet.trickplay.SheetIndex, asked of the
+Seek-bar preview pictures: a played file's index (Silo's trickplay sheets, silonet.trickplay.SheetIndex, asked of the
 server soon after playback starts) gives the thumbnail for a position, written as needed into Kodi's temp folder.
 
 Kodi loads images under special://temp directly, without copying them into its texture cache and database
@@ -43,7 +43,7 @@ class PreviewStore(object):
         self._writeLock = threading.Lock()
         # bumped by clear(): a download from before it is dropped when it finishes
         self._generation = 0
-        self._indexes = {}  # part id -> its index (jellynet.trickplay.SheetIndex)
+        self._indexes = {}  # part id -> its index (silonet.trickplay.SheetIndex)
         self._swept = False
 
     def _sweepOnce(self):
@@ -54,7 +54,7 @@ class PreviewStore(object):
 
     def start(self, parts, server, on_ready=None):
         """
-        Reads each part's index in a thread of its own (JellyfinServer.trickplayIndex()): parts, (part id, index path)
+        Reads each part's index in a thread of its own (SiloServer.trickplayIndex()): parts, (part id, index path)
         pairs - the path as PlexPart.getIndexPath() gives it. on_ready() is called (on that thread) as each one
         becomes usable.
         """
@@ -74,7 +74,7 @@ class PreviewStore(object):
         self._sheets(generation, part_id, server, on_ready)
 
     def _sheets(self, generation, part_id, server, on_ready):
-        """A Jellyfin file's previews: sheets of thumbnails, cut out as they're asked for (JellyfinServer.trickplayIndex())."""
+        """A Silo file's previews: sheets of thumbnails, cut out as they're asked for (SiloServer.trickplayIndex())."""
         try:
             index = server.trickplayIndex(part_id)
         except Exception as e:
@@ -137,11 +137,9 @@ class PreviewStore(object):
         """Forgets every part's index and deletes its files; downloads still running are dropped when they end."""
         with self._lock:
             self._generation += 1
-            indexes = list(self._indexes.items())
+            parts = list(self._indexes)
             self._indexes = {}
-        for part_id, index in indexes:
-            if hasattr(index, 'close'):
-                index.close()
+        for part_id in parts:
             self._remove(part_id)
 
 
