@@ -4,39 +4,24 @@ query() translates Plex paths into Jellyfin API calls as Plex-shaped XML so plex
 keep working. Paths not mapped yet return an empty <MediaContainer size="0"/> and log once per path.
 """
 
-from urllib.parse import parse_qsl, quote, urlencode, urlsplit
+import functools
+import re
+from urllib.parse import parse_qsl, urlencode, urlsplit
 from xml.etree import ElementTree
 
 from plexnet.signalsmixin import SignalsMixin
 
+from . import library
 from .client import log
 from .errors import JellyfinError
+from .items import buildImageUrl, container
 
 # Jellyfin CollectionType values mapped to Plex section types.
 # boxsets is mapped in Phase 3; music is hidden until Phase 10/11 (D4); other types are left out.
 SECTION_TYPES = {'movies': 'movie', 'tvshows': 'show'}
 
-
-def container(children=()):
-    root = ElementTree.Element('MediaContainer', {'size': str(len(children))})
-    for child in children:
-        root.append(child)
-    return root
-
-
-def buildImageUrl(base_url, item_id, image_type='Primary', tag=None, max_width=None, max_height=None):
-    """Build a public Jellyfin /Items/{itemId}/Images/{imageType} URL; never includes an auth token."""
-    params = {}
-    if max_width and int(max_width) > 0:
-        params['maxWidth'] = str(int(max_width))
-    if max_height and int(max_height) > 0:
-        params['maxHeight'] = str(int(max_height))
-    if tag:
-        params['tag'] = str(tag)
-    route = f'/Items/{quote(str(item_id), safe="")}/Images/{quote(str(image_type), safe="")}'
-    base = base_url.rstrip('/') if base_url else ''
-    query = urlencode(params)
-    return f'{base}{route}?{query}' if query else f'{base}{route}'
+# Library grid, sorts, and jump bar paths
+LIBRARY_PATH = re.compile(r'^/library/sections/([^/]+)/(all|sorts|firstCharacter)$')
 
 
 class JellyfinConnection:
@@ -74,6 +59,8 @@ class JellyfinServer(SignalsMixin):
         self._unmapped = set()
         self._routes = {'/library/sections': self._sections}
         self._libraryTypes = {}
+        self._collectionTypes = {}
+        self._jumpBarCache = {}
 
     def __repr__(self):
         return f'<JellyfinServer {self.uuid}>'
@@ -85,9 +72,43 @@ class JellyfinServer(SignalsMixin):
     def query(self, path, method=None, raw=False, **kwargs):
         """Return Plex-shaped XML for a mapped Plex path, empty container once-logged for unmapped paths,
         or None if Jellyfin failed to answer."""
-        route, _, _query_string = path.partition('?')
+        route, _, query_string = path.partition('?')
         route = route.rstrip('/') or '/'
+        args = dict(parse_qsl(query_string))
+        extra_params = kwargs.get('params')
+        if isinstance(extra_params, dict):
+            for key, value in extra_params.items():
+                if value is not None:
+                    args[str(key)] = str(value)
         handler = self._routes.get(route)
+        library_match = LIBRARY_PATH.match(route) if handler is None else None
+        if library_match:
+            section_id, action = library_match.group(1), library_match.group(2)
+            section_type = self._libraryTypes.get(section_id, '')
+            collection_type = self._collectionTypes.get(section_id, '')
+            if action == 'sorts':
+                handler = library.sortsContainer
+            elif action == 'firstCharacter':
+                handler = functools.partial(
+                    library.jumpBar,
+                    self.client,
+                    section_id,
+                    args,
+                    section_type=section_type,
+                    collection_type=collection_type,
+                    cache=self._jumpBarCache,
+                )
+            else:
+                handler = functools.partial(
+                    library.libraryItems,
+                    self.client,
+                    section_id,
+                    args,
+                    offset=kwargs.get('offset'),
+                    limit=kwargs.get('limit'),
+                    section_type=section_type,
+                    collection_type=collection_type,
+                )
         if handler is None:
             if route not in self._unmapped:
                 self._unmapped.add(route)
@@ -111,6 +132,7 @@ class JellyfinServer(SignalsMixin):
                 continue
             item_id = str(entry['Id'])
             self._libraryTypes[item_id] = kind
+            self._collectionTypes[item_id] = collection_type
             image_tags = entry.get('ImageTags') or {}
             primary_tag = image_tags.get('Primary') if isinstance(image_tags, dict) else None
             thumb = buildImageUrl('', item_id, 'Primary', tag=primary_tag) if primary_tag else ''
