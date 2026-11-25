@@ -13,6 +13,7 @@ class MediaDetails:
     attribute_map = {
         "container": "part.attrib_container",
         "partDecision": "part.decision",
+        "partDecisionReason": "part.decisionReason",
         "videoResolution": "media.videoResolution",
         "videoBitrate": "video_stream.bitrate",
         "videoCodec": "video_stream.codec",
@@ -246,6 +247,9 @@ class DPAttributesDiffer(DPAttribute):
         val2 = getattr(obj.details.session, self.attr, None)
         formatted_val1, formatted_val2 = self.valueFormatter(obj, val1, val2)
 
+        if formatted_val2 and formatted_val1 in (None, ""):
+            # an original that doesn't say (a Silo file without per-track bitrates): the session's alone
+            return (self.formatFalse % {"val1": formatted_val2, "val2": formatted_val2}) if self.formatFalse else formatted_val2
         if formatted_val2 and formatted_val1 != formatted_val2:
             return self.formatTrue % {"val1": formatted_val1, "val2": formatted_val2}
         if not formatted_val1:
@@ -344,6 +348,7 @@ class ModePPI(ComputedPPIValue):
     name = "Mode"
     dataPoints = [
         DPAttributeSession("partDecision"),
+        DPAttributeSession("partDecisionReason"),  # a Silo server's (silonet.streaminfo)
         DPAttributeEqualsValue("local", "1",
                                DPAttribute("server_is_local", source="details"),
                                DPAttribute("server_is_local", source="details"),

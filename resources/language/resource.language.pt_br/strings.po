@@ -134,8 +134,8 @@ msgstr "Descoberta de Servidor (GDM)"
 
 #: 
 msgctxt "#32043"
-msgid "Start Plex On Kodi Startup"
-msgstr "Iniciar Plex quando Kodi Iniciar"
+msgid "Start SM4K On Kodi Startup"
+msgstr "Iniciar SM4K quando Kodi Iniciar"
 
 #: 
 msgctxt "#32044"
@@ -464,8 +464,8 @@ msgstr "Confirmar Saída"
 
 #: 
 msgctxt "#32335"
-msgid "Are you ready to exit Plex?"
-msgstr "Está pronto para sair do Plex?"
+msgid "Are you ready to exit SM4K?"
+msgstr "Está pronto para sair do SM4K?"
 
 #: 
 msgctxt "#32336"
@@ -1448,8 +1448,8 @@ msgstr "Usar capítulos virtuais"
 
 #: 
 msgctxt "#33604"
-msgid "When the above is enabled and no video chapters are available, simulate them by using the markers identified by the Plex Server (Intro, Credits)."
-msgstr "Quando a opção acima estiver ativada e não houver capítulos no vídeo, simular capítulos usando marcadores identificados pelo servidor Plex (Abertura, Créditos)."
+msgid "When the above is enabled and no video chapters are available, simulate them by using the markers identified by the Silo Server (Intro, Credits)."
+msgstr "Quando a opção acima estiver ativada e não houver capítulos no vídeo, simular capítulos usando marcadores identificados pelo servidor Silo (Abertura, Créditos)."
 
 #: 
 msgctxt "#33605"
@@ -1565,7 +1565,7 @@ msgstr ""
 
 #: 
 msgctxt "#33630"
-msgid "Intro/credits markers might be a little early in Plex. When auto skipping add (or subtract) this many seconds from the marker. This avoids cutting off content, while possibly skipping the marker a little late."
+msgid "Intro/credits markers might be a little early in Silo. When auto skipping add (or subtract) this many seconds from the marker. This avoids cutting off content, while possibly skipping the marker a little late."
 msgstr ""
 
 #: 
@@ -3028,7 +3028,7 @@ msgstr ""
 
 #: 
 msgctxt "#33695"
-msgid "Where do you want to download subtitles from? Applies to Download subtitles in the player, from the Subtitles button or the player's Settings. Before playback it always uses Plex."
+msgid "Where do you want to download subtitles from? Applies to Download subtitles in the player, from the Subtitles button or the player's Settings. Before playback it always uses Silo."
 msgstr ""
 
 #: 
@@ -3063,7 +3063,7 @@ msgstr ""
 
 #: 
 msgctxt "#33702"
-msgid "When no subtitles are found via the Plex subtitle search, fall back to Kodi subtitle search. Only in the player: before playback, subtitles always come from Plex."
+msgid "When no subtitles are found via the Silo subtitle search, fall back to Kodi subtitle search. Only in the player: before playback, subtitles always come from Silo."
 msgstr ""
 
 #: 
@@ -3339,7 +3339,7 @@ msgstr ""
 
 #: 
 msgctxt "#34008"
-msgid "Activates the current user's Plex watchlist as a section item. Adds watchlist functionality to certain media screens. Per-user setting. Default: On"
+msgid "Activates the current user's Silo watchlist as a section item. Adds watchlist functionality to certain media screens. Per-user setting. Default: On"
 msgstr ""
 
 #: 

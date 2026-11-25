@@ -105,6 +105,12 @@ class Setting(object):
         return '<Setting {0}={1}>'.format(self.ID, self.get())
 
 
+def plexOnly():
+    """show_cb for a setting only a Plex server reads (its transcoder, subtitle auto-sync, cinema trailers and pre-rolls,
+    its request cache): it keeps its default, which code still reads, but Silo has nothing for it to change."""
+    return False
+
+
 class BasicSetting(Setting):
     def __init__(self, ID, label, default, desc='', theme_relevant=False, backport_from=None, show_cb=None):
         self.ID = ID
@@ -455,7 +461,7 @@ class Settings(object):
     SETTINGS = {
         'main': (
             T(32000, 'Main'), (
-                BoolSetting('kiosk.mode', T(32043, 'Start Plex On Kodi Startup'), False),
+                BoolSetting('kiosk.mode', T(32043, 'Start SM4K On Kodi Startup'), False),
                 OptionsSetting(
                     'kiosk.delay', T(33651, 'Start Delay'),
                     0,
@@ -492,34 +498,22 @@ class Settings(object):
                              'keyboard, before it searches. Shorter shows results sooner; longer searches '
                              'less often while you type.')
                 ),
-                ThemeMusicSetting('theme_music', T(32480, 'Theme music'), 5),
+                # off until turned on (decision D15)
+                ThemeMusicSetting('theme_music', T(32480, 'Theme music'), 10),
                 BoolSetting(
                     'theme_music_loop', T(33737, 'Loop theme music'), False
                 ),
-                BoolSetting('player_stop_on_exit', T(35085, 'Stop playback when exiting Plex'), True)
+                BoolSetting('player_stop_on_exit', T(35085, 'Stop playback when exiting SM4K'), True)
                 .description(T(35086, "Stop whatever is playing, and clear Kodi's playlists, whenever the addon "
                                       "exits - including signing out or switching users. Off: playback carries on "
-                                      "under Kodi's own player after Plex has closed.")),
+                                      "under Kodi's own player after SM4K has closed.")),
             )
         ),
         'video': (
             T(32053, 'Video'), (
-                QualitySetting('local_quality2', T(32020, 'Local Quality'), 16),
-                QualitySetting('remote_quality2', T(32021, 'Remote Quality'), 16),
-                QualitySetting('online_quality2', T(32022, 'Online Quality'), 16),
-                MultiOptionsSetting(
-                    'playback_features', T(33058, ''),
-                    ["playback_directplay", "playback_remux", "allow_4k"],
-                    (
-                        ('playback_directplay', T(32025, '')),
-                        ('playback_remux', T(32026, '')),
-                        ('allow_4k', T(32036, '')),
-                    )
-                ).description(T(33060, "").format(
-                    feature_ds=T(32026, ''),
-                    desc_ds=T(32979, ''),
-                    feature_4k=T(32036, ''),
-                    desc_4k=T(32102, ''))),
+                # one Quality (decision D12): Silo applies its own local and remote stream limits; Plex's playback
+                # features and extra codecs are gone with Plex's transcoder (Kodi reports what it plays itself)
+                QualitySetting('local_quality2', T(32397, 'Quality'), 16),
                 BoolSetting(
                     'disable_hdr', T(33660, 'Disable HDR'), False
                 ).description(T(33661, "If you don't want your client to handle HDR (or HDR-fallback), "
@@ -529,14 +523,6 @@ class Settings(object):
                     'clamp_video_bitrates', T(33685, 'Clamp video bitrate'), True
                 ).description(T(33686, "Only show bitrate targets lower than the current video's bitrate.")
                 ),
-                MultiOptionsSetting(
-                    'allowed_codecs', T(33059, ''),
-                    ["allow_hevc", "allow_vc1"],
-                    [
-                        ('allow_hevc', T(32037, '')),
-                        ('allow_vc1', T(32977, '')),
-                    ] + ([('allow_av1', T(32601, ''))] if util.KODI_VERSION_MAJOR >= 20 else [])
-                ).description(T(33061, "")),
             )
         ),
         'audio': (
@@ -620,27 +606,28 @@ class Settings(object):
                     )
                 ).description(T(33695, "Where do you want to download subtitles from? Applies to Download "
                                        "subtitles in the player, from the Subtitles button or the player's Settings. "
-                                       "Before playback it always uses Plex.")),
+                                       "Before playback it always uses Silo.")),
                 BoolSetting('subtitle_download_fallback', T(33701, 'Fallback to Kodi'),
                             True).description(
-                    T(33702, "When no subtitles are found via the Plex subtitle search, fall back to Kodi "
-                             "subtitle search. Only in the player: before playback, subtitles always come from Plex.")
+                    T(33702, "When no subtitles are found via the Silo subtitle search, fall back to Kodi "
+                             "subtitle search. Only in the player: before playback, subtitles always come from Silo.")
                 ),
                 OptionsSetting(
                     'burn_subtitles',
                     T(32031, 'Burn-in Subtitles'),
                     'auto',
                     (('auto', T(32030, 'Auto')), ('image', T(32029, 'Only Image Formats')),
-                     ('always', T(32028, 'Always')))
+                     ('always', T(32028, 'Always'))),
+                    show_cb=plexOnly
                 ),
                 BoolSetting('burn_ssa', T(32944, 'Burn-in SSA subtitles'),
-                            True).description(
+                            True, show_cb=plexOnly).description(
                     T(32945, 'When Direct Streaming instruct the Plex Server to burn in SSA/ASS subtitles (thus '
                              'transcoding the video stream). If disabled it will not touch the video stream, but '
                              'will convert the subtitle to unstyled text.')
                 ),
                 BoolUserSetting('auto_sync', T(33655, 'Auto-Sync Subtitles'),
-                            True).description(
+                            True, show_cb=plexOnly).description(
                     T(33656, 'Only for External SRT subtitles. The PMS setting for voice activity detection '
                              'has to be enabled for this to work.')
                 ),
@@ -663,9 +650,9 @@ class Settings(object):
                 BoolSetting(
                     'plextuary_offer', T(35102, 'Offer Plextuary on startup'), True
                 ).description(
-                    T(35103, "When Plex starts under a different skin, or with a Plextuary font set other than "
+                    T(35103, "When SM4K starts under a different skin, or with a Plextuary font set other than "
                              "Inter UI, offer to switch, installing Plextuary if needed; and remind you when "
-                             "Plextuary is too old. Plex's screens are designed around Plextuary's Inter UI "
+                             "Plextuary is too old. SM4K's screens are designed around Plextuary's Inter UI "
                              "fonts.")
                 ),
                 OptionsSetting(
@@ -674,8 +661,8 @@ class Settings(object):
                         skin_check.variantName(skin_check.detectedVariant())))] + list(skin_check.VARIANTS),
                     show_cb=lambda: util.getSetting('plextuary_offer', True)
                 ).description(
-                    T(35101, "Which Plextuary skin to offer when Plex starts. Automatic picks the one built for this "
-                             "device; choose another to override it. Takes effect the next time Plex starts.")
+                    T(35101, "Which Plextuary skin to offer when SM4K starts. Automatic picks the one built for this "
+                             "device; choose another to override it. Takes effect the next time SM4K starts.")
                 ),
                 OptionsSetting(
                     'watched_indicators', T(33022, ''),
@@ -703,7 +690,7 @@ class Settings(object):
                 BoolUserSetting(
                     'use_watchlist', T(34007, 'Use Watchlist'), True
                 ).description(
-                    T(34008, "Activates the current user's Plex watchlist as a section item. Adds watchlist "
+                    T(34008, "Activates the current user's Silo watchlist as a section item. Adds watchlist "
                              "functionality to certain media screens. Per-user setting. Default: On")
                 ),
                 BoolUserSetting(
@@ -777,7 +764,7 @@ class Settings(object):
                     'disable_exit_on_back', T(35007, 'Home: Disable exit on Back'), False
                 ).description(
                     T(35008, "When enabled, pressing Back on the Home screen no longer shows the "
-                             "exit prompt and will not exit Plex. You can still exit from the Exit "
+                             "exit prompt and will not exit SM4K. You can still exit from the Exit "
                              "option in your username menu.")
                 ),
                 BoolSetting(
@@ -803,16 +790,19 @@ class Settings(object):
             T(32940, 'Player UI'), (
                 BoolSetting('player_official', T(33045, 'Behave like official Plex clients'), True).description(
                     T(33046, '')),
-                BoolUserSetting('preplay_preroll', T(34051, 'Movies: Play pre-rolls'), False).description(
+                BoolUserSetting('preplay_preroll', T(34051, 'Movies: Play pre-rolls'), False,
+                                show_cb=plexOnly).description(
                     T(34052, 'Plays pre-roll clips (server-defined) before playing a movie without a resume '
                              'point. User-specific.')),
-                BoolUserSetting('preplay_preroll_first', T(34054, 'Play pre-rolls before trailers'), True).description(
+                BoolUserSetting('preplay_preroll_first', T(34054, 'Play pre-rolls before trailers'), True,
+                                show_cb=plexOnly).description(
                     T(34055, 'Official Plex clients play the trailers first, then the preroll clips. Enabling '
                              'this will do the opposite. Default: On. User-specific.')),
                 UAListSetting(
                     'preplay_trailers', T(34053, 'Cinema Trailers to Play Before Movies'),
                     5,
-                    list(map(str, list(range(6))))
+                    list(map(str, list(range(6)))),
+                    show_cb=plexOnly
                 ),
                 BoolSetting('no_osd_time_spoilers', T(33004, ''), False, backport_from="no_spoilers").description(
                     T(33005, '')),
@@ -865,7 +855,7 @@ class Settings(object):
                     'virtual_chapters', T(33603, 'Use virtual chapters'), True
                 ).description(
                     T(33604, 'When the above is enabled and no video chapters are available, simulate them by using the'
-                             ' markers identified by the Plex Server (Intro, Credits).')
+                             ' markers identified by the Silo Server (Intro, Credits).')
                 ),
                 BoolUserSetting(
                     'combined_chapters', T(35001, 'Combine video & virtual chapters'), True
@@ -1015,52 +1005,6 @@ class Settings(object):
                 if util.CE_SB_LAV_SWITCH else None,
             )
         ),
-        'network': (
-            T(33624, 'Network'), (
-                BoolSetting('local_mode', T(35021, 'Local mode (no plex.tv)'), False)
-                    .description(
-                    T(35029, "Only talk to local Plex Media Servers and never contact plex.tv. "
-                             "Best enabled via \"Go local\" in the user menu, which prepares local user "
-                             "switching while plex.tv is still reachable. Watchlist, Discover and other "
-                             "plex.tv-based features are disabled. Takes full effect after a restart of "
-                             "the addon.")
-                ),
-                OptionsSetting(
-                    'allow_insecure', T(32032), 'never',
-                    (('never', T(32033)), ('same_network', T(32034)), ('always', T(32035)))
-                ).description(
-                    T(32104, 'When to connect to servers with no secure connections...')
-                ),
-                BoolSetting('smart_discover_local', T(33625, 'Smart LAN/local server discovery'), True)
-                    .description(
-                    T(33626, "Checks whether servers returned from Plex.tv are actually local/in your LAN. "
-                             "For specific setups (e.g. Docker) Plex.tv might not properly detect a local "
-                             "server.\n\nNOTE: Only works on Kodi 19 or above."
-                      )
-                ),
-                BoolSetting('prefer_local', T(33627, 'Prefer LAN/local servers over security'), False)
-                    .description(
-                    T(33628, "Prioritizes local connections over secure ones. Needs the proper setting in \"Allow "
-                             "Insecure Connections\" and the Plex Server's \"Secure connections\" at \"Preferred\". "
-                             "Can be used to enforce manual servers."
-                      )
-                ),
-                BoolSetting('gdm_discovery', T(32042, 'Server Discovery (GDM)'), False),
-                OptionsSetting(
-                    'handle_plexdirect', T(32990), 'ask',
-                    (('ask', T(32991)), ('always', T(32035)), ('never', T(32033)))
-                ).description(
-                    T(32992, 'stub')
-                ),
-                BoolSetting(
-                    'force_pd_mapping', T(34038, 'Force plex.direct mapping'), False
-                ).description(T(34039, 'stub')),
-                IPSetting('manual_ip_0', T(32044, 'Connection 1 IP'), ''),
-                IntegerSetting('manual_port_0', T(32045, 'Connection 1 Port'), 32400),
-                IPSetting('manual_ip_1', T(32046, 'Connection 2 IP'), ''),
-                IntegerSetting('manual_port_1', T(32047, 'Connection 2 Port'), 32400),
-            )
-        ),
         'system': (
             T(33600, 'System'), (
                 # Kodi updating the addon while it runs (update_restart.py, LibraryWindow._tickUpdate())
@@ -1112,14 +1056,15 @@ class Settings(object):
                     [
                         ('items', T(33723, 'Media Items')),
                         ('libraries', T(33722, 'Libraries')),
-                    ]
+                    ],
+                    show_cb=plexOnly
                 ).description(T(33727, "Store Plex server responses for items and library views in a local "
                                        "SQLite database. Doesn't cache anything else (Home/Hubs are always up to date)."
                                        " Massively speeds up consecutive visits to items and libraries. Certain "
                                        "important events, such as watch state changes, automatically delete the item "
                                        "cache and its corresponding library cache. The complete cache gets cleared "
                                        "when exiting the addon. (Default: Off)")),
-                BoolSetting('persist_requests_cache', T(33725, 'Persist cached Plex data'), False)
+                BoolSetting('persist_requests_cache', T(33725, 'Persist cached Plex data'), False, show_cb=plexOnly)
                 .description(T(33726, "Instead of clearing the cache when exiting the addon, persist it "
                                       "instead. Warning: You'll most likely encounter missing items in libraries "
                                       "or outdated data. Use the corresponding menu functionalities to clear the "
@@ -1212,7 +1157,9 @@ class Settings(object):
         ),
     }
 
-    SECTION_IDS = ('main', 'video', 'audio', 'ui', 'player', 'player_user', 'playback_advanced', 'network', 'system', 'about')
+    # no Network: its settings were how the add-on reached Plex servers; a Silo server is reached at the address it
+    # was added by
+    SECTION_IDS = ('main', 'video', 'audio', 'ui', 'player', 'player_user', 'playback_advanced', 'system', 'about')
 
     def __getitem__(self, key):
         return self.SETTINGS[key]

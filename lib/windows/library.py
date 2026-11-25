@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import json
+import os
 import threading
 import time
 import weakref
@@ -16,29 +17,30 @@ from plexnet import exceptions as plexExceptions
 from plexnet import plexapp
 from plexnet import plexobjects
 from plexnet import util as pnUtil
+from silonet.errors import SiloError
 from six.moves import range
 
 from lib import backgroundthread
 from lib import player
 from lib import update_restart
 from lib import util
+from lib import watch_together
 from lib.util import T
 from . import background
 from . import busy
-from .dialog import optionGroup, showOptionsDialog, SidebarMenuDialog
+from .dialog import showOptionsDialog, SidebarMenuDialog
 from . import collection
 from . import dropdown
 from . import home
 from . import kodigui
 from . import mapping_probe
 from . import optionsdialog
-from . import plexdirect
 from . import search
 from . import section_ids
 from . import sidebar_model
 from . import navintent
 from . import windowutils
-from .library_grid import GridMixin, TYPE_PLURAL, isOtherVideos
+from .library_grid import GridMixin, isOtherVideos, typePlural
 from .library_hubs import HubsMixin
 from .mixins.playbackbtn import PlaybackBtnMixin
 from .mixins.common import CommonMixin
@@ -1598,7 +1600,7 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
 
         button = optionsdialog.show(
             T(32334, 'Confirm Exit'),
-            T(32335, 'Are you ready to exit Plex?'),
+            T(32335, 'Are you ready to exit SM4K?'),
             modifier == "exit" and lBtnExit or lBtnQuit,
             T(32924, 'Minimize'),
             T(32337, 'Cancel'),
@@ -1664,21 +1666,18 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
                 options.append(('switch', T(32342, 'Switch User')))
             else:
                 options.append(('refresh_users', T(32980, 'Refresh Users')))
-        elif plexapp.ACCOUNT.isOffline and plexapp.util.LOCAL_MODE:
-            from lib import localmode
-            if len(plexapp.ACCOUNT.homeUsers) > 1:
-                options.append(('switch', T(32342, 'Switch User')))
-            if localmode.isAccountLess():
-                options.append(('local_users', T(35042, 'Local users')))
+            if getattr(plexapp.SERVERMANAGER.selectedServer, 'platform', None) == 'silo':
+                options.append(('server', T(35311, 'Switch server')))
         options.append(('settings', T(32343, 'Settings')))
-        if plexapp.ACCOUNT.isSignedIn:
-            options.append(('go_local', T(35019, 'Go local')))
-            options.append(('signout', T(32344, 'Sign Out')))
-        elif plexapp.ACCOUNT.isOffline:
-            if plexapp.util.LOCAL_MODE:
-                options.append(('go_online', T(35020, 'Go online')))
+        # a watch party on a Silo server (decision D26): join one by its code, or end the one this profile hosts
+        server = plexapp.SERVERMANAGER.selectedServer
+        if hasattr(server, 'pinnedFiles'):
+            if watch_together.current(server) is None:
+                options.append(('join_party', T(35261, 'Join watch party')))
             else:
-                options.append(('go_online', T(32459, 'Offline Mode')))
+                options.append(('party', T(35271, 'Watch party')))
+        if plexapp.ACCOUNT.isSignedIn:
+            options.append(('signout', T(32344, 'Sign Out')))
         else:
             options.append(('signin', T(32460, 'Sign In')))
         options.append(('minimize', T(32924, 'Minimize')))
@@ -1690,8 +1689,8 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
             self.doUserOption(choice)
 
     def _closeSessionWithOption(self, option, shutting_down=False):
-        """Every doUserOption() branch that ends a session (go_online while local, signout, exit,
-        the switch/signin/go_local catch-all) needs to act on the TRUE top-level session
+        """Every doUserOption() branch that ends a session (signout, exit,
+        the switch/signin catch-all) needs to act on the TRUE top-level session
         (windowutils.HOME), not necessarily self. self can be a second, nested LibraryWindow:
         opener.sectionClicked() (collections, photo directories, filtered sections) constructs one
         when there's no live chain to reuse. With one, it swaps the section into that chain in
@@ -1700,6 +1699,11 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
         just closed that nested instance, revealing the library grid underneath instead of
         exiting (live-confirmed regression, fixed here).
         """
+        if option != 'recompile':
+            # Home closing for another session (sign out, another profile or server, an ended session, exit): a
+            # watch party in progress ends for this Kodi, and a room it hosts for everyone. Not when Home only
+            # restarts with its new templates.
+            watch_together.leaveCurrent()
         target = windowutils.HOME
         if shutting_down:
             target._shuttingDown = True
@@ -1714,6 +1718,23 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
         # (GoHomeMixin.leaveFor(), the Home button's path from a descendant), and Home acts on it
         # as it arrives there (processCommand()).
         self.navigate(navintent.closeSession(option))
+
+    def fastSwitchUser(self):
+        """The user button's context press: straight back to the previous profile (the previous_user setting), through
+        the profile picker for one with a PIN. One gone from the server since (removed there, and Refresh Users has the
+        list without it) is forgotten and the user menu opens instead: Switch User, with no profile to pick, only
+        reopened Home, on every press."""
+        uid = util.getSetting('previous_user')
+        if uid == plexapp.ACCOUNT.ID:
+            return
+        user = plexapp.ACCOUNT.getHomeUser(uid)
+        if not user:
+            util.setSetting('previous_user', '')
+            self.showUserMenu()
+        elif user.isProtected:
+            self.doUserOption("switch")
+        else:
+            self.doUserOption({"fast_switch": user.id})
 
     def doUserOption(self, option):
         """Ported from HomeWindow.doUserOption() (home.py) - see quiet-orbiting-heron.md's Cold
@@ -1734,16 +1755,12 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
             # return to Home). Path mapping's and Watchlist's: the sidebar redrawn. Season
             # thumbnails: Home's rows bound again, so their episode tiles change poster.
             themeChanged = []
-            plexDirectChanged = []
             mappingChanged = []
             watchlistChanged = []
             thumbsChanged = []
 
             def onThemeSetting(*args, **kwargs):
                 themeChanged.append(kwargs.get('id'))
-
-            def onPlexDirectSetting(*args, **kwargs):
-                plexDirectChanged.append(True)
 
             def onMappingSetting(*args, **kwargs):
                 mappingChanged.append(True)
@@ -1755,8 +1772,6 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
                 thumbsChanged.append(True)
 
             watched = (('theme_relevant_setting', onThemeSetting),
-                       ('change:force_pd_mapping', onPlexDirectSetting),
-                       ('change:handle_plexdirect', onPlexDirectSetting),
                        ('change:path_mapping', onMappingSetting),
                        ('change:path_mapping_indicators', onMappingSetting),
                        ('change:use_watchlist', onWatchlistSetting),
@@ -1775,8 +1790,6 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
                          ', '.join(themeChanged))
                 self._closeSessionWithOption('recompile')
             else:
-                if plexDirectChanged:
-                    windowutils.HOME.checkPlexDirectHosts()
                 if watchlistChanged:
                     # the entry is only added when its section exists (sidebar_model.sections())
                     sidebar_model.refreshWatchlistSection()
@@ -1788,19 +1801,28 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
             self.setProperty('busy', '1')
             self._sidebarTarget().setFocusId(self.SECTION_LIST_ID)
             util.setGlobalProperty('update_requested', '1', wait=True)
-        elif option == 'go_online':
-            if plexapp.util.LOCAL_MODE:
-                # leave local mode via a clean re-init (re-verifies the account or opens sign-in)
-                self._closeSessionWithOption(option)
-                return
-            plexapp.ACCOUNT.refreshAccount()
+        elif option == 'join_party':
+            watch_together.joinParty(plexapp.SERVERMANAGER.selectedServer, watch_together.playerFor(self))
+            return
+        elif option == 'party':
+            session = watch_together.current()
+            if session is not None:
+                watch_together.runParty(session, watch_together.playerFor(self))
+            return
         elif option == 'refresh_users':
-            plexapp.ACCOUNT.updateHomeUsers(refreshSubscription=True)
+            try:
+                plexapp.ACCOUNT.updateHomeUsers(refreshSubscription=True)
+            except SiloError:
+                # the profiles as they were
+                util.showNotification(T(35252, "Can't reach the Silo server. Check your connection and try again."))
             return True
-        elif option == 'local_users':
-            from lib import localmode
-            localmode.seedUsersFromServer(reselect=True)
-            return True
+        elif option == 'server':
+            from lib import silo
+            previous = silo.pickServer(silo.deviceIdentity(), dialog_props=getattr(self, 'carriedProps', None))
+            if previous:
+                # start-up again on the server picked (lib/main.py), back on this one if its sign-in is given up
+                self._closeSessionWithOption({'switch_server': previous})
+            return
         elif option == 'signout':
             button = optionsdialog.show(
                 T(32344, 'Sign Out'),
@@ -1856,11 +1878,13 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
                 'refresh after display sleep', lambda *a, **k: self.refreshAfterIdle('display'))),
             # Settings' update source; passed on to the update checker by tick()
             (plexapp.util.APP, 'change:update_source', self._onUpdateSourceChanged),
-            # the servers from plex.tv, on plexnet's thread: their plex.direct names (plexdirect.check())
-            (plexapp.util.APP, 'loaded:server_connections', self._onServerConnectionsLoaded),
             # plex.tv answering after the account went offline (MyPlexAccount.scheduleOfflineRetry(), or
             # Offline Mode in the user menu): the Watchlist back in the sidebar
             (plexapp.util.APP, 'account:online', self._postedHandler('onAccountOnline', self.onAccountOnline)),
+            # the acting profile's PIN session ended (SiloAccount.requireVerification(), on a request's thread)
+            (plexapp.util.APP, 'account:verification_required',
+             self._postedHandler('onProfileLocked', self.onProfileLocked)),
+            (plexapp.util.APP, 'account:session_ended', self._postedHandler('onSessionEnded', self.onSessionEnded)),
         )
         for emitter, signal, handler in self._serverSignalHandlers:
             emitter.on(signal, handler)
@@ -2120,22 +2144,6 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
 
     def _onUpdateSourceChanged(self, value=None, **kwargs):
         self._updateSourceChanged = value
-
-    def checkPlexDirectHosts(self, servers=None, source="stored"):
-        """Map the servers' plex.direct names that Kodi can't resolve (plexdirect.py). Any thread; the
-        "ask" question is posted to the main thread. Root only."""
-        if self._shuttingDown:
-            return
-        try:
-            if servers is None:
-                servers = list(plexapp.SERVERMANAGER.serversByUuid.values())
-            plexdirect.check(servers, source=source,
-                             post=lambda fn: self.postUI('plex.direct mapping', fn))
-        except Exception:
-            util.ERROR()
-
-    def _onServerConnectionsLoaded(self, servers=None, source="stored", **kwargs):
-        self.checkPlexDirectHosts(servers or (), source=source)
 
     def _answerUpdateChecker(self):
         """The update checker (update_checker.py, a service) talks to the UI through global
@@ -2467,6 +2475,21 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
         sidebar_model.refreshWatchlistSection()
         self._rebuildSidebar()
 
+    def onSessionEnded(self, *args, **kwargs):
+        """Silo refused the session (signed out there, the password changed, the account disabled): Home closes, once
+        however many requests heard it, and start-up asks to sign in again (lib/main.py)."""
+        if self._shuttingDown or getattr(self, '_sessionEndedSeen', False):
+            return
+        self._sessionEndedSeen = True
+        self._closeSessionWithOption('session_ended')
+
+    def onProfileLocked(self, *args, **kwargs):
+        """Silo answered that the acting profile's PIN session ended: Home closes as for Switch User, and main.py's
+        profile picker asks for the PIN."""
+        if self._shuttingDown:
+            return
+        self.doUserOption('switch')
+
     def onServerOnline(self, server=None, **kwargs):
         """A server answers again: its sidebar entries light up (and its libraries are asked for,
         if it hadn't listed them). If it's the server of what's on screen, say so and reload the
@@ -2565,11 +2588,6 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
             # Only the true root reacts to the server signals (hookSignals())
             self._signalsHooked = True
             self.hookSignals()
-            # The stored servers' loaded:server_connections fired at startup, before any window
-            # (PlexServerManager.__init__()), and plex.tv's may have too: upstream HomeWindow checked
-            # them here as well as on the signal.
-            plexdirect.reset()
-            self.checkPlexDirectHosts()
         if self is windowutils.HOME and self.section is home.home_section:
             self.offerOnboarding()
         timing.mark('controls')
@@ -2858,7 +2876,7 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
             self.setProperty('sort.display', display)
             self.updateSortIcon()
         self.setProperty('media.itemType', self.itemType or self.section.TYPE)
-        self.setProperty('media.type', TYPE_PLURAL.get(self.itemType or self.section.TYPE, self.section.TYPE))
+        self.setProperty('media.type', typePlural(self.section, self.itemType))
         self.setProperty('media', self.section.TYPE)
         self.setProperty('hide.filteroptions', hideFilterOptions and '1' or '')
         # Library grid screens never want the sharp top-right hero-art box
@@ -3204,15 +3222,7 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
                     self.showUserMenu()
                     return True
                 elif action == xbmcgui.ACTION_CONTEXT_MENU and util.getSetting('previous_user'):
-                    # fast-switch to the previous user, if not protected
-                    uid = util.getSetting('previous_user')
-                    if uid == plexapp.ACCOUNT.ID:
-                        return True
-                    user = plexapp.ACCOUNT.getHomeUser(uid)
-                    if not user or user.isProtected:
-                        self.doUserOption("switch")
-                        return True
-                    self.doUserOption({"fast_switch": user.id})
+                    self.fastSwitchUser()
                     return True
 
             # The showing view's own controls, when it's one of this window's own views
@@ -3392,9 +3402,6 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
         listed from what's stored, saying so. The sidebar is rebuilt, and Home reloaded, when it
         closes having changed."""
         servers = sorted(plexapp.SERVERMANAGER.getServers(), key=lambda x: (not x.owned, x.name.lower()))
-        if plexapp.util.LOCAL_MODE:
-            # local mode can only ever use servers with a plain LAN connection
-            servers = [x for x in servers if x.hasLocalModeConnection()]
 
         listed = {}
         playlists = {}
@@ -3620,10 +3627,10 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
             return
 
         section = item.dataSource
-        # In the option picker, beside the sidebar (the user, 2026-10-23): the actions, then the library's folders
-        # under a "Map path(s)" group title. Rows as (key, label); a folder's key ('map', its path, mapped). A
-        # menu with nothing in it isn't opened - the key does nothing (Watchlist, a library whose server
-        # isn't answering).
+        # In the option picker, beside the sidebar (the user, 2026-10-23): the actions, then Map path - a button that
+        # opens Kodi's folder selector (the user, 2026-11-24), Remove path mapping once mapped. Rows as (key, label).
+        # A menu with nothing in it isn't opened - the key does nothing (Watchlist, a library whose server isn't
+        # answering).
         actions, mappable = [], []
         if not section.key:
             # home section
@@ -3644,9 +3651,8 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
             if (plexapp.ACCOUNT.isAdmin and not placeholder
                     and section != home.watchlist_section and not home.isPlaylists(section)
                     and section.server.owned):
-                actions += [('refresh', T(33082, "Scan Library Files")),
-                            ('emptyTrash', T(33083, "Empty Trash")),
-                            ('analyze', T(33084, "Analyze"))]
+                # Silo scans a library (silonet: POST /api/v2/scan); it has no Empty Trash or Analyze
+                actions.append(('refresh', T(33082, "Scan Library Files")))
 
             if ('libraries' in util.getSetting('cache_requests') and section != home.watchlist_section
                     and not placeholder):
@@ -3660,29 +3666,28 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
                 mappable = list(section.locations)
             heading = T(33030, 'Choose action for: {}').format(section.title)
 
+        def mapped(loc):
+            return all(section.getMappedPath(loc))
+
         def menuOptions():
-            """The actions, then each folder as it's mapped now: Add: or Remove:. Each row's tick its own (never): the
-            row chosen is focused again on the way back to the menu (backToMenu()), not ticked as a value."""
-            maps = []
-            for loc in mappable:
-                source, target = section.getMappedPath(loc)
-                mapped = bool(source and target)
-                maps.append((('map', loc, mapped),
-                             T(35206, "Remove: {}").format(target) if mapped else T(35205, "Add: {}").format(loc),
-                             False))
+            """The actions, then Map path while a folder of the library isn't mapped and Remove path mapping once one
+            is. The server's own folders aren't shown: they mean nothing on the Kodi side. Each row's tick its own
+            (never): the row chosen is focused again on the way back to the menu (backToMenu())."""
             options = [(key, label, False) for key, label in actions]
-            if maps:
-                options.append(optionGroup(T(35204, "Map paths") if len(maps) > 1 else T(35203, "Map path")))
-                options += maps
+            if any(not mapped(loc) for loc in mappable):
+                options.append(('map_path', T(35203, "Map path"), False))
+            if any(mapped(loc) for loc in mappable):
+                options.append(('unmap_path', T(35313, "Remove path mapping"), False))
             return options
 
         def backToMenu(choice):
-            """The menu again, its rows as they are now, on the row chosen (a folder's by its path: mapping it
-            turns its Add: into Remove:)."""
+            """The menu again, its rows as they are now, on the row chosen; on its counterpart once Map path has
+            turned into Remove path mapping, or back."""
             options = menuOptions()
-            same = (lambda key: isinstance(key, tuple) and key[:2] == choice[:2]) if isinstance(choice, tuple) \
-                else (lambda key: key == choice)
-            return options, next((i for i, o in enumerate(options) if same(o[0])), 0)
+            keys = [o[0] for o in options]
+            if choice not in keys and choice in ('map_path', 'unmap_path'):
+                choice = 'unmap_path' if choice == 'map_path' else 'map_path'
+            return options, keys.index(choice) if choice in keys else 0
 
         # Done once the menu has closed, not under it: the sidebar redrawn (its mapped marker) and the rows refreshed
         # (Manage recommended rows changed them)
@@ -3690,38 +3695,31 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
 
         def onChoice(choice):
             """What opens something of its own opens it over the menu, as the add-on's Settings does, and Back
-            comes back to it: Manage recommended rows and a folder's mapping. Empty Trash's confirm too, whose Yes
-            empties it and closes the menu. The rest close the menu and run below."""
-            if isinstance(choice, tuple) and choice[0] == 'map':
-                _map, path, is_mapped = choice
-                if is_mapped:
-                    source, target = section.getMappedPath(path)
-                    section.deleteMapping(target)
-                else:
-                    d = xbmcgui.Dialog().browse(0, T(33031, "Select Kodi source for {}").format(path), "files")
+            comes back to it: Manage recommended rows and Map path's folder selector. The rest close the menu and run
+            below."""
+            if choice == 'map_path':
+                # Kodi's folder selector for each folder not mapped yet: the library by its name, a folder of a
+                # library with several by its own
+                for loc in [loc for loc in mappable if not mapped(loc)]:
+                    name = section.title if len(mappable) == 1 else '{} ({})'.format(
+                        section.title, os.path.basename(loc.rstrip('/\\')))
+                    d = xbmcgui.Dialog().browse(0, T(33031, "Select Kodi source for {}").format(name), "files")
                     if not d:
-                        return backToMenu(choice)
-                    section.addMapping(d, path)
+                        break
+                    section.addMapping(d, loc)
+                    after['sidebar'] = True
+                return backToMenu(choice)
+            if choice == 'unmap_path':
+                for loc in mappable:
+                    source, target = section.getMappedPath(loc)
+                    if source and target:
+                        section.deleteMapping(target)
                 after['sidebar'] = True
                 return backToMenu(choice)
             if choice == 'manage_hubs':
                 self.showHubSettingsDialog(section)
                 after['rows'] = after['rows'] or self._hubsSettingsChanged
                 return backToMenu(choice)
-            if choice == 'emptyTrash':
-                button = optionsdialog.show(
-                    T(33083, 'Empty Trash'),
-                    section.title,
-                    optionsdialog.destructive(T(32328, 'Yes')),
-                    T(32329, 'No'),
-                    dialog_props=getattr(self, 'carriedProps', None)
-                )
-                if button != 0:
-                    return backToMenu(choice)
-                # Not reopened: Plex doesn't say when it's done
-                with busy.BusyContext(delay=True, delay_time=0.2):
-                    section.emptyTrash()
-                util.showNotification(T(35208, "Emptying trash: {}").format(section.title))
             return None
 
         options = menuOptions()
@@ -3752,11 +3750,6 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
             util.showNotification(T(35207, "Scanning {}").format(section.title))
             self._watchScan(section, before)
             return
-        elif choice == "analyze":
-            with busy.BusyContext(delay=True, delay_time=0.2):
-                section.analyze()
-            return
-
         elif choice == "cache_reset":
             try:
                 plexapp.util.INTERFACE.clearRequestsCache()
@@ -3786,6 +3779,8 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
             return None, None
         for d in data if data is not None else ():
             if d.get('key') == str(section.key):
+                if d.get('refreshing') is None:
+                    return None, None  # a server whose library list doesn't say (Silo)
                 return d.get('refreshing') == '1', d.get('scannedAt')
         return None, None
 
@@ -3793,7 +3788,10 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
         """Until section's scan is done - seen scanning and then not, or scannedAt moved on from before's (a scan
         that finds nothing can come and go between two polls) - then its rows refreshed in place if they're
         showing, or Home's, which draw on every library: something new can land in Recently Added and the like.
-        No longer than SCAN_WATCH_SECONDS; on a thread of its own, the refresh on the main thread (postUI())."""
+        No longer than SCAN_WATCH_SECONDS; on a thread of its own, the refresh on the main thread (postUI()). Not
+        watched when the server didn't say before the scan (before: (None, None)): it won't say after either."""
+        if before == (None, None):
+            return
         scannedBefore = before[1]
 
         def run():
@@ -4095,7 +4093,6 @@ class PostersWindow(kodigui.MultiWindowView, kodigui.ControlledWindow, windowuti
 
     OPTIONS_GROUP_ID = 200
 
-    PLAYER_STATUS_BUTTON_ID = 204
 
     SORT_BUTTON_ID = 210
     FILTER1_BUTTON_ID = 211
@@ -4213,7 +4210,6 @@ class RecommendedWindow(kodigui.MultiWindowView, kodigui.ControlledWindow, windo
     height = 1080
 
     # The now-playing widget (shown while music plays) and the first hub row.
-    PLAYER_STATUS_BUTTON_ID = 204
     HUB_CONTROL_ID = 400
 
     MULTI_WINDOW_ID = 0

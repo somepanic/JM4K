@@ -32,9 +32,7 @@ from lib.windows import opener  # noqa: E402
 from lib.windows import preplay  # noqa: E402
 from lib.windows import episodes  # noqa: E402
 from lib.windows import subitems  # noqa: E402
-from lib.windows import tracks  # noqa: E402
 from lib.windows import person as person_window  # noqa: E402
-from lib.windows import playlist  # noqa: E402
 from lib.windows import collection as collection_window  # noqa: E402
 
 from .base import KodiTestCase  # noqa: E402
@@ -195,14 +193,6 @@ class ItemClickedFunctionsTest(KodiTestCase):
 
         self.assertEqual([(episodes.EpisodesWindow, {'season': season})], context.openWindowCalls)
 
-    def test_artist_with_context_swaps_in_place(self):
-        context = FakeContext()
-        artist = FakeTyped('artist')
-
-        opener.artistClicked(artist, context=context)
-
-        self.assertEqual([(subitems.ArtistWindow, {'media_item': artist})], context.openWindowCalls)
-
     def test_season_with_context_swaps_in_place(self):
         context = FakeContext()
         season = FakeTyped('season')
@@ -210,14 +200,6 @@ class ItemClickedFunctionsTest(KodiTestCase):
         opener.seasonClicked(season, context=context)
 
         self.assertEqual([(episodes.EpisodesWindow, {'season': season})], context.openWindowCalls)
-
-    def test_album_with_context_swaps_in_place(self):
-        context = FakeContext()
-        album = FakeTyped('album')
-
-        opener.albumClicked(album, context=context)
-
-        self.assertEqual([(tracks.AlbumWindow, {'album': album})], context.openWindowCalls)
 
     def test_director_with_context_swaps_in_place(self):
         context = FakeContext()
@@ -234,14 +216,6 @@ class ItemClickedFunctionsTest(KodiTestCase):
         opener.actorClicked(actor, context=context)
 
         self.assertEqual([(person_window.ActorWindow, {'role': actor})], context.openWindowCalls)
-
-    def test_playlist_with_context_swaps_in_place(self):
-        context = FakeContext()
-        pl = FakeTyped('playlist')
-
-        opener.playlistClicked(pl, context=context)
-
-        self.assertEqual([(playlist.PlaylistWindow, {'playlist': pl})], context.openWindowCalls)
 
     def test_collection_with_context_opens_its_grid(self):
         # as the Collections tab does - it went down sectionClicked() and showed as a library
@@ -266,16 +240,13 @@ class ItemClickedFunctionsTest(KodiTestCase):
         try:
             opener.episodeClicked(FakeTyped('episode'))
             opener.showClicked(FakeTyped('show'))
-            opener.artistClicked(FakeTyped('artist'))
             opener.seasonClicked(FakeTyped('season'))
-            opener.albumClicked(FakeTyped('album'))
             opener.directorClicked(FakeTyped('Director'))
             opener.actorClicked(FakeTyped('Role'))
-            opener.playlistClicked(FakeTyped('playlist'))
         finally:
             opener.handleOpen = originalHandleOpen
 
-        self.assertEqual(8, len(handleOpenCalls))
+        self.assertEqual(5, len(handleOpenCalls))
 
 
 class OpenDispatchContextForwardingTest(KodiTestCase):
@@ -287,12 +258,9 @@ class OpenDispatchContextForwardingTest(KodiTestCase):
         cases = [
             ('episode', episodes.EpisodesWindow, {'episode': None}),
             ('show', subitems.ShowWindow, {'media_item': None}),
-            ('artist', subitems.ArtistWindow, {'media_item': None}),
             ('season', episodes.EpisodesWindow, {'season': None}),
-            ('album', tracks.AlbumWindow, {'album': None}),
             ('Director', person_window.DirectorWindow, {'role': None}),
             ('Role', person_window.ActorWindow, {'role': None}),
-            ('playlist', playlist.PlaylistWindow, {'playlist': None}),
         ]
         for type_, expectedClass, kwargTemplate in cases:
             context = FakeContext()

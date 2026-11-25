@@ -6,7 +6,7 @@ import sys
 
 from lib.logging import log, KodiLogProxyHandler
 # noinspection PyUnresolvedReferences
-from lib.kodi_util import translatePath, xbmc, xbmcgui, UPSTREAM_ADDON_ID
+from lib.kodi_util import translatePath, xbmc, xbmcgui, ADDON_ID, UPSTREAM_ADDON_ID
 from lib.properties import getGlobalProperty, setGlobalProperty
 from tendo_singleton import SingleInstance, SingleInstanceException
 
@@ -42,8 +42,8 @@ started = False
 set_waiting_for_start = False
 try:
     # reactivate/maximize
-    # 'running' is shared by every copy of the add-on (script.plex.* properties) and holds the running copy's
-    # ID, so RESTORE goes to that copy, which may not be us. Versions before this set '1'.
+    # 'running' holds the running copy's ID, so RESTORE goes to it. The add-on's properties are its own
+    # (lib/properties_core.py): Plex Uno running alongside isn't this add-on running. Versions before this set '1'.
     running = getGlobalProperty('running')
     if running:
         try:
@@ -72,7 +72,8 @@ try:
             started = True
 
             # only allow a single instance
-            with SingleInstance("pm4k"):
+            # the add-on's own lock: Plex Uno's ("pm4k") is another app's
+            with SingleInstance(ADDON_ID):
                 skip_ensure_home = False
                 from lib import main
 

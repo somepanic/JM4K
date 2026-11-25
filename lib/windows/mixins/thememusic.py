@@ -71,8 +71,14 @@ class ThemeMusicMixin(object):
             playBGM = False
 
         if playBGM:
-            self.playThemeMusic(item.theme and item.theme.asURL(True) or None, item.ratingKey, locations or [loc.get("path") for loc in item.locations],
-                                item.server, fade_fast=fadeFast)
+            server = item.server
+            if hasattr(server, 'themeUrl'):
+                # a Silo server grants each play of a theme (SiloServer.themeUrl()): not asked while it's off
+                theme = server.themeUrl(item) if pnUtil.INTERFACE.getThemeMusicValue() else None
+            else:
+                theme = item.theme and item.theme.asURL(True) or None
+            self.playThemeMusic(theme, item.ratingKey, locations or [loc.get("path") for loc in item.locations],
+                                server, fade_fast=fadeFast)
 
 
     def themeMusicReinit(self, item):

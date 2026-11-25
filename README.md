@@ -1,48 +1,32 @@
-# PM4K / PlexMod for Kodi
+# SiloMod for Kodi (SM4K)
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Z8Z8X6P9T)
+SiloMod lets you browse and play the films and series on your [Silo](https://siloserver.org) media server from Kodi.
 
-This is a modification of the official open-source Plex client for Kodi "plex-for-kodi" (Plex4Kodi)  semi-maintained by me (pannal).
+**Status: test builds.** SiloMod works with Silo and is ready for testing, but it isn't released yet, so expect
+rough edges.
 
-Contrary to how this repository was handled before, this client does _not_ claim to adhere to the Plex Inc. design guidelines, all the time.
+## What it does
 
-It implements features that are not implemented in other official Plex clients and may implement others in non-conform ways.
+- Sign in to your Silo server by approving a code on another device, then pick your profile.
+- Browse Home's rows, your film, series and mixed libraries, and search titles and people.
+- See each title's details, cast, seasons and episodes, and related titles.
+- Play the original file whenever your device can, with resume, skip intro and credits, chapters and subtitles.
+- Keep track of what you've watched, Continue Watching, your watchlist and your favorites.
+- Watch together: start a watch party from a film's More menu (Watch together), or join one with its code from your
+  user menu (Join watch party). Everyone stays in step when someone pauses or skips.
 
-It is still based off of the original P4K source and critical bugfixes might be PR'd back.
+## Where it comes from
 
-## Active branches
-* [develop-kodi21](https://github.com/pannal/plex-for-kodi/tree/develop_kodi21) (Kodi 19, 20, 21 cross-compatible)
-* [develop-kodi18](https://github.com/pannal/plex-for-kodi/tree/develop_kodi18) (legacy)
+SiloMod is a fork of [Plex Uno](https://github.com/FilHarr/plex-for-kodi) by FilHarr, which is a reworked fork of
+[PlexMod for Kodi](https://github.com/pannal/plex-for-kodi) (PM4K) by pannal, which grew out of Plex's own Kodi
+add-on. SiloMod keeps Plex Uno's screens and replaces the parts that talk to Plex with parts that talk to Silo.
 
-Master branch is based off of the official plex-for-kodi master branch.
+## Installing
 
-## Installation
+Not in a Kodi repository yet. To try a test build, install its zip file from Kodi's Add-ons screen (Install from zip
+file). Releases will come through a Kodi repository later, and this page will say how to add it.
 
-### Via repository (recommended)
-* Add `https://pm4k.eu` to your Kodi installation as a file source (Hit Add source in File Manager, click on the selected "`<None>`" in the list, enter `https://pm4k.eu`, OK, down, enter a name, hit OK)
-* Go to Settings->Addons, choose "Install from zip file", choose the file source you added and install the repository
-* Install Plex via Settings->Addons->Install from repository->Don't Panic->Video add-ons->Plex
-* Optional, recommended: Install Plextuary via Settings->Addons->Install from repository->Don't Panic->Look and Feel->Skin->Plextuary
+## Licence
 
-### Installation (stable only, not optimized, possibly outdated)
-* Install "PM4K for Kodi" from the official Kodi repository
-* Optional, recommended: Install Plextuary skin using the above
-
-### Manual
-* Checkout any branch of this GitHub repository, rename to `script.plexmod` and use as an addon (for it to work with "Install from zip", the contents of the zip should be the folder `script.plexmod`.
-
-### Installing to a read-only or write-protected location
-Set the environment variable `INSTALLATION_DIR_AVOID_WRITE` to any value before starting Kodi to prevent the addon from trying to write to its installation directory. Useful for package managers.
-
-## Translation
-You can help! Join the translation effort at [POEditor](https://poeditor.com/join/project/ASOl50YAXg) (thanks for the free open source license, guys).
-
-## Help/Bug Reports
-https://forums.plex.tv/t/plexmod-for-kodi-18-19-20-21/481208
-
-## License
-[LICENSE](https://github.com/plexinc/plex-for-kodi/blob/master/LICENSE.txt)
-
-## Powered by
-
-[![JetBrains logo.](https://resources.jetbrains.com/storage/products/company/brand/logos/jetbrains.svg)](https://jb.gg/OpenSource)
+SiloMod is licensed under the GNU General Public License, version 2 only (GPL-2.0-only). `LICENSE.txt` also holds
+the licences of the packages bundled in `lib/_included_packages`.

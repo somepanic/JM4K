@@ -14,6 +14,7 @@ from lib import backgroundthread
 from lib import metadata
 from lib import player
 from lib import util
+from lib import watch_together
 from lib.util import T
 from lib.language_util import getNativeLanguages
 from . import busy
@@ -502,7 +503,6 @@ class EpisodesWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutil
     RELATED_LIST_ID = 404
 
     OPTIONS_GROUP_ID = 200
-    PLAYER_STATUS_BUTTON_ID = 204
 
     MAIN_BUTTON_GROUP_ID = 300
     PLAY_BUTTON_ID = 301
@@ -1671,8 +1671,6 @@ class EpisodesWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutil
             self.sectionClicked()
         elif controlID == self.EPISODE_LIST_ID:
             self.episodeListClicked()
-        elif controlID == self.PLAYER_STATUS_BUTTON_ID:
-            self.showAudioPlayer()
         elif controlID == self.PLAY_BUTTON_ID:
             self.playButtonClicked()
         elif controlID == self.RESUME_BUTTON_ID:
@@ -2203,6 +2201,10 @@ class EpisodesWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutil
 
         options.append(('to_show', T(32323, 'Go To Show')))
 
+        # a watch party on a Silo server (decision D26): this episode up next for everyone, as pre-play offers a film
+        if not isSeasonCard and hasattr(mli.dataSource.getServer(), 'pinnedFiles'):
+            options.append(('watch_together', T(35260, 'Watch together')))
+
         if 'items' in util.getSetting('cache_requests'):
             options.append(('cache_reset', T(33728, "Clear cache for item")))
 
@@ -2225,6 +2227,9 @@ class EpisodesWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutil
             self.toggleWatched(item=self.season, state=False, heading=T(32320, 'Mark Season Unplayed'), confirmed=True)
         elif key == 'to_show':
             self._goToShow()
+        elif key == 'watch_together':
+            episode = mli.dataSource
+            watch_together.pickItem(episode, episode.getServer().fileId(episode), watch_together.playerFor(self))
         elif key == 'delete':
             # rebuilt only once deleted (not on a No), and season card and all (_rebuildEpisodeList()),
             # on the episode _delete() left selected in its place

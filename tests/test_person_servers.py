@@ -17,7 +17,7 @@ from unittest import mock
 from kodienv import ENV
 
 ENV.abort_requested = True
-from plexnet import media as plexmedia, plexobjects  # noqa: E402
+from plexnet import plexobjects  # noqa: E402
 
 from lib.windows import person  # noqa: E402
 
@@ -39,11 +39,6 @@ class Role(object):
 
     def get(self, key, default=''):
         return plexobjects.PlexValue(self.attrs.get(key, default))
-
-
-def credit(title, ratingKey, type_='movie'):
-    """A Discover credit, as /library/people/{key}/credits gives it."""
-    return {'Metadata': {'title': title, 'ratingKey': ratingKey, 'type': type_}}
 
 
 class Film(object):
@@ -93,58 +88,6 @@ class FilmographyTaskTest(KodiTestCase):
         self.assertEqual({('Animal', '5d77'), ('Oscar', '5d77')}, set(asked))
         self.assertEqual(['Dogma', 'Die Hard'], items)
 
-    def test_discovers_titles_in_a_library_join_each_servers_own(self):
-        # Stan Lee, live (2026-10-08): the servers credit him on 41 titles, Discover on 21 more that
-        # are in a library - Logan, executive producer. Iron Man is in both, and comes once.
-        animal, oscar = server('a', 'Animal'), server('o', 'Oscar')
-        ironman = mock.Mock(ratingKey='1')
-        inLibraries = {'Animal': [ET.Element('Video', ratingKey='1'), ET.Element('Video', ratingKey='2')],
-                       'Oscar': [ET.Element('Video', ratingKey='3')]}
-        asked, versioned = [], []
-
-        def byGuid(srv, guids):
-            asked.append((srv.name, tuple(guids)))
-            return inLibraries[srv.name]
-
-        def addVersions(srv, elems):
-            versioned.append((srv.name, tuple(elem.get('ratingKey') for elem in elems)))
-            return elems
-        groups = [('producer', 'Producer', [credit('Iron Man', 'ironman'), credit('Logan', 'logan')])]
-        with mock.patch.object(person, 'discoverCredits', lambda role, key: groups), \
-                mock.patch.object(plexmedia.Role, 'libraryItemsByGuid', staticmethod(byGuid)), \
-                mock.patch.object(person, 'addVersions', addVersions), \
-                mock.patch.object(person, 'libraryItems', lambda srv, elems, initpath: [e.get('ratingKey') for e in elems]):
-            _, items = self.run_task(Role(animal, tagKey='5d77'), [oscar, animal],
-                                     {'Animal': [ironman], 'Oscar': []})
-        self.assertEqual(['3', ironman, '2'], items)
-        self.assertEqual({('Animal', ('plex://movie/ironman', 'plex://movie/logan')),
-                          ('Oscar', ('plex://movie/ironman', 'plex://movie/logan'))},
-                         set((name, tuple(sorted(guids))) for name, guids in asked))
-        # only those the server's own answer didn't have get their versions fetched
-        self.assertEqual({('Animal', ('2',)), ('Oscar', ('3',))}, set(versioned))
-
-    def test_no_discover_answer_leaves_the_servers_own(self):
-        animal = server('a', 'Animal')
-
-        def fails(role, key):
-            raise Exception('timed out')
-        with mock.patch.object(person, 'discoverCredits', fails):
-            _, items = self.run_task(Role(animal, tagKey='5d77'), [animal], {'Animal': ['Die Hard']})
-        self.assertEqual(['Die Hard'], items)
-
-    def test_the_credit_types_line_comes_from_discovers_groups(self):
-        animal = server('a', 'Animal')
-        groups = [('producer', 'Producer', []), ('actor', 'Actor', []), ('appeared', 'Appearances', []),
-                  ('writer', 'Writer', []), ('other', 'Additional Credits', [])]
-        lines = []
-        with mock.patch.object(person, 'discoverCredits', lambda role, key: groups):
-            task = person.PersonFilmographyTask(Role(animal, tagKey='5d77'), [animal], lambda items: None,
-                                                on_credit_types=lines.append)
-            task.isCanceled = lambda: False
-            with mock.patch.object(person, 'libraryFilmography', lambda srv, key: []):
-                task.run()
-        self.assertEqual(['Producer, Actor, Writer'], lines)
-
     def test_without_a_key_only_its_own_server_by_its_id(self):
         animal, oscar = server('a', 'Animal'), server('o', 'Oscar')
         with mock.patch.object(person, 'personKey', lambda role: None):
@@ -192,23 +135,6 @@ class VersionsTest(KodiTestCase):
         # a version only a repeat had is kept, once
         self.assertEqual(['201261', '225703'], [media.get('id') for media in kept[0].findall('Media')])
 
-    def test_films_from_library_all_get_their_versions_from_their_own_library(self):
-        logan = ET.Element('Video', type='movie', ratingKey='76679', guid='plex://movie/logan', librarySectionID='22')
-        blade = ET.Element('Video', type='movie', ratingKey='74145', guid='plex://movie/blade', librarySectionID='22')
-        loki = ET.Element('Directory', type='show', ratingKey='5', guid='plex://show/loki', librarySectionID='18')
-        listing = ET.fromstring('<MediaContainer librarySectionID="22">'
-                                '<Video ratingKey="76679"><Media id="201428"/><Media id="225692"/></Video>'
-                                '<Video ratingKey="74145"><Media id="182357"/></Video></MediaContainer>')
-        srv = server('a', 'Animal')
-        srv.query.return_value = listing
-        self.assertEqual([logan, blade, loki], person.addVersions(srv, [logan, blade, loki]))
-        self.assertEqual(['201428', '225692'], [media.get('id') for media in logan.findall('Media')])
-        self.assertEqual(['182357'], [media.get('id') for media in blade.findall('Media')])
-        # one query, the films' library's, by guid - a show has no versions to fetch
-        self.assertEqual(1, srv.query.call_count)
-        path = srv.query.call_args[0][0]
-        self.assertTrue(path.startswith('/library/sections/22/all?guid='), path)
-
 
 class PersonTextTest(KodiTestCase):
     """The lines beside the person's photo (on request, 2026-10-08)."""
@@ -246,31 +172,6 @@ class PersonTextTest(KodiTestCase):
 
     def test_no_dates_no_lines(self):
         self.assertEqual(('', ''), self.window().lifeLines('', ''))
-
-    def test_social_links_an_icon_and_a_handle_each_in_discovers_order(self):
-        win = self.window()
-        win.setSocialLinks([{'source': 'facebook', 'id': 'realstanlee'}, {'source': 'tiktok', 'id': 'stan'},
-                            {'source': 'instagram', 'id': ''}])
-        self.assertEqual({'person.social.0.icon': 'script.plex/social/facebook.png', 'person.social.0.label': 'realstanlee',
-                          # a network without an icon of its own gets the link one
-                          'person.social.1.icon': 'script.plex/social/link.png', 'person.social.1.label': 'stan',
-                          # no handle, no line
-                          'person.social.2.icon': '', 'person.social.2.label': ''}, win.props)
-
-
-class LibraryPresenceTest(KodiTestCase):
-    def test_in_a_library_on_any_server_the_first_that_has_it(self):
-        animal, oscar = server('a', 'Animal'), server('o', 'Oscar')
-        have = {'Animal': {'plex://movie/diehard', 'plex://movie/both'}, 'Oscar': {'plex://movie/dogma', 'plex://movie/both'}}
-        with mock.patch.object(plexmedia.Role, 'checkLibraryPresence',
-                               staticmethod(lambda srv, guids: have[srv.name] & set(guids))):
-            present = person.libraryPresence([oscar, animal], ['plex://movie/diehard', 'plex://movie/dogma',
-                                                               'plex://movie/both', 'plex://movie/neither'])
-        self.assertEqual({'plex://movie/diehard': animal, 'plex://movie/dogma': oscar, 'plex://movie/both': oscar},
-                         present)
-
-    def test_no_servers_nothing(self):
-        self.assertEqual({}, person.libraryPresence(None, ['plex://movie/x']))
 
 
 class FilmographyListTest(KodiTestCase):

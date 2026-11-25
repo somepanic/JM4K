@@ -277,8 +277,8 @@ _openPickers = [0]
 
 
 def pickerOpen():
-    """Whether a picker is open now: a dialog opened over it (a sidebar menu's Empty Trash confirm or Manage
-    recommended rows) is nested, the picker's dim already behind it (option_card_frame.xml.tpl)."""
+    """Whether a picker is open now: a dialog opened over it (a sidebar menu's Manage recommended rows) is nested, the
+    picker's dim already behind it (option_card_frame.xml.tpl)."""
     return _openPickers[0] > 0
 
 

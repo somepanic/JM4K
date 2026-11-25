@@ -1,9 +1,9 @@
 # coding=utf-8
 """
-lib/windows/previews.py - the preview pictures cut out of a downloaded index (docs/preview-thumbnails.md): one file
-each under Kodi's temp folder, written once even when two threads ask at once (on Windows the second rename failed
-once Kodi had the first open - seen live, 2026-10-20), and gone after clear(). The download itself needs a server;
-it was checked against one by hand.
+lib/windows/previews.py - the preview pictures a played file's index gives (Silo's trickplay sheets,
+silonet.trickplay; tested in test_silonet_trickplay.py): one file each under Kodi's temp folder, written once even
+when two threads ask at once (on Windows the second rename failed once Kodi had the first open - seen live,
+2026-10-20), and gone after clear().
 """
 
 from __future__ import absolute_import
@@ -18,9 +18,21 @@ from kodienv import ENV
 
 ENV.abort_requested = True
 from lib.windows import previews  # noqa: E402
-from lib.windows.bif_index import BifIndex  # noqa: E402
 
-from .test_bif_index import build, jpeg  # noqa: E402
+
+class Pictures(object):
+    """An index as the store reads one: a picture every interval ms."""
+
+    def __init__(self, pictures, interval=5000):
+        self.pictures = pictures
+        self.interval = interval
+        self.count = len(pictures)
+
+    def index_at(self, ms):
+        return min(ms // self.interval, self.count - 1) if self.count else None
+
+    def picture(self, index):
+        return self.pictures[index]
 
 
 class PartAtTest(unittest.TestCase):
@@ -49,11 +61,8 @@ class PreviewStoreTest(unittest.TestCase):
         self.store = previews.PreviewStore()
         self.store.folder = os.path.join(self.dir, previews.FOLDER)
         os.makedirs(self.store.folder)
-        self.pictures = [jpeg(i) for i in range(6)]
-        path = os.path.join(self.store.folder, '42.bif')
-        with open(path, 'wb') as f:
-            f.write(build(self.pictures))
-        self.store._indexes['42'] = BifIndex(path)
+        self.pictures = [b'picture %d' % i for i in range(6)]
+        self.store._indexes['42'] = Pictures(self.pictures)
 
     def tearDown(self):
         shutil.rmtree(self.dir, ignore_errors=True)

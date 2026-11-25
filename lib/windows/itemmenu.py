@@ -2,8 +2,8 @@
 """
 The menu key's item menu on the library grids (GridMixin.itemOptions()) and the Collection screen's grid
 (BoundedGridWindow.itemMenu()), in the option picker headed by the item:
-- a film, show, season or episode: Mark Played/Unplayed - or Remove from watchlist on the Watchlist's grid - and
-  Go To Show for a season or episode;
+- a film, show, season or episode: Mark Played/Unplayed - or Remove from watchlist on the Watchlist's grid -,
+  Go To Show for a season or episode, and Add to or Remove from Favorites on a Silo server;
 - a collection, artist, album or playlist: Play and Shuffle, and Go to Artist for an album;
 - a track: Go to Album, Go to Artist.
 Anything else (a photo, a folder, an empty collection) has none, and the key does nothing there. The screens run
@@ -68,6 +68,9 @@ def options(mli, watchlist=False):
             rows.append(('mark_unwatched', T(32318, "Mark Unplayed")))
         if ds.TYPE in ('episode', 'season'):
             rows.append(('to_show', T(32323, "Go To Show")))
+        favorite = favoriteRow(ds)
+        if favorite:
+            rows.append(favorite)
         return rows
 
     rows = []
@@ -78,6 +81,19 @@ def options(mli, watchlist=False):
     if ds.TYPE in ('album', 'track'):
         rows.append(('to_artist', T(32301, 'Go to Artist')))
     return rows
+
+
+def favoriteRow(ds):
+    """Add to or Remove from Favorites for an item on a Silo server (decision D19), as it stands; None elsewhere, or
+    when Silo can't say."""
+    server = ds.getServer()
+    if not hasattr(server, 'isFavorite'):
+        return None
+    state = server.isFavorite(ds)
+    if state is None:
+        return None
+    return ('remove_favorite', T(35258, 'Remove from Favorites')) if state else \
+        ('add_favorite', T(35257, 'Add to Favorites'))
 
 
 def confirmRemoveFromWatchlist(dialog_props=None):
@@ -113,6 +129,9 @@ def run(window, mli, choice, **open_kwargs):
     """Play/Shuffle and the Go to rows, from window; True if choice was one of them. open_kwargs go to what a Go to
     opens (the screen's entry_section_id), as its own clicks pass them."""
     ds = mli.dataSource
+    if choice in ('add_favorite', 'remove_favorite'):
+        ds.getServer().setFavorite(ds, choice == 'add_favorite')
+        return True
     if choice in ('play', 'shuffle'):
         playItem(window, ds, shuffle=choice == 'shuffle')
         return True

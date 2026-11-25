@@ -1,10 +1,7 @@
 # coding=utf-8
 """
-Preview thumbnails from each media part's whole index file (docs/preview-thumbnails.md): downloaded once in the
-background soon after playback starts, the pictures cut out of it as needed (bif_index.BifIndex) into Kodi's temp
-folder. Plex's one-picture-at-a-time request (PlexPlayer.getBifUrl()) can serve the wrong bytes for an index it
-holds stale details of; the whole file is what the official apps download, and is always right. Until a part's file
-is ready, or if its download fails, SeekDialog falls back to that request.
+Seek-bar preview pictures: a played file's index (Silo's trickplay sheets, silonet.trickplay.SheetIndex, asked of the
+server soon after playback starts) gives the thumbnail for a position, written as needed into Kodi's temp folder.
 
 Kodi loads images under special://temp directly, without copying them into its texture cache and database
 (CTextureCache::IsCachedImage, Kodi 21), so the pictures are written there, one file each, named by part and
@@ -16,17 +13,11 @@ from __future__ import absolute_import
 import os
 import shutil
 import threading
-import time
-
-from plexnet import asyncadapter, http
-from plexnet import util as plexnet_util
 
 from lib import util
 from lib.kodi_util import ADDON_ID
-from .bif_index import BifError, BifIndex
 
 FOLDER = '{0}-previews'.format(ADDON_ID)
-CHUNK = 64 * 1024
 
 
 def part_at(parts, offset):
@@ -52,7 +43,7 @@ class PreviewStore(object):
         self._writeLock = threading.Lock()
         # bumped by clear(): a download from before it is dropped when it finishes
         self._generation = 0
-        self._indexes = {}  # part id -> BifIndex
+        self._indexes = {}  # part id -> its index (silonet.trickplay.SheetIndex)
         self._swept = False
 
     def _sweepOnce(self):
@@ -63,8 +54,9 @@ class PreviewStore(object):
 
     def start(self, parts, server, on_ready=None):
         """
-        Downloads each part's index in a thread of its own: parts, (part id, index path) pairs - the path as
-        PlexPart.getIndexPath() gives it. on_ready() is called (on that thread) as each one becomes usable.
+        Reads each part's index in a thread of its own (SiloServer.trickplayIndex()): parts, (part id, index path)
+        pairs - the path as PlexPart.getIndexPath() gives it. on_ready() is called (on that thread) as each one
+        becomes usable.
         """
         with self._lock:
             generation = self._generation
@@ -79,61 +71,23 @@ class PreviewStore(object):
         return generation != self._generation or util.MONITOR.abortRequested()
 
     def _download(self, generation, part_id, path, server, on_ready):
-        dest = os.path.join(self.folder, '{0}.bif'.format(part_id))
-        partial = dest + '.part'
-        started = time.time()
-        size = 0
-        try:
-            url = server.buildUrl(path, includeToken=True)
-            if not url:
-                return
-            # each part's download is a thread of its own, so another may make it first
-            os.makedirs(self.folder, exist_ok=True)
-            session = asyncadapter.PlainSession()
-            try:
-                response = session.get(url, headers=plexnet_util.BASE_HEADERS.copy(), timeout=http.DEFAULT_TIMEOUT,
-                                       stream=True)
-                try:
-                    if response.status_code != 200:
-                        util.LOG("Previews: part {0}'s index: HTTP {1}", part_id, response.status_code)
-                        return
-                    with open(partial, 'wb') as f:
-                        for chunk in response.iter_content(CHUNK):
-                            if self._stale(generation):
-                                return
-                            f.write(chunk)
-                            size += len(chunk)
-                finally:
-                    response.close()
-            finally:
-                session.close()
-            os.replace(partial, dest)
-            index = BifIndex(dest)
-        except BifError as e:
-            util.LOG("Previews: part {0}'s index unusable: {1}", part_id, e)
-            return
-        except Exception as e:
-            util.LOG("Previews: part {0}'s index not downloaded: {1}", part_id, http.describeFailure(e))
-            return
-        finally:
-            if os.path.exists(partial):
-                try:
-                    os.remove(partial)
-                except OSError:
-                    pass
+        self._sheets(generation, part_id, server, on_ready)
 
+    def _sheets(self, generation, part_id, server, on_ready):
+        """A Silo file's previews: sheets of thumbnails, cut out as they're asked for (SiloServer.trickplayIndex())."""
+        try:
+            index = server.trickplayIndex(part_id)
+        except Exception as e:
+            util.LOG("Previews: part {0}'s previews not read: {1}", part_id, e)
+            return
+        if index is None:
+            return
         with self._lock:
             if self._stale(generation):
-                stale = True
-            else:
-                stale = False
-                self._indexes[part_id] = index
-        if stale:
-            self._remove(part_id)
-            return
-
-        util.DEBUG_LOG("Previews: part {0}'s index ready: {1} pictures, every {2} ms, {3} bytes in {4:.2f} s",
-                       part_id, index.count, index.interval, size, time.time() - started)
+                return
+            self._indexes[part_id] = index
+        util.DEBUG_LOG("Previews: part {0}'s previews ready: {1} pictures, every {2} ms", part_id, index.count,
+                       index.interval)
         if on_ready:
             try:
                 on_ready()
@@ -177,13 +131,6 @@ class PreviewStore(object):
         return self.special + name
 
     def _remove(self, part_id):
-        for p in (os.path.join(self.folder, '{0}.bif'.format(part_id)),
-                  os.path.join(self.folder, '{0}.bif.part'.format(part_id))):
-            try:
-                if os.path.exists(p):
-                    os.remove(p)
-            except OSError:
-                pass
         shutil.rmtree(os.path.join(self.folder, part_id), ignore_errors=True)
 
     def clear(self):

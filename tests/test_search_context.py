@@ -239,7 +239,7 @@ class TypeButtonsTest(KodiTestCase):
             self.size = type('Size', (), {'asInt': lambda s: 1})()
             self.items = [type_]
 
-    def shown(self, section):
+    def shown(self, section, types=('movie', 'actor', 'show', 'director', 'genre', 'track')):
         win = searchWindow()
         win.props = {'search.section': section}
         win.getProperty = lambda key: win.props.get(key, '')
@@ -248,7 +248,7 @@ class TypeButtonsTest(KodiTestCase):
         added = []
         win.resultsList = type('Grid', (), {'addItems': lambda grid, items: added.extend(items)})()
         win.createListItem = lambda item, artType: (item, artType)
-        win.showHubs([self.Hub(t) for t in ('movie', 'actor', 'show', 'director', 'genre', 'track')])
+        win.showHubs([self.Hub(t) for t in types])
         return added, win.props['no.results']
 
     def test_people_shows_actors_and_directors(self):
@@ -267,10 +267,15 @@ class TypeButtonsTest(KodiTestCase):
         self.assertNotIn('genre', [i[0] for i in items])
 
     def test_nothing_of_a_type_says_so(self):
-        self.assertEqual(([], '1'), self.shown('photo'))
+        self.assertEqual(([], '1'), self.shown('people', types=('movie', 'show')))
 
     def test_people_has_its_button(self):
         self.assertEqual('people', search.SearchWindow.SECTION_BUTTONS[916])
+
+    def test_no_music_or_photos_buttons(self):
+        # Silo has no music or photo libraries (D4): All, Movies, Shows and People
+        self.assertEqual(['all', 'movie', 'show', 'people'], list(search.SearchWindow.SECTION_BUTTONS.values()))
+        self.assertEqual({'movie', 'show', 'people'}, set(search.SearchWindow.SECTION_TYPES))
 
 
 class TypeLineTest(KodiTestCase):
@@ -719,7 +724,7 @@ class CollectionResultsTest(KodiTestCase):
     def test_each_type_button_its_kind_of_librarys(self):
         self.assertEqual(['Star Wars Collection'], [t for t, _ in self.shown('movie')])
         self.assertEqual(['Marvel'], [t for t, _ in self.shown('show')])
-        self.assertEqual([], self.shown('photo'))
+        self.assertEqual([], self.shown('people'))
 
 
 class TypingDelaySettingTest(KodiTestCase):

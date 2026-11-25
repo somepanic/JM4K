@@ -31,7 +31,7 @@ import requests  # noqa: E402
 import urllib3  # noqa: E402
 import plexnet  # noqa: E402
 from plexnet import exceptions as plexExceptions, plexlibrary  # noqa: E402
-from plexnet import (asyncadapter, callback, http, myplexaccount, myplexmanager, plexapp, plexconnection,  # noqa: E402
+from plexnet import (asyncadapter, callback, http, plexconnection,  # noqa: E402
                      playqueue, plexresult, plexserver, util as pnUtil)
 
 from .base import KodiTestCase, ensure_plex_interface  # noqa: E402
@@ -221,28 +221,6 @@ class ReachabilityRoundTest(KodiTestCase):
         self.assertEqual(0, self.server.pendingReachabilityRequests)
         self.assertFalse(self.good.hasPendingRequest)
         self.assertFalse(self.dead.hasPendingRequest)
-
-    def test_a_forced_local_refresh_leaves_tests_in_flight_alone(self):
-        # It used to zero every pending count to clear tests whose answers never came; with the
-        # answers now always coming, that sent the counts negative instead.
-        release = threading.Event()
-        # spec'd: a call to anything else (the old resetReachabilityState()) fails the test
-        manager = mock.Mock(spec=["serversByUuid", "resetLastTest", "updateReachability",
-                                  "refreshManualConnections"], serversByUuid={UUID: self.server})
-        manager.resetLastTest.side_effect = self.server.resetLastTest
-        manager.updateReachability.side_effect = lambda force: None
-        with mock.patch("plexnet.asyncadapter.PlainSession.get", autospec=True,
-                        side_effect=lambda s, url, **kw: release.wait(5) and FakeResponse(200)), \
-                mock.patch.object(pnUtil, "LOCAL_MODE", True), \
-                mock.patch.object(plexapp, "SERVERMANAGER", manager), \
-                mock.patch("plexnet.gdm.DISCOVERY"):
-            self.server.updateReachability(force=True)
-            plexapp.refreshResources(True)
-            self.assertEqual(2, self.server.pendingReachabilityRequests)
-            release.set()
-            self._join()
-        manager.resetLastTest.assert_called_once_with()
-        self.assertEqual(0, self.server.pendingReachabilityRequests)
 
     def test_local_mode_tries_the_lan_address_when_only_plex_direct_is_secure(self):
         """Oscar in local mode (AM6B, 2026-10-09): its secure connections are all plex.direct, which
@@ -487,17 +465,3 @@ class FailingCallersTest(KodiTestCase):
         # returns at once instead of spinning on responded
         self.assertFalse(pq.waitForInitialization())
 
-    def test_failed_home_users_keep_the_known_list(self):
-        account = myplexaccount.MyPlexAccount()
-        account.homeUsers = ["kept"]
-        account.onHomeUsersUpdateResponse(None, failed_result(), None)
-        self.assertEqual(["kept"], account.homeUsers)
-
-    def test_no_resources_and_no_cache_keeps_the_known_servers(self):
-        manager = myplexmanager.MyPlexManager()
-        servers = mock.Mock()
-        with mock.patch.object(pnUtil.INTERFACE, "getRegistry", return_value=None), \
-                mock.patch.object(plexapp, "SERVERMANAGER", servers):
-            manager.onResourcesResponse(None, failed_result(), None)
-        servers.resourcesUnavailable.assert_called_once_with()
-        servers.updateFromConnectionType.assert_not_called()

@@ -117,7 +117,6 @@ class VideoPlayerWindow(kodigui.ControlledWindow, windowutils.UtilMixin, Spoiler
     ONDECK_LIST_ID = 400
     RELATED_LIST_ID = 401
 
-    PLAYER_STATUS_BUTTON_ID = 204
 
     def __init__(self, *args, **kwargs):
         kodigui.ControlledWindow.__init__(self, *args, **kwargs)
@@ -301,8 +300,6 @@ class VideoPlayerWindow(kodigui.ControlledWindow, windowutils.UtilMixin, Spoiler
             self.playVideo(prev=True)
         elif controlID == self.NEXT_BUTTON_ID:
             self.playVideo()
-        elif controlID == self.PLAYER_STATUS_BUTTON_ID:
-            self.showAudioPlayer()
 
     def onFocus(self, controlID):
         if not self.postPlayMode:

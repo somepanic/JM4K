@@ -91,6 +91,13 @@ class IsWatchlistedTask(WatchlistCheckBaseTask):
         self.callback(is_wl)
 
 
+def watchlistServer():
+    """The server the watchlist is on: a Silo server's own (SiloServerManager.getWatchlistServer(), decision D18),
+    else plex.tv's Discover."""
+    manager = pnUtil.SERVERMANAGER
+    return manager.getWatchlistServer() if hasattr(manager, 'getWatchlistServer') else manager.getDiscoverServer()
+
+
 def is_watchlisted(guid, server):
     """
     Returns True/False for the item's watchlist state, None if the state couldn't be determined
@@ -150,6 +157,8 @@ def shouldAutoRemove(ref):
     played, the show ended, and the server holding at least the episodes Discover lists outside the specials. One
     still being made, or with episodes the server hasn't got, stays watchlisted for those still to watch.
     """
+    if getattr(getattr(ref, 'server', None), 'platform', None) == 'silo':
+        return False  # Silo's watchlist leaves out what's been watched itself (GET /api/v2/watchlist)
     if not util.getUserSetting('watchlist_auto_remove', True):
         util.DEBUG_LOG("Watchlist: auto-remove is off, keeping {} on the watchlist", ref.ratingKey)
         return False
@@ -196,10 +205,10 @@ def removeFromWatchlistBlind(guid, ref):
 
     util.DEBUG_LOG("Watchlist: Blind: Trying to blindly remove {}", guid)
     try:
-        if not guid or not guid.startswith("plex://"):
+        if not guid or not guid.startswith(("plex://", "silo://")):
             return
 
-        server = pnUtil.SERVERMANAGER.getDiscoverServer()
+        server = watchlistServer()
 
         g = GUIDToRatingKey(guid)
         if not is_watchlisted(g, server):
@@ -279,7 +288,7 @@ class WatchlistUtilsMixin(object):
         watchlisted state not asked for yet."""
         wasEnabled = self.wl_enabled
         self.wl_enabled = bool(util.getUserSetting("use_watchlist", True) and not pnUtil.ACCOUNT.isOffline
-                               and item.guid and item.guid.startswith("plex://"))
+                               and item.guid and item.guid.startswith(("plex://", "silo://")))
         self.wl_ref = GUIDToRatingKey(item.guid)
         self.setBoolProperty("watchlist_enabled", self.wl_enabled)
         return self.wl_enabled and not wasEnabled
@@ -425,11 +434,12 @@ class WatchlistUtilsMixin(object):
             util.DEBUG_LOG("Watchlist state for item {}: {}", item.ratingKey, state)
 
         wl_rk = GUIDToRatingKey(item.guid)
-        task = IsWatchlistedTask().setup('plexdiscover', wl_rk, callback)
+        server = watchlistServer()
+        task = IsWatchlistedTask().setup(server.uuid if server is not None else 'plexdiscover', wl_rk, callback)
         backgroundthread.BGThreader.addTask(task)
 
     def _modifyWatchlist(self, item, method="addToWatchlist"):
-        server = pnUtil.SERVERMANAGER.getDiscoverServer()
+        server = watchlistServer()
 
         try:
             g = GUIDToRatingKey(item.guid)

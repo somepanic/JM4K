@@ -13,6 +13,8 @@ from lib.language_util import getNativeLanguages
 from six.moves import range
 
 DecisionFailure = serverdecision.DecisionFailure
+# getBifUrl()'s answer for a Silo file with seek-bar previews, which the preview store has, not a URL
+SILO_PREVIEWS = 'silo:previews'
 
 
 class BasePlayer(object):
@@ -98,6 +100,8 @@ class PlexPlayer(BasePlayer):
         return self._build(directPlay, "playback_remux" in features, features=features)
 
     def _build(self, directPlay=None, directStream=True, currentPartIndex=None, features=None):
+        if hasattr(self.item.getServer(), 'startPlayback'):
+            return self._buildSilo(self.item.getServer())
         isForced = directPlay is not None
         if isForced:
             util.LOG(directPlay and "Forced Direct Play" or "Forced Transcode; allowDirectStream={0}".format(directStream))
@@ -226,6 +230,74 @@ class PlexPlayer(BasePlayer):
 
         return self.metadata
 
+    def _buildSilo(self, server):
+        """A Silo server's attempt (silonet.playback): its plan's stream is the URL - for nearly every file the
+        original, which Kodi plays and seeks itself. A plan whose timeline Kodi can seek on its own (the original, or
+        a transcode with the whole timeline) plays as a direct play; one whose window is still growing (a copy remux)
+        as a transcode, which starts a new attempt where a seek lands."""
+        from silonet.errors import SiloError
+        from silonet.playback import PlaybackRefused
+
+        part = self.media.parts[0]
+        position = self.seekValue
+        if position > 0:
+            position = max(0, position + self.item.settings.getPreference("resume_offset", -3500))
+        audio = self.choice.audioStream
+        subtitle = None if self.shouldSuppressSubtitleForAudioLanguage() else self.choice.subtitleStream
+        # the Quality setting (decision D12): Original lets Silo send the file, a lower one caps its bitrate
+        quality = self.item.settings.getQualityIndex(self.item.getQualityType(server))
+        bitrates = self.item.settings.getGlobal("transcodeVideoBitrates")
+        cap = int(bitrates[quality]) if 0 <= quality < len(bitrates) else 0
+        try:
+            # no subtitle index: Kodi renders the file's own subtitles, and Silo's subtitle index is another
+            # numbering (playback protocol v3, section 8)
+            attempt = server.startPlayback(self.item, part, position / 1000.0,
+                                           audio.index.asInt() if audio else None,
+                                           None,
+                                           bandwidthCap=cap or None,
+                                           hdr=not self.item.settings.getPreference("disable_hdr", False))
+        except PlaybackRefused as e:
+            raise DecisionFailure(e.reason, e.message)
+        except SiloError as e:
+            raise DecisionFailure(e.type, e.detail or e.type)
+
+        # the played file's skip markers and chapters, which the player reads off the item (decision D16)
+        self.item.markers, chapters = server.watchInfo(self.item, part.id)
+        if chapters:
+            self.item.chapters = chapters
+        if server.hasPreviews(part.id):
+            # its seek-bar previews: the preview store asks the server for them (SiloServer.trickplayIndex())
+            part.set('indexes', 'sd')
+
+        timeline = attempt.timeline
+        seekable = bool(timeline.get('can_seek_anywhere')) and not timeline.get('stream_origin_seconds')
+        obj = util.AttributeDict()
+        obj.duration = self.media.duration.asInt()
+        obj.fullHD = self.media.getVideoResolution() >= 1080
+        obj.streamQualities = obj.fullHD and ["HD"] or ["SD"]
+        obj.live = False
+        obj.partIndex = 0
+        obj.startOffset = 0
+        obj.partDuration = part.duration.asInt() or obj.duration
+        obj.path = ''
+        obj.size = part.size and int(part.size) or ''
+        obj.isMapped = False
+        obj.isRequestToServer = True
+        obj.isTranscoded = not (attempt.delivery == 'original_http' or seekable)
+        obj.streamUrls = [attempt.url]
+        # path mapping: the original straight from the Kodi source its folder maps to (path_mapping.json), the
+        # attempt still Silo's (its progress, markers and subtitles); a remux or transcode is never the file itself
+        mapped = attempt.delivery == 'original_http' and part.getPathMappedUrl()
+        if mapped:
+            obj.streamUrls, obj.isMapped, obj.isRequestToServer = [mapped], True, False
+        obj.playStart = int(timeline.get('player_start_seconds') or 0)
+        if subtitle and attempt.delivery == 'original_http' \
+                and self.choice.subtitleDecision == self.choice.SUBTITLES_SOFT_DP:
+            obj.subtitleConfig = {'TrackName': "mkv/" + str(subtitle.index.asInt() + 1)}
+        self.metadata = obj
+        util.LOG("Constructed Silo video item for playback: {0}", util.cleanObjTokens(dict(obj)))
+        return self.metadata
+
     @property
     def startOffset(self):
         return self.metadata and self.metadata.startOffset or 0
@@ -262,6 +334,8 @@ class PlexPlayer(BasePlayer):
         return False
 
     def getServerDecision(self):
+        if hasattr(self.item.getServer(), 'startPlayback'):
+            return self  # Silo decided when the attempt started
         directPlay = not (self.metadata and self.metadata.isTranscoded)
         decisionPath = self.getDecisionPath(directPlay)
         newDecision = None
@@ -649,6 +723,9 @@ class PlexPlayer(BasePlayer):
 
     def getBifUrl(self, offset=0):
         server = self.item.getServer()
+        if hasattr(server, 'trickplayIndex'):
+            # a Silo file's previews are only the preview store's (SiloServer.trickplayIndex()): this says it has some
+            return SILO_PREVIEWS if self.media.parts and self.media.parts[0].isIndexed() else None
         startOffset = 0
         for part in self.media.parts:
             duration = part.duration.asInt()

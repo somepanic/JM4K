@@ -180,7 +180,7 @@ msgid "Server Discovery (GDM)"
 msgstr ""
 
 msgctxt "#32043"
-msgid "Start Plex On Kodi Startup"
+msgid "Start SM4K On Kodi Startup"
 msgstr ""
 
 msgctxt "#32044"
@@ -490,7 +490,7 @@ msgid "Confirm Exit"
 msgstr ""
 
 msgctxt "#32335"
-msgid "Are you ready to exit Plex?"
+msgid "Are you ready to exit SM4K?"
 msgstr ""
 
 msgctxt "#32336"
@@ -1300,7 +1300,7 @@ msgid "Use virtual chapters"
 msgstr ""
 
 msgctxt "#33604"
-msgid "When the above is enabled and no video chapters are available, simulate them by using the markers identified by the Plex Server (Intro, Credits)."
+msgid "When the above is enabled and no video chapters are available, simulate them by using the markers identified by the Silo Server (Intro, Credits)."
 msgstr ""
 
 msgctxt "#35001"
@@ -1416,7 +1416,7 @@ msgid "Auto-skip intro/credits offset"
 msgstr ""
 
 msgctxt "#33630"
-msgid "Intro/credits markers might be a little early in Plex. When auto skipping add (or subtract) this many seconds from the marker. This avoids cutting off content, while possibly skipping the marker a little late."
+msgid "Intro/credits markers might be a little early in Silo. When auto skipping add (or subtract) this many seconds from the marker. This avoids cutting off content, while possibly skipping the marker a little late."
 msgstr ""
 
 # Unused: 33631
@@ -2505,7 +2505,7 @@ msgid "Ask"
 msgstr ""
 
 msgctxt "#33695"
-msgid "Where do you want to download subtitles from? Applies to Download subtitles in the player, from the Subtitles button or the player's Settings. Before playback it always uses Plex."
+msgid "Where do you want to download subtitles from? Applies to Download subtitles in the player, from the Subtitles button or the player's Settings. Before playback it always uses Silo."
 msgstr ""
 
 msgctxt "#33696"
@@ -2536,7 +2536,7 @@ msgid "Fallback to Kodi"
 msgstr ""
 
 msgctxt "#33702"
-msgid "When no subtitles are found via the Plex subtitle search, fall back to Kodi subtitle search. Only in the player: before playback, subtitles always come from Plex."
+msgid "When no subtitles are found via the Silo subtitle search, fall back to Kodi subtitle search. Only in the player: before playback, subtitles always come from Silo."
 msgstr ""
 
 msgctxt "#33703"
@@ -2732,7 +2732,7 @@ msgid "Use Watchlist"
 msgstr ""
 
 msgctxt "#34008"
-msgid "Activates the current user's Plex watchlist as a section item. Adds watchlist functionality to certain media screens. Per-user setting. Default: On"
+msgid "Activates the current user's Silo watchlist as a section item. Adds watchlist functionality to certain media screens. Per-user setting. Default: On"
 msgstr ""
 
 msgctxt "#34009"
@@ -3159,7 +3159,7 @@ msgid "Home: Disable exit on Back"
 msgstr ""
 
 msgctxt "#35008"
-msgid "When enabled, pressing Back on the Home screen no longer shows the exit prompt and will not exit Plex. You can still exit from the Exit option in your username menu."
+msgid "When enabled, pressing Back on the Home screen no longer shows the exit prompt and will not exit SM4K. You can still exit from the Exit option in your username menu."
 msgstr ""
 
 msgctxt "#35009"
@@ -3466,11 +3466,11 @@ msgid "Repeat off"
 msgstr ""
 
 msgctxt "#35085"
-msgid "Stop playback when exiting Plex"
+msgid "Stop playback when exiting SM4K"
 msgstr ""
 
 msgctxt "#35086"
-msgid "Stop whatever is playing, and clear Kodi's playlists, whenever the addon exits - including signing out or switching users. Off: playback carries on under Kodi's own player after Plex has closed."
+msgid "Stop whatever is playing, and clear Kodi's playlists, whenever the addon exits - including signing out or switching users. Off: playback carries on under Kodi's own player after SM4K has closed."
 msgstr ""
 
 msgctxt "#35087"
@@ -3530,7 +3530,7 @@ msgid "Automatic ({0})"
 msgstr ""
 
 msgctxt "#35101"
-msgid "Which Plextuary skin to offer when Plex starts. Automatic picks the one built for this device; choose another to override it. Takes effect the next time Plex starts."
+msgid "Which Plextuary skin to offer when SM4K starts. Automatic picks the one built for this device; choose another to override it. Takes effect the next time SM4K starts."
 msgstr ""
 
 msgctxt "#35102"
@@ -3538,11 +3538,11 @@ msgid "Offer Plextuary on startup"
 msgstr ""
 
 msgctxt "#35103"
-msgid "When Plex starts under a different skin, or with a Plextuary font set other than Inter UI, offer to switch, installing Plextuary if needed; and remind you when Plextuary is too old. Plex's screens are designed around Plextuary's Inter UI fonts."
+msgid "When SM4K starts under a different skin, or with a Plextuary font set other than Inter UI, offer to switch, installing Plextuary if needed; and remind you when Plextuary is too old. SM4K's screens are designed around Plextuary's Inter UI fonts."
 msgstr ""
 
 msgctxt "#35104"
-msgid "Plex is designed to be used with the Plextuary skins. If you use a different skin, text and layouts can appear wrong."
+msgid "SM4K is designed to be used with the Plextuary skins. If you use a different skin, text and layouts can appear wrong."
 msgstr ""
 
 msgctxt "#35105"
@@ -3578,7 +3578,7 @@ msgid "CoreELEC {0} build"
 msgstr ""
 
 msgctxt "#35113"
-msgid "Plex is designed to use Plextuary's default font (Inter UI). If you use a different font, text and layouts can appear wrong."
+msgid "SM4K is designed to use Plextuary's default font (Inter UI). If you use a different font, text and layouts can appear wrong."
 msgstr ""
 
 msgctxt "#35114"
@@ -3590,7 +3590,7 @@ msgid "Switching fonts will change the font for all of Kodi. Switch to Inter UI 
 msgstr ""
 
 msgctxt "#35116"
-msgid "{0} {1} is older than Plex needs, so some small text will come out too large. Updates come from the {2} repository."
+msgid "{0} {1} is older than SM4K needs, so some small text will come out too large. Updates come from the {2} repository."
 msgstr ""
 
 msgctxt "#35117"
@@ -3618,7 +3618,7 @@ msgid "{0} (chosen in settings)"
 msgstr ""
 
 msgctxt "#35123"
-msgid "Update now closes Plex and opens Kodi's list of installed skins: select {0} there, then Update. Start Plex again once it's updated."
+msgid "Update now closes SM4K and opens Kodi's list of installed skins: select {0} there, then Update. Start SM4K again once it's updated."
 msgstr ""
 
 msgctxt "#35124"
@@ -3658,7 +3658,7 @@ msgid "This library is empty"
 msgstr ""
 
 msgctxt "#35133"
-msgid "Add some media to it on your Plex server."
+msgid "Add some media to it on your Silo server."
 msgstr ""
 
 msgctxt "#35134"
@@ -4091,4 +4091,289 @@ msgstr ""
 
 msgctxt "#35242"
 msgid "You're away after {time} with no user input (Note: playback never counts as being away)."
+msgstr ""
+
+msgctxt "#35243"
+msgid "On a phone or computer, open {link} and enter this code:"
+msgstr ""
+
+msgctxt "#35244"
+msgid "Sign-in was refused."
+msgstr ""
+
+msgctxt "#35245"
+msgid "The code expired before it was approved. Please try again."
+msgstr ""
+
+msgctxt "#35246"
+msgid "Couldn't sign in. Please try again."
+msgstr ""
+
+msgctxt "#35247"
+msgid "Silo server address, for example http://192.168.1.10:8090"
+msgstr ""
+
+msgctxt "#35248"
+msgid "Could not reach a Silo server at {address}."
+msgstr ""
+
+msgctxt "#35249"
+msgid "{address} is not a Silo server SiloMod can use."
+msgstr ""
+
+msgctxt "#35250"
+msgid "PIN for {name}"
+msgstr ""
+
+msgctxt "#35251"
+msgid "Too many wrong PINs. Try again in {minutes} minutes."
+msgstr ""
+
+msgctxt "#35252"
+msgid "Can't reach the Silo server. Check your connection and try again."
+msgstr ""
+
+msgctxt "#35253"
+msgid "Skip recap"
+msgstr ""
+
+msgctxt "#35254"
+msgid "Skipping recap"
+msgstr ""
+
+msgctxt "#35255"
+msgid "Skip preview"
+msgstr ""
+
+msgctxt "#35256"
+msgid "Skipping preview"
+msgstr ""
+
+msgctxt "#35257"
+msgid "Add to Favorites"
+msgstr ""
+
+msgctxt "#35258"
+msgid "Remove from Favorites"
+msgstr ""
+
+msgctxt "#35259"
+msgid "Favorites"
+msgstr ""
+
+msgctxt "#35260"
+msgid "Watch together"
+msgstr ""
+
+msgctxt "#35261"
+msgid "Join watch party"
+msgstr ""
+
+msgctxt "#35262"
+msgid "Party code"
+msgstr ""
+
+
+msgctxt "#35264"
+msgid "Waiting for the host to start something..."
+msgstr ""
+
+msgctxt "#35265"
+msgid "The watch party has ended"
+msgstr ""
+
+msgctxt "#35266"
+msgid "This profile joined the watch party on another device"
+msgstr ""
+
+msgctxt "#35267"
+msgid "Only the host controls playback"
+msgstr ""
+
+msgctxt "#35268"
+msgid "In a watch party, the host picks what plays"
+msgstr ""
+
+msgctxt "#35269"
+msgid "End watch party"
+msgstr ""
+
+msgctxt "#35270"
+msgid "Couldn't start the watch party"
+msgstr ""
+
+msgctxt "#35271"
+msgid "Watch party"
+msgstr ""
+
+msgctxt "#35272"
+msgid "No watch party has that code"
+msgstr ""
+
+msgctxt "#35273"
+msgid "Leave the watch party?"
+msgstr ""
+
+msgctxt "#35274"
+msgid "End the watch party for everyone?"
+msgstr ""
+
+msgctxt "#35275"
+msgid "You stopped watching."
+msgstr ""
+
+msgctxt "#35276"
+msgid "Stop for everyone"
+msgstr ""
+
+msgctxt "#35277"
+msgid "Keep watching"
+msgstr ""
+
+msgctxt "#35278"
+msgid "Nothing picked yet"
+msgstr ""
+
+msgctxt "#35279"
+msgid "Up next: {0}"
+msgstr ""
+
+msgctxt "#35280"
+msgid "Playing: {0}"
+msgstr ""
+
+msgctxt "#35281"
+msgid "{0} of {1} ready"
+msgstr ""
+
+msgctxt "#35282"
+msgid "Start for everyone"
+msgstr ""
+
+msgctxt "#35283"
+msgid "Guests can play and pause"
+msgstr ""
+
+msgctxt "#35284"
+msgid "I'm ready"
+msgstr ""
+
+msgctxt "#35285"
+msgid "Leave watch party"
+msgstr ""
+
+msgctxt "#35286"
+msgid "In the party"
+msgstr ""
+
+msgctxt "#35287"
+msgid "Host"
+msgstr ""
+
+msgctxt "#35288"
+msgid "Ready"
+msgstr ""
+
+msgctxt "#35289"
+msgid "Not ready"
+msgstr ""
+
+msgctxt "#35290"
+msgid "Watch party · {0}"
+msgstr ""
+
+msgctxt "#35291"
+msgid "Couldn't suggest it"
+msgstr ""
+
+msgctxt "#35292"
+msgid "Vote on what to watch"
+msgstr ""
+
+msgctxt "#35293"
+msgid "Choose a suggestion to play it for everyone"
+msgstr ""
+
+msgctxt "#35294"
+msgid "The host plays one"
+msgstr ""
+
+msgctxt "#35295"
+msgid "Members vote on what to watch"
+msgstr ""
+
+msgctxt "#35296"
+msgid "Suggestions"
+msgstr ""
+
+msgctxt "#35297"
+msgid "No suggestions yet"
+msgstr ""
+
+msgctxt "#35298"
+msgid "Suggest something with Watch together on its screen"
+msgstr ""
+
+msgctxt "#35299"
+msgid "1 vote"
+msgstr ""
+
+msgctxt "#35300"
+msgid "{0} votes"
+msgstr ""
+
+msgctxt "#35301"
+msgid "Username"
+msgstr ""
+
+msgctxt "#35302"
+msgid "Password"
+msgstr ""
+
+msgctxt "#35303"
+msgid "Wrong username or password."
+msgstr ""
+
+msgctxt "#35304"
+msgid "Use your phone instead"
+msgstr ""
+
+msgctxt "#35305"
+msgid "Server"
+msgstr ""
+
+msgctxt "#35306"
+msgid "Change"
+msgstr ""
+
+msgctxt "#35307"
+msgid "Enter address"
+msgstr ""
+
+msgctxt "#35308"
+msgid "Silo servers on your network"
+msgstr ""
+
+msgctxt "#35309"
+msgid "Sign in with your password"
+msgstr ""
+
+msgctxt "#35310"
+msgid "Nothing to play."
+msgstr ""
+
+msgctxt "#35311"
+msgid "Switch server"
+msgstr ""
+
+msgctxt "#35312"
+msgid "Add server"
+msgstr ""
+
+msgctxt "#35313"
+msgid "Remove path mapping"
+msgstr ""
+
+msgctxt "#35314"
+msgid "Too many sign-in attempts. Wait a moment and try again."
 msgstr ""

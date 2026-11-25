@@ -113,7 +113,7 @@ class BackToRowStartOrRetractTest(_BackCase):
 
     def test_episodes_retracts_to_its_episode_row(self):
         self.assertEqual(episodes.EpisodesWindow.EPISODE_LIST_ID, episodes.EpisodesWindow.BACK_RETRACT_ID)
-        for cls in (subitems.ShowWindow, subitems.ArtistWindow, preplay.PrePlayWindow):
+        for cls in (subitems.ShowWindow, preplay.PrePlayWindow):
             self.assertIsNone(cls.BACK_RETRACT_ID, cls.__name__)
 
     def test_hidden_button_row_lets_back_leave(self):
@@ -161,11 +161,6 @@ class BackResetRowsTest(KodiTestCase):
         self.assertEqual({401, 402, 403}, set(rows))
         self.assertNotIn(subitems.ShowWindow.SUB_ITEM_LIST_ID, rows)
 
-    def test_artist_includes_albums_and_has_no_roles_or_extras(self):
-        rows = subitems.ArtistWindow.backResetRows(_Controls(subitems.ArtistWindow))
-        self.assertEqual({400, 401, 402, 404, 405}, set(rows))
-        self.assertNotIn(None, rows)
-
     def test_preplay(self):
         rows = preplay.PrePlayWindow.backResetRows(_Controls(preplay.PrePlayWindow))
         self.assertEqual({400, 401, 402, 403, 404, 405, 406}, set(rows))
@@ -178,7 +173,7 @@ class BackResetRowsTest(KodiTestCase):
         self.assertNotIn(episodes.EpisodesWindow.EPISODE_LIST_ID, rows)
 
     def test_each_screen_hands_back_to_the_shared_steps(self):
-        for cls in (subitems.ShowWindow, subitems.ArtistWindow, preplay.PrePlayWindow, episodes.EpisodesWindow):
+        for cls in (subitems.ShowWindow, preplay.PrePlayWindow, episodes.EpisodesWindow):
             calls = []
 
             class Probe(object):

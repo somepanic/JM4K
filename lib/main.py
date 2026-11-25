@@ -22,13 +22,13 @@ from kodi_six import xbmc
 sys.modules['_asyncio'] = None
 
 from . import plex
-from . import localmode
+from . import silo
 
 from plexnet import plexapp
-from plexnet.exceptions import UserSwitchUnreachableException
+from silonet.errors import SiloUnavailable
 from plexnet.util import cleanToken
 from .templating import render_templates
-from .windows import background, userselect, home, library, windowutils, kodigui, busy
+from .windows import background, userselect, home, library, windowutils, kodigui
 from . import player
 from . import backgroundthread
 from . import skin_check
@@ -158,44 +158,9 @@ def waitForServers():
     util.DEBUG_LOG('Main: starting with {0} known servers', len(manager.serversByUuid))
 
 
-def _awaitLocalServer(timeout):
-    """Local mode's server (localmode.localServer()), waited for until one answers, at most timeout
-    seconds."""
-    server = localmode.localServer()
-    if server:
-        return server
-    util.DEBUG_LOG('Main: waiting for a local server... (max {0} s)', timeout)
-    background.setBusy()
-    try:
-        end = time.time() + timeout
-        while not server and time.time() < end and not util.MONITOR.abortRequested():
-            util.MONITOR.waitForAbort(0.1)
-            server = localmode.localServer()
-    finally:
-        background.setBusy(False)
-    return server
-
-
-def waitForLocalServer():
-    """Local mode: a server that answers, waited for (its profiles are that server's - see
-    localmode.localServer()); nothing reachable - manual server entry is offered instead of silently
-    landing on an empty home. It was plexnet's selected server, which is gone (plan Phase 9.3)."""
-    server = _awaitLocalServer(2 * _serverWaitTimeout())
-    while not server and localmode.offerServerIfNoneFound():
-        plexapp.SERVERMANAGER.refreshManualConnections()
-        server = _awaitLocalServer(15)
-    return server
-
-
 def signout():
     global hadReauth
     hadReauth = True
-    util.setSetting('auth.token', '')
-    # signing out always leaves local mode - staying in it would bounce us straight
-    # back into an account-less local session, making the sign-out a visual no-op
-    if util.getSetting('local_mode', False):
-        util.setSetting('local_mode', False)
-        plexapp.util.LOCAL_MODE = False
     util.DEBUG_LOG('Main: Signing out...')
     plexapp.ACCOUNT.signOut()
 
@@ -341,13 +306,16 @@ def _main():
     util.setGlobalProperty('is_active', '1')
 
     try:
+        previousServer = None  # the Silo server the user menu's Switch server left (silo.initAfterSwitch())
         while not util.MONITOR.abortRequested():
-            if plex.init(local=util.getSetting('local_mode', False)):
+            ready = silo.initAfterSwitch(previousServer) if previousServer else silo.init()
+            previousServer = None
+            if ready:
                 background.setSplash(False)
                 fromSwitch = False
                 while not util.MONITOR.abortRequested():
                     if (
-                        (not plexapp.ACCOUNT.isOffline or plexapp.util.LOCAL_MODE) and not
+                        not plexapp.ACCOUNT.isOffline and not
                         plexapp.ACCOUNT.isAuthenticated and
                         (len(plexapp.ACCOUNT.homeUsers) > 1 or plexapp.ACCOUNT.isProtected)
 
@@ -385,14 +353,7 @@ def _main():
 
                     closeOption = "exit"
                     try:
-                        if plexapp.util.LOCAL_MODE:
-                            localServer = waitForLocalServer()
-                            util.DEBUG_LOG('Main: STARTING WITH SERVER: {0}', localServer)
-                            # account-less local mode: offer user profiles known to the PMS
-                            if not plexapp.ACCOUNT.isSignedIn and localServer:
-                                localmode.seedUsersFromServer(localServer)
-                        else:
-                            waitForServers()
+                        waitForServers()
 
                         # LibraryWindow.open() (MultiWindow.open(), kodigui.py) is a single
                         # blocking call - construct, show, run the whole session, return only once
@@ -434,22 +395,18 @@ def _main():
                         if closeOption == 'signout':
                             signout()
                             break
-                        elif closeOption == 'go_local':
-                            util.DEBUG_LOG('Main: Going local...')
-                            # harvest per-user tokens while plex.tv is still reachable
-                            plexapp.ACCOUNT.harvestLocalUsers()
-                            localmode.ensureInsecureConnectionsAllowed()
-                            util.setSetting('local_mode', True)
-                            break
-                        elif closeOption == 'go_online':
-                            util.DEBUG_LOG('Main: Going online...')
-                            util.setSetting('local_mode', False)
-                            break
                         elif closeOption == 'switch':
                             background.setBusy(True)
                             util.DEBUG_LOG('Main: Switching users...: {}', plexapp.ACCOUNT.ID)
                             plexapp.ACCOUNT.isAuthenticated = False
                             fromSwitch = True
+                        elif closeOption == 'session_ended':
+                            # Silo refused the session: start-up again, which signs in (silo.init())
+                            break
+                        elif isinstance(closeOption, dict) and closeOption.get('switch_server'):
+                            # another Silo server picked: start-up again, on it
+                            previousServer = closeOption['switch_server']
+                            break
                         elif isinstance(closeOption, dict):
                             if closeOption.get('fast_switch'):
                                 uid = closeOption['fast_switch']
@@ -458,12 +415,10 @@ def _main():
                                 # Caught here: let out, a failed switch would end the addon via
                                 # main()'s outer handler. Home restarts as the current user instead.
                                 try:
-                                    with busy.BusySignalContext(plexapp.util.APP, "account:response", wait_max=10):
-                                        if plexapp.ACCOUNT.switchHomeUser(uid, silent=True) and plexapp.ACCOUNT.switchUser:
-                                            util.DEBUG_LOG('Waiting for user change...')
-                                except UserSwitchUnreachableException:
-                                    util.LOG('Main: Fast user switch: no answer from plex.tv')
-                                    util.showNotification(T(32449, "Can't connect to plex.tv[CR]Check your internet "
+                                    plexapp.ACCOUNT.switchHomeUser(uid, silent=True)
+                                except SiloUnavailable:
+                                    util.LOG('Main: Fast user switch: no answer from the Silo server')
+                                    util.showNotification(T(35252, "Can't reach the Silo server. Check your "
                                                                    "connection and try again."))
                                 except Exception:
                                     util.ERROR('Fast user switch failed')

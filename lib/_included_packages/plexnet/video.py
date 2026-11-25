@@ -337,6 +337,8 @@ class Video(media.MediaItem, AudioCodecMixin):
         return stream
 
     def findSubtitles(self, language="en", hearing_impaired=0, forced=0):
+        if hasattr(self.server, 'searchSubtitles'):
+            return self.server.searchSubtitles(self, language, hearing_impaired, forced)
         data = self.server.query('%s/subtitles' % self.key, language=language, hearingImpaired=hearing_impaired,
                                  forced=forced)
         if data:
@@ -344,6 +346,9 @@ class Video(media.MediaItem, AudioCodecMixin):
         return []
 
     def downloadSubtitles(self, key):
+        if hasattr(self.server, 'downloadSubtitle'):
+            # a Silo server's download comes back as the selected subtitle stream, or None
+            return self.server.downloadSubtitle(self, key)
         self.server.query('%s/subtitles' % self.key, key=key, codec="srt", method=self.server.session.put)
 
     @property

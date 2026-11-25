@@ -143,7 +143,7 @@ class LibrarySection(plexobjects.PlexObject):
     isLibraryPQ = True
 
     def __init__(self, data, initpath=None, server=None, container=None):
-        self.locations = []
+        self._locations = None
         self._isMapped = None
         self._settings = None
         self._filtersCache = {}
@@ -155,9 +155,26 @@ class LibrarySection(plexobjects.PlexObject):
 
     def _setData(self, data):
         super(LibrarySection, self)._setData(data)
-        for loc in plexobjects.PlexItemList(data, media.Location, media.Location.TYPE, server=self.server):
-            sep = norm_sep(loc.path)
-            self.locations.append(loc.path if loc.path.endswith(sep) else loc.path + sep)
+        paths = [loc.path for loc in plexobjects.PlexItemList(data, media.Location, media.Location.TYPE,
+                                                             server=self.server)]
+        # none listed: the server's own list, asked when first needed (locations)
+        self._locations = self._withSeparator(paths) if paths else None
+
+    @staticmethod
+    def _withSeparator(paths):
+        return [p if p.endswith(norm_sep(p)) else p + norm_sep(p) for p in paths]
+
+    @property
+    def locations(self):
+        """The library's folders on the server, each ending in its separator: its <Location>s, else what the server
+        lists for it (a Silo server's libraryLocations(), whose sections list none)."""
+        if self._locations is None:
+            fetch = getattr(self.server, 'libraryLocations', None)
+            found = fetch(self.key) if fetch else []
+            if found is None:
+                return []  # the server couldn't say now: asked again next time
+            self._locations = self._withSeparator(found)
+        return self._locations
 
     @property
     def cachable(self):
@@ -635,7 +652,7 @@ class WatchlistSection(LibrarySection):
         # Nothing asked of plex.tv here: the sidebar makes one for every build, and the screen
         # asks for the items when it's opened (all()). It used to ask for the count, and the
         # sidebar left Watchlist out when plex.tv didn't answer or the Watchlist was empty.
-        self.locations = []
+        self._locations = []
         self._settings = {}
         self.type = "mixed"
         super(LibrarySection, self).__init__(

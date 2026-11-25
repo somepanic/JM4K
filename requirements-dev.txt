@@ -1,0 +1,6 @@
+# Test-only packages: the test runner, plus what Kodi itself supplies to the add-on in real use.
+# Never shipped. Install with: python3 -m pip install -r requirements-dev.txt
+pytest==9.2.0
+six==1.17.0
+requests==2.34.2
+pillow==13.0.0

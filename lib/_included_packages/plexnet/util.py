@@ -206,7 +206,8 @@ def hideToken(token):
 
 
 def cleanToken(url):
-    return re.sub(r'X-Plex-Token=[^&]+', 'X-Plex-Token=****', url)
+    # Plex's token, and the one a Silo stream URL carries (st, silonet.playback)
+    return re.sub(r'([?&]st=)[^&]+', r'\1****', re.sub(r'X-Plex-Token=[^&]+', 'X-Plex-Token=****', url))
 
 
 def mask(v):

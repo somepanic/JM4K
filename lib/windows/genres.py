@@ -23,7 +23,6 @@ class GenreBrowserWindow(kodigui.ControlledWindow, windowutils.UtilMixin, window
     GENRE_PANEL_ID = 101
     TAB_LIST_ID = 320
 
-    PLAYER_STATUS_BUTTON_ID = 204
 
     def __init__(self, *args, **kwargs):
         kodigui.ControlledWindow.__init__(self, *args, **kwargs)
@@ -102,8 +101,6 @@ class GenreBrowserWindow(kodigui.ControlledWindow, windowutils.UtilMixin, window
             return
         if controlID == self.SECTION_LIST_ID:
             self.sectionClicked()
-        elif controlID == self.PLAYER_STATUS_BUTTON_ID:
-            self.showAudioPlayer()
         elif controlID == self.GENRE_PANEL_ID:
             self.genreClicked()
         elif controlID == self.TAB_LIST_ID:

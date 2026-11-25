@@ -424,7 +424,10 @@ def refreshWatchlistSection():
     then."""
     if plexapp.ACCOUNT.isOffline or not util.getUserSetting("use_watchlist", True):
         return
-    section = plexlibrary.WatchlistSection(None, server=plexapp.SERVERMANAGER.getDiscoverServer())
+    manager = plexapp.SERVERMANAGER
+    # a Silo server's own watchlist (decision D18), else plex.tv's Discover
+    server = manager.getWatchlistServer() if hasattr(manager, 'getWatchlistServer') else manager.getDiscoverServer()
+    section = plexlibrary.WatchlistSection(None, server=server)
     section.title = T(34000, 'Watchlist')
     home.watchlist_section = section
 

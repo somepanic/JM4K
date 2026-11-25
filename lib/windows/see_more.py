@@ -99,8 +99,7 @@ class SeeMoreWindow(collection.BoundedGridWindow):
         self._restoreItemPos = None
 
     def labelGroupButtons(self):
-        """"Cast (9)", the group shown in the sidebar's active orange, as the Filmography screen's
-        type buttons are labelled (FilmographyWindow.labelTypeButtons()); '' hides a button."""
+        """"Cast (9)", the group shown in the sidebar's active orange; '' hides a button."""
         for i in range(len(self.GROUP_BUTTON_IDS)):
             label = ''
             if i < len(self._groups) and self._groups[i][0]:

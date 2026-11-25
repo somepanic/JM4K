@@ -1,6 +1,8 @@
 # Most of this is ported from Roku code and much of it is currently unused
 # TODO: Perhaps remove unnecessary code
 from __future__ import absolute_import
+import queue
+import threading
 import time
 
 from . import util
@@ -79,6 +81,10 @@ class NowPlayingManager(object):
 
         # timeline reports sent and not answered yet (waitForTimelines())
         self._pendingTimelines = set()
+        # a Silo server's reports, sent in order by one worker (_toSilo())
+        self._siloReports = queue.Queue()
+        self._siloLock = threading.Lock()
+        self._siloWorker = None
 
         # Initialization
         self.reset()
@@ -167,6 +173,10 @@ class NowPlayingManager(object):
         if timeline.playQueue:
             params["playQueueItemID"] = timeline.playQueue.selectedId
 
+        if hasattr(server, 'reportTimeline'):
+            self._toSilo(server, params)
+            return
+
         path = "/:/timeline"
         for paramKey in params:
             if params[paramKey]:
@@ -180,6 +190,40 @@ class NowPlayingManager(object):
         self._pendingTimelines.add(token)
         if not util.APP.startRequest(request, context):
             self._pendingTimelines.discard(token)
+
+    # how long the worker waits for another report before it ends: the add-on's exit waits for every thread
+    # (lib/main.py waitForThreads()), so it mustn't outlive the last one
+    SILO_IDLE = 1.0
+
+    def _toSilo(self, server, params):
+        """A Silo server's timeline (SiloServer.reportTimeline(): its attempt's progress or stop), off the player's
+        thread and in order, by one worker, started as needed and ended when idle; waitForTimelines() waits for it
+        as for Plex's."""
+        token = object()
+        self._pendingTimelines.add(token)
+        with self._siloLock:
+            self._siloReports.put((server, dict(params), token))
+            if self._siloWorker is None:
+                self._siloWorker = threading.Thread(target=self._sendSiloReports, name='silo.timelines')
+                self._siloWorker.daemon = True
+                self._siloWorker.start()
+
+    def _sendSiloReports(self):
+        while True:
+            try:
+                server, params, token = self._siloReports.get(timeout=self.SILO_IDLE)
+            except queue.Empty:
+                with self._siloLock:
+                    if self._siloReports.empty():
+                        self._siloWorker = None
+                        return
+                continue
+            try:
+                server.reportTimeline(params)
+            except Exception as e:
+                util.WARN_LOG("NowPlaying: Silo timeline failed: {0}".format(e))
+            finally:
+                self._pendingTimelines.discard(token)
 
     def waitForTimelines(self, timeout):
         """Until every timeline report sent has been answered, or timeout seconds. Back from

@@ -86,10 +86,12 @@ def formatMediaDetails(video, leading_newlines=0, hide_chapter_names=False):
                 if streamtype == 1:
                     dovi = ""
                     if stream.DOVIPresent:
-                        dovi = "Level: {}, Profile: {}, Version: {}, " \
+                        # a server that doesn't give the version (Silo) has it left out, not shown empty
+                        dovi = "Level: {}, Profile: {}, {}" \
                                "BL: {}{}, EL: {}, RPU: {}".format(stream.DOVILevel,
                                                                   stream.DOVIProfile,
-                                                                  stream.DOVIVersion,
+                                                                  stream.DOVIVersion and
+                                                                  "Version: {}, ".format(stream.DOVIVersion) or "",
                                                                   stream.DOVIBLPresent,
                                                                   stream.DOVIBLPresent and
                                                                   " (compat ID: {})".format(stream.DOVIBLCompatID)

@@ -1,12 +1,12 @@
 # coding=utf-8
 from kodi_six import xbmc
-from lib.properties_core import _setGlobalProperty, _setGlobalBoolProperty, _getGlobalProperty
+from lib.properties_core import BASE, _setGlobalProperty, _setGlobalBoolProperty, _getGlobalProperty
 
 
 MONITOR = xbmc.Monitor()
 
 
-def setGlobalProperty(key, val, wait=False, timeout=500, base='script.plex.{0}'):
+def setGlobalProperty(key, val, wait=False, timeout=500, base=BASE):
     _setGlobalProperty(key, val, base=base)
     if wait:
         waited = 0
@@ -16,7 +16,7 @@ def setGlobalProperty(key, val, wait=False, timeout=500, base='script.plex.{0}')
             waited += 0.01
 
 
-def setGlobalBoolProperty(key, boolean, base='script.plex.{0}'):
+def setGlobalBoolProperty(key, boolean, base=BASE):
     _setGlobalBoolProperty(key, boolean, base=base)
 
 
@@ -33,7 +33,7 @@ class IPCTimeoutException(IPCException):
     pass
 
 
-def getGlobalProperty(key, consume=False, wait=False, interval=0.01, timeout=360000, base='script.plex.{0}'):
+def getGlobalProperty(key, consume=False, wait=False, interval=0.01, timeout=360000, base=BASE):
     resp = _getGlobalProperty(key, base=base)
     if wait and not resp:
         waited = 0
@@ -53,7 +53,7 @@ def getGlobalProperty(key, consume=False, wait=False, interval=0.01, timeout=360
     return resp
 
 
-def waitForGPEmpty(key, interval=0.01, timeout=360000, base='script.plex.{0}'):
+def waitForGPEmpty(key, interval=0.01, timeout=360000, base=BASE):
     resp = _getGlobalProperty(key, base=base)
     if resp:
         waited = 0

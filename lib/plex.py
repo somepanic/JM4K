@@ -5,20 +5,17 @@ import traceback
 import uuid
 import json
 import threading
-import time
-import requests
 import six
 
 from kodi_six import xbmc, xbmcaddon
 
-from plexnet import plexapp, myplex, util as plexnet_util, asyncadapter, http as pnhttp
+from plexnet import plexapp, util as plexnet_util, asyncadapter, http as pnhttp
 
 from .playback_utils import PlaybackManager
 # imported for its side effect: building its settings registers their defaults
 # (util.DEFAULT_SETTINGS), which getPreference() below needs from the start
 from .windows import settings as _settings  # noqa: F401
 from . import util
-from lib.plex_hosts import pdm
 from six.moves import range
 
 if six.PY2:
@@ -336,33 +333,10 @@ class PlexInterface(plexapp.AppInterface):
         return util.addonSettings.unlockRes and 99999 or 2160
 
     def getThemeMusicValue(self):
-        index = 10 - self.getPreference("theme_music", 5)
+        index = 10 - self.getPreference("theme_music", 10)  # stored 10 is Off, the default (decision D15)
         if index > 0:
             return index * 10
         return 0
-
-
-def onSmartDiscoverLocalChange(value=None, **kwargs):
-    plexnet_util.CHECK_LOCAL = value
-    plexapp.refreshResources(True)
-
-
-def onPreferLANChange(value=None, **kwargs):
-    plexnet_util.LOCAL_OVER_SECURE = value
-    plexapp.refreshResources(True)
-
-
-def onPreferLocalChange(**kwargs):
-    plexapp.refreshResources(True)
-
-
-def onManualIPChange(**kwargs):
-    plexapp.refreshResources(True)
-
-
-def onLocalModeChange(value=None, **kwargs):
-    plexnet_util.LOCAL_MODE = bool(value)
-    plexapp.refreshResources(True)
 
 
 # Captures Kodi's current input.enablemouse at process start, so our own
@@ -386,21 +360,11 @@ def onDebugChange(*args, **kwargs):
 PLEX_INTERFACE = PlexInterface()
 plexapp.util.setInterface(PLEX_INTERFACE)
 plexapp.util.INTERFACE.playbackManager = PlaybackManager()
-plexapp.util.APP.on('change:smart_discover_local', onSmartDiscoverLocalChange)
-plexapp.util.APP.on('change:prefer_local', onPreferLANChange)
-plexapp.util.APP.on('change:same_network', onPreferLocalChange)
-plexapp.util.APP.on('change:manual_ip_0', onManualIPChange)
-plexapp.util.APP.on('change:manual_ip_1', onManualIPChange)
-plexapp.util.APP.on('change:manual_port_0', onManualIPChange)
-plexapp.util.APP.on('change:manual_port_1', onManualIPChange)
-plexapp.util.APP.on('change:local_mode', onLocalModeChange)
 plexapp.util.APP.on('change:disable_mouse_input', onDisableMouseInputChange)
 plexapp.util.APP.on('change:debug', onDebugChange)
 plexapp.util.APP.on('change:map_button_home', util.homeButtonMapped)
 onDisableMouseInputChange(value=util.getSetting('disable_mouse_input'))
 
-plexapp.util.CHECK_LOCAL = util.getSetting('smart_discover_local')
-plexapp.util.LOCAL_OVER_SECURE = util.getSetting('prefer_local')
 
 # set requests timeout
 TIMEOUT_READ = float(util.addonSettings.requestsTimeoutRead)
@@ -432,208 +396,3 @@ if util.addonSettings.useCertBundle != "system":
 plexnet_util.translatePath = util.translatePath
 plexnet_util.DEFAULT_SETTINGS = util.DEFAULT_SETTINGS
 plexnet_util.TEMP_PATH = asyncadapter.TEMP_PATH = util.translatePath("special://temp/")
-plexnet_util.SKIP_HOST_CHECK = pdm.getOrigHosts()
-plexnet_util.NO_HOST_CHECK = util.getSetting('handle_plexdirect') == "never"
-plexnet_util.LOCAL_MODE = util.getSetting('local_mode', False)
-
-
-class CallbackEvent(plexapp.util.CompatEvent):
-    def __init__(self, context, signal, timeout=15, *args, **kwargs):
-        plexnet_util.Event.__init__(self, *args, **kwargs)
-        self.start = time.time()
-        self.context = context
-        self.signal = signal
-        self.timeout = timeout
-        self.timed_out = False
-        self.context.on(self.signal, self.set)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.wait()
-
-    def __repr__(self):
-        return '<{0}:{1}>'.format(self.__class__.__name__, self.signal)
-
-    def set(self, **kwargs):
-        plexnet_util.Event.set(self)
-
-    def wait(self):
-        if not plexnet_util.Event.wait(self, self.timeout):
-            util.DEBUG_LOG('{0}: TIMED-OUT', self)
-            self.timed_out = True
-        self.close()
-
-    def triggeredOrTimedOut(self, timeout=None):
-        try:
-            if time.time() - self.start > self.timeout:
-                util.DEBUG_LOG('{0}: TIMED-OUT', self)
-                return True
-
-            if timeout:
-                plexnet_util.Event.wait(self, timeout)
-        except Exception:
-            pass
-        return self.isSet()
-
-    def close(self):
-        self.set()
-        self.context.off(self.signal, self.set)
-
-
-def init(local=False):
-    util.DEBUG_LOG('Initializing...')
-
-    PLEX_INTERFACE.prepareCache()
-
-    wasLocal = plexnet_util.LOCAL_MODE
-    plexnet_util.LOCAL_MODE = bool(local)
-
-    timed_out = False
-    retries = 0
-    while retries == 0 or (retries < asyncadapter.MAX_RETRIES and timed_out):
-        with CallbackEvent(plexapp.util.APP, 'init', timeout=plexapp.util.PLEXTV_TIMEOUT_READ) as cb:
-            util.DEBUG_LOG('Waiting for plexapp initialization... {}'.format(retries+1))
-            plexapp.init(local=local)
-
-        timed_out = cb.timed_out
-        retries += 1
-        if timed_out:
-            util.DEBUG_LOG("plexapp initialization timed out, trying again")
-
-    if not timed_out:
-        util.DEBUG_LOG('Account initialized: {}', plexapp.ACCOUNT.ID)
-
-    if local:
-        # no plex.tv resources will arrive; test the stored, manual and GDM servers
-        plexapp.SERVERMANAGER.beginDiscovery()
-        plexapp.refreshResources(True)
-    elif wasLocal and plexapp.ACCOUNT.authToken:
-        # Back online after local mode: plex.tv's list of servers, asked for and waited for. Live
-        # (2026-10-06), Home opened at once on local mode's connections, token-less - Oscar refused
-        # everything (401) and Animal had none - until a retest happened to ask plex.tv 1¾ min later.
-        # (With no token, signing in asks plex.tv itself: validateToken(force_resource_refresh).)
-        plexapp.SERVERMANAGER.rediscover()
-
-    retry = True
-
-    while retry:
-        retry = False
-        if not plexapp.ACCOUNT.authToken:
-            if local:
-                util.DEBUG_LOG('Local mode: continuing without an account')
-                return True
-
-            util.DEBUG_LOG("No auth token, authorizing")
-            token = authorize()
-
-            if token == 'go_local':
-                from . import localmode
-                if localmode.bootstrap():
-                    return init(local=True)
-                return False
-
-            if not token:
-                util.DEBUG_LOG('FAILED TO AUTHORIZE')
-                return False
-
-            with CallbackEvent(plexapp.util.APP, 'account:response'):
-                plexapp.ACCOUNT.validateToken(token, force_resource_refresh=True)
-                util.DEBUG_LOG('Waiting for account initialization...')
-
-        # if not PLEX:
-        #     util.messageDialog('Connection Error', u'Unable to connect to any servers')
-        #     util.DEBUG_LOG('SIGN IN: Failed to connect to any servers')
-        #     return False
-
-        # util.DEBUG_LOG('SIGN IN: Connected to server: {0} - {1}', PLEX.friendlyName, PLEX.baseuri)
-        success = requirePlexPass()
-        if success == 'RETRY':
-            retry = True
-            continue
-
-        return success
-
-
-def requirePlexPass():
-    return True
-    # if not plexapp.ACCOUNT.hasPlexPass():
-    #     from windows import signin, background
-    #     background.setSplash(False)
-    #     w = signin.SignInPlexPass.open()
-    #     retry = w.retry
-    #     del w
-    #     util.DEBUG_LOG('PlexPass required. Signing out...')
-    #     plexapp.ACCOUNT.signOut()
-    #     plexapp.SERVERMANAGER.clearState()
-    #     if retry:
-    #         return 'RETRY'
-    #     else:
-    #         return False
-
-    # return True
-
-
-def authorize():
-    from .windows import signin, background
-
-    background.setSplash(False)
-
-    back = signin.SignInBackground.create()
-
-    pre = signin.PreSignInWindow.open()
-    try:
-        if pre.goLocal:
-            back.doClose()
-            return 'go_local'
-        if not pre.doSignin:
-            return None
-    finally:
-        del pre
-
-    try:
-        while True:
-            pinLoginWindow = signin.PinLoginWindow.create()
-            try:
-                pl = myplex.PinLogin()
-            except requests.ConnectionError:
-                util.ERROR()
-                util.messageDialog(util.T(32427, 'Failed'), util.T(32449, 'Sign-in failed. Cound not connect to plex.tv'))
-                return
-
-            pinLoginWindow.setPin(pl.pin)
-
-            try:
-                pl.startTokenPolling()
-                while not pl.finished():
-                    if pinLoginWindow.abort:
-                        util.DEBUG_LOG('SIGN IN: Pin login aborted')
-                        pl.abort()
-                        return None
-                    xbmc.sleep(100)
-                else:
-                    if not pl.expired():
-                        if pl.authenticationToken:
-                            pinLoginWindow.setLinking()
-                            return pl.authenticationToken
-                        else:
-                            return None
-            finally:
-                pinLoginWindow.doClose()
-                del pinLoginWindow
-
-            if pl.expired():
-                util.DEBUG_LOG('SIGN IN: Pin expired')
-                expiredWindow = signin.ExpiredWindow.open()
-                try:
-                    if not expiredWindow.refresh:
-                        util.DEBUG_LOG('SIGN IN: Pin refresh aborted')
-                        return None
-                finally:
-                    del expiredWindow
-    finally:
-        back.doClose()
-        del back
-        background.setBusy()
-        util.MONITOR.trigger("background.activate")

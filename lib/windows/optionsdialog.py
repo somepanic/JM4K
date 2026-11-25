@@ -10,7 +10,7 @@ from .mixins.text_metrics import FONT10_POINT_SIZE, measureTextWidth
 
 
 def destructive(label):
-    """An answer that can't be undone (Delete's, Empty Trash's Yes), in the muted red the menus' Delete rows use."""
+    """An answer that can't be undone (Delete's Yes), in the muted red the menus' Delete rows use."""
     return u'[COLOR FFD45B55]{0}[/COLOR]'.format(label)
 
 

@@ -18,7 +18,7 @@ from unittest import mock
 from kodienv import ENV
 
 ENV.abort_requested = True
-from lib.windows import genres, home, library, person, playlist, section_ids, sidebar_model, windowutils  # noqa: E402
+from lib.windows import genres, home, library, person, section_ids, sidebar_model, windowutils  # noqa: E402
 
 from .base import KodiTestCase  # noqa: E402
 
@@ -331,12 +331,6 @@ class HighlightTest(SidebarCase):
         win = genres.GenreBrowserWindow.__new__(genres.GenreBrowserWindow)
         win.section = TV
         self.assertEqual(['TV Shows'], self.active(self.build(win)))
-
-    def test_a_playlist_highlights_playlists(self):
-        self.server._playlists = ['a playlist']
-        win = playlist.PlaylistWindow.__new__(playlist.PlaylistWindow)
-        win.playlist = mock.Mock(server=self.server)
-        self.assertEqual(['Playlists'], self.active(self.build(win)))
 
 
 class LibraryHighlightTest(SidebarCase):

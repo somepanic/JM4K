@@ -64,9 +64,3 @@ class ShowRefreshTest(KodiTestCase):
         self.win.mediaItem.reload.assert_not_called()
         self.win.refreshAfterIdle('screensaver')
         self.win.mediaItem.reload.assert_called_once_with(includeExtras=1, includeExtrasCount=10, includeOnDeck=1)
-
-    def test_an_artists_screen_is_left(self):
-        artist = subitems.ArtistWindow.__new__(subitems.ArtistWindow)
-        artist.__dict__.update(self.win.__dict__)
-        artist.refreshAfterIdle('wake')
-        artist.mediaItem.reload.assert_not_called()

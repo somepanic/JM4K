@@ -109,6 +109,10 @@ class TemplateEngine(object):
             # include-macro arguments where {{ }} can't reach, so a renamed copy swaps in its own ID here
             rendered = rendered.replace('$ADDON[{} '.format(UPSTREAM_ADDON_ID), '$ADDON[{} '.format(ADDON_ID)) \
                 .replace('addon_data/{}/'.format(UPSTREAM_ADDON_ID), 'addon_data/{}/'.format(ADDON_ID))
+        # the add-on's global properties are under its own ID (lib/properties_core.py), not Plex Uno's shared
+        # script.plex.*: the skins read them as written there
+        rendered = rendered.replace('Window(10000).Property(script.plex.',
+                                    'Window(10000).Property({}.'.format(ADDON_ID))
         return rendered
 
     def write(self, template, data, retry=0):

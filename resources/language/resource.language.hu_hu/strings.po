@@ -134,8 +134,8 @@ msgstr "Szerver felderítése (GDM)"
 
 #: 
 msgctxt "#32043"
-msgid "Start Plex On Kodi Startup"
-msgstr "Indítsa el a Plexet a Kodi indításakor"
+msgid "Start SM4K On Kodi Startup"
+msgstr ""
 
 #: 
 msgctxt "#32044"
@@ -464,8 +464,8 @@ msgstr "Kilépés megerősítése"
 
 #: 
 msgctxt "#32335"
-msgid "Are you ready to exit Plex?"
-msgstr "Készen áll arra, hogy kilépjen a Plexből?"
+msgid "Are you ready to exit SM4K?"
+msgstr ""
 
 #: 
 msgctxt "#32336"
@@ -1450,8 +1450,8 @@ msgstr "Virtuális fejezetek használata"
 
 #: 
 msgctxt "#33604"
-msgid "When the above is enabled and no video chapters are available, simulate them by using the markers identified by the Plex Server (Intro, Credits)."
-msgstr "Ha a fentiek engedélyezve vannak, és nem állnak rendelkezésre videókapacitások, szimulálja azokat a Plex szerver által azonosított jelölésekkel (Főcím, Stáblista)."
+msgid "When the above is enabled and no video chapters are available, simulate them by using the markers identified by the Silo Server (Intro, Credits)."
+msgstr "Ha a fentiek engedélyezve vannak, és nem állnak rendelkezésre videókapacitások, szimulálja azokat a Silo szerver által azonosított jelölésekkel (Főcím, Stáblista)."
 
 #: 
 msgctxt "#33605"
@@ -1569,8 +1569,8 @@ msgstr "Automatikus átugrás főcím/stáblista eltolás"
 
 #: 
 msgctxt "#33630"
-msgid "Intro/credits markers might be a little early in Plex. When auto skipping add (or subtract) this many seconds from the marker. This avoids cutting off content, while possibly skipping the marker a little late."
-msgstr "A főcím/stáblista jelölések talán egy kicsit koraiak a Plexben. Automatikus kihagyáskor adjon hozzá (vagy vonjon le) ennyi másodpercet a jelöléshez. Így elkerülhető a tartalom megszakítása, ugyanakkor a jelölés esetleg egy kicsit későn jelenik meg."
+msgid "Intro/credits markers might be a little early in Silo. When auto skipping add (or subtract) this many seconds from the marker. This avoids cutting off content, while possibly skipping the marker a little late."
+msgstr ""
 
 #: 
 msgctxt "#32631"
@@ -3050,8 +3050,8 @@ msgstr "Kérdezz"
 
 #: 
 msgctxt "#33695"
-msgid "Where do you want to download subtitles from? Applies to Download subtitles in the player, from the Subtitles button or the player's Settings. Before playback it always uses Plex."
-msgstr "Honnan szeretné letölteni a feliratokat? A lejátszóban a Feliratok letöltése opcióra vonatkozik, a feliratgombról vagy a lejátszó beállításaiból. Lejátszás előtt mindig a Plexet használja."
+msgid "Where do you want to download subtitles from? Applies to Download subtitles in the player, from the Subtitles button or the player's Settings. Before playback it always uses Silo."
+msgstr ""
 
 #: 
 msgctxt "#33696"
@@ -3085,8 +3085,8 @@ msgstr "Visszacsatolás a Kodiba"
 
 #: 
 msgctxt "#33702"
-msgid "When no subtitles are found via the Plex subtitle search, fall back to Kodi subtitle search. Only in the player: before playback, subtitles always come from Plex."
-msgstr "Ha a Plex feliratkeresője nem talál semmit, akkor térjen vissza a Kodi feliratkeresőjére. Csak a lejátszóban: lejátszás előtt a feliratok mindig a Plexből származnak."
+msgid "When no subtitles are found via the Silo subtitle search, fall back to Kodi subtitle search. Only in the player: before playback, subtitles always come from Silo."
+msgstr ""
 
 #: 
 msgctxt "#33703"
@@ -3367,8 +3367,8 @@ msgstr "Figyelőlista használata"
 
 #: 
 msgctxt "#34008"
-msgid "Activates the current user's Plex watchlist as a section item. Adds watchlist functionality to certain media screens. Per-user setting. Default: On"
-msgstr "Aktiválja az aktuális felhasználó Plex-figyelőlistáját, mint szakasz elemet. Figyelőlista funkciót ad bizonyos média képernyőkhöz. Felhasználónkénti beállítás. Alapértelmezett: Be"
+msgid "Activates the current user's Silo watchlist as a section item. Adds watchlist functionality to certain media screens. Per-user setting. Default: On"
+msgstr "Aktiválja az aktuális felhasználó Silo-figyelőlistáját, mint szakasz elemet. Figyelőlista funkciót ad bizonyos média képernyőkhöz. Felhasználónkénti beállítás. Alapértelmezett: Be"
 
 #: 
 msgctxt "#34009"

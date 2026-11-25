@@ -47,13 +47,11 @@ class SearchWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutils.
     height = 1080
 
     LETTERS = 'abcdefghijklmnopqrstuvwxyz0123456789 '
-    # The type buttons: 911-916
+    # The type buttons: 911-913 and 916 (Silo has no music or photos, D4: 914 and 915 went with them)
     SECTION_BUTTONS = {
         911: 'all',
         912: 'movie',
         913: 'show',
-        914: 'artist',
-        915: 'photo',
         916: 'people',
     }
 
@@ -63,7 +61,6 @@ class SearchWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutils.
     ENTRY_BOX_ID = 652
     ENTRY_FULL_WIDTH = 414
     BUTTON_A_ID = 1001
-    PLAYER_STATUS_BUTTON_ID = 204
     # The results: one grid, three across (script-plex-search.xml.tpl)
     RESULTS_ID = 2100
     HISTORY_LIST_ID = 2050
@@ -219,8 +216,6 @@ class SearchWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutils.
             return
         if controlID == self.SECTION_LIST_ID:
             self.sectionClicked()
-        elif controlID == self.PLAYER_STATUS_BUTTON_ID:
-            self.showAudioPlayer()
         elif controlID == self.SERVERS_BUTTON_ID:
             self.chooseServers()
         elif 1000 < controlID < 1037:
@@ -782,13 +777,11 @@ class SearchWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutils.
     SECTION_TYPES = {
         'movie': ('movie', 'collection'),
         'show': ('show', 'season', 'episode', 'collection'),
-        'artist': ('artist', 'album', 'track', 'collection'),
-        'photo': ('photo', 'photodirectory'),
         'people': ('actor', 'director'),
     }
     # The library type (librarySectionType) whose collections each type button shows, and a
     # collection's stand-in art by it
-    COLLECTION_LIBRARY_TYPES = {'movie': '1', 'show': '2', 'artist': '8'}
+    COLLECTION_LIBRARY_TYPES = {'movie': '1', 'show': '2'}
     COLLECTION_FALLBACKS = {'1': 'movie', '2': 'show', '8': 'music'}
 
     def showHubs(self, hubs):

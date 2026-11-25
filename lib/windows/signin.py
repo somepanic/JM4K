@@ -1,103 +1,32 @@
 from __future__ import absolute_import
 
+import hashlib
+import os
+
 from kodi_six import xbmcgui
 
 from lib import util
 from . import kodigui
 
 
-class SignInBackground(kodigui.BaseWindow):
-    xmlFile = 'script-plex-signin_background.xml'
-    path = util.ADDON.getAddonInfo('path')
-    theme = 'Main'
-    res = '1080i'
-    width = 1920
-    height = 1080
+QR_PREFIX = 'silomod_qr_'
 
 
-class SignInMessage(kodigui.BaseWindow):
-    xmlFile = 'script-plex-signin_blank.xml'
-    path = util.ADDON.getAddonInfo('path')
-    theme = 'Main'
-    res = '1080i'
-    width = 1920
-    height = 1080
+def qrImage(text):
+    """A PNG of text's QR code in the add-on's profile folder, for the card's image; the one before it is deleted. Each
+    text gets its own name, as Kodi caches an image by its path. Not Kodi's temp folder: Kodi loads no image from there
+    ("Direct texture file loading failed" on the user's box, for any PNG)."""
+    import segno
 
-    SCREEN_BUTTON_ID = 100
-
-    def __init__(self, *args, **kwargs):
-        self.message = kwargs.get('message')
-        kodigui.BaseWindow.__init__(self, *args, **kwargs)
-
-    def onFirstInit(self):
-        self.setProperty('message', self.message)
-
-    def onClick(self, controlID):
-        if controlID == self.SCREEN_BUTTON_ID:
-            self.doClose()
-
-
-class SignInPlexPass(kodigui.BaseWindow):
-    xmlFile = 'script-plex-plex_pass.xml'
-    path = util.ADDON.getAddonInfo('path')
-    theme = 'Main'
-    res = '1080i'
-    width = 1920
-    height = 1080
-
-    RETRY_BUTTON_ID = 100
-
-    def __init__(self, *args, **kwargs):
-        self.retry = False
-        kodigui.BaseWindow.__init__(self, *args, **kwargs)
-
-    def onAction(self, action):
-        if action == xbmcgui.ACTION_SELECT_ITEM:
-            self.retry = True
-            self.doClose()
-
-    def onClick(self, controlID):
-        if controlID == self.RETRY_BUTTON_ID:
-            self.retry = True
-            self.doClose()
-
-
-class PreSignInWindow(kodigui.BaseWindow):
-    xmlFile = 'script-plex-pre_signin.xml'
-    path = util.ADDON.getAddonInfo('path')
-    theme = 'Main'
-    res = '1080i'
-    width = 1920
-    height = 1080
-
-    SIGNIN_BUTTON_ID = 100
-    LOCAL_BUTTON_ID = 101
-
-    def __init__(self, *args, **kwargs):
-        self.doSignin = False
-        self.goLocal = False
-        kodigui.BaseWindow.__init__(self, *args, **kwargs)
-
-    def onFirstInit(self):
-        self.signinButton = self.getControl(self.SIGNIN_BUTTON_ID)
-
-    def onAction(self, action):
-        if action == xbmcgui.ACTION_SELECT_ITEM:
-            if self.getFocusId() == self.LOCAL_BUTTON_ID:
-                self.goLocal = True
-            else:
-                self.doSignin = True
-            self.doClose()
-        elif action in (xbmcgui.ACTION_PREVIOUS_MENU, xbmcgui.ACTION_NAV_BACK):
-            self.doClose()
-
-    def onClick(self, controlID):
-        if controlID == self.SIGNIN_BUTTON_ID:
-            self.doSignin = True
-            self.doClose()
-        elif controlID == self.LOCAL_BUTTON_ID:
-            self.goLocal = True
-            self.doClose()
+    folder = os.path.join(util.PROFILE, 'qr')
+    os.makedirs(folder, exist_ok=True)
+    name = QR_PREFIX + hashlib.sha1(text.encode('utf-8')).hexdigest()[:12] + '.png'
+    for old in os.listdir(folder):
+        if old.startswith(QR_PREFIX) and old != name:
+            os.remove(os.path.join(folder, old))
+    path = os.path.join(folder, name)
+    segno.make_qr(text).save(path, scale=10, border=2)
+    return path
 
 
 class PinLoginWindow(kodigui.BaseWindow):
@@ -108,22 +37,65 @@ class PinLoginWindow(kodigui.BaseWindow):
     width = 1920
     height = 1080
 
-    def __init__(self, *args, **kwargs):
-        self.abort = False
-        kodigui.BaseWindow.__init__(self, *args, **kwargs)
+    USERNAME_ID = 201
+    PASSWORD_ID = 202
+    SIGN_IN_ID = 203
+    CHANGE_ID = 204
 
-    def setPin(self, pin):
-        self.setProperty('pin.image.0', 'script.plex/sign_in/digits/{0}.png'.format(pin[0].upper()))
-        self.setProperty('pin.image.1', 'script.plex/sign_in/digits/{0}.png'.format(pin[1].upper()))
-        self.setProperty('pin.image.2', 'script.plex/sign_in/digits/{0}.png'.format(pin[2].upper()))
-        self.setProperty('pin.image.3', 'script.plex/sign_in/digits/{0}.png'.format(pin[3].upper()))
+    # what the user did on the card, read by lib/silo.py's signIn() while it waits
+    abort = submitted = change = False
+    username = password = ''
 
-    def setLinking(self):
-        self.setProperty('linking', '1')
-        self.setProperty('pin.image.0', '')
-        self.setProperty('pin.image.1', '')
-        self.setProperty('pin.image.2', '')
-        self.setProperty('pin.image.3', '')
+    def setOptions(self, options, address, username):
+        """The server's name and subtitle (silonet.server_info.LoginOptions), its address and the last username."""
+        self.username = username
+        self.setProperty('server.name', options.name or util.T(32460, 'Sign In'))
+        self.setProperty('subtitle', options.subtitle)
+        self.setProperty('address', address)
+        self.setProperty('username', username)
+        self.setProperty('password.enabled', '1' if options.password else '')
+        if not options.password:
+            # the username field the card starts on is hidden: Change is its one button then
+            self.setFocusId(self.CHANGE_ID)
+        for name, label in (
+            ('username', util.T(35301, 'Username')),
+            ('password', util.T(35302, 'Password')),
+            ('signin', util.T(32460, 'Sign In')),
+            ('password.heading', util.T(35309, 'Sign in with your password')),
+            ('phone', util.T(35304, 'Use your phone instead')),
+            ('server', util.T(35305, 'Server')),
+            ('change', util.T(35306, 'Change')),
+        ):
+            self.setProperty('label.' + name, label)
+
+    def showError(self, message):
+        """A failed password sign-in: the message, and the password to type again."""
+        self.password = ''
+        self.setProperty('password', '')
+        self.setProperty('error', message)
+
+    def setCode(self, code):
+        """Silo's sign-in code (silonet.auth.DeviceCode): eight digits and the page to enter them on."""
+        from silonet.auth import formatUserCode
+        self.setProperty('heading', util.T(32460, 'Sign In'))
+        self.setProperty('instructions', util.T(35243, 'On a phone or computer, open {link} and enter this code:').format(
+            link=code.verificationUri))
+        self.setProperty('pin', formatUserCode(code.userCode))
+        self.setProperty('qr', qrImage(code.verificationUriComplete))
+
+    def onClick(self, controlID):
+        if controlID in (self.USERNAME_ID, self.PASSWORD_ID, self.SIGN_IN_ID):
+            self.setProperty('error', '')  # the last sign-in's, gone once the user tries again
+        if controlID == self.USERNAME_ID:
+            self.username = xbmcgui.Dialog().input(util.T(35301, 'Username'), self.username) or self.username
+            self.setProperty('username', self.username)
+        elif controlID == self.PASSWORD_ID:
+            self.password = xbmcgui.Dialog().input(util.T(35302, 'Password'), option=xbmcgui.ALPHANUM_HIDE_INPUT)
+            self.setProperty('password', '\N{BULLET}' * len(self.password))
+        elif controlID == self.SIGN_IN_ID:
+            self.submitted = True
+        elif controlID == self.CHANGE_ID:
+            self.change = True
 
     def onAction(self, action):
         try:
@@ -133,26 +105,3 @@ class PinLoginWindow(kodigui.BaseWindow):
             util.ERROR()
 
         kodigui.BaseWindow.onAction(self, action)
-
-
-class ExpiredWindow(kodigui.BaseWindow):
-    xmlFile = 'script-plex-refresh_code.xml'
-    path = util.ADDON.getAddonInfo('path')
-    theme = 'Main'
-    res = '1080i'
-    width = 1920
-    height = 1080
-
-    REFRESH_BUTTON_ID = 100
-
-    def __init__(self, *args, **kwargs):
-        self.refresh = False
-        kodigui.BaseWindow.__init__(self, *args, **kwargs)
-
-    def onFirstInit(self):
-        self.refreshButton = self.getControl(self.REFRESH_BUTTON_ID)
-
-    def onClick(self, controlID):
-        if controlID == self.REFRESH_BUTTON_ID:
-            self.refresh = True
-            self.doClose()

@@ -167,7 +167,7 @@ msgid "Server Discovery (GDM)"
 msgstr "Objevení serveru (GDM)"
 
 msgctxt "#32043"
-msgid "Start Plex On Kodi Startup"
+msgid "Start SM4K On Kodi Startup"
 msgstr "Spustit plex při spuštění Kodi"
 
 msgctxt "#32044"
@@ -431,8 +431,8 @@ msgid "Confirm Exit"
 msgstr "Potvrdit odchod"
 
 msgctxt "#32335"
-msgid "Are you ready to exit Plex?"
-msgstr "Opravdu chcete odejít z Plexu?"
+msgid "Are you ready to exit SM4K?"
+msgstr ""
 
 msgctxt "#32336"
 msgid "Exit"

@@ -3,7 +3,7 @@ from __future__ import absolute_import
 from kodi_six import xbmc
 from kodi_six import xbmcgui
 from plexnet import plexapp
-from plexnet.exceptions import UserSwitchForbiddenException, UserSwitchUnreachableException
+from silonet.errors import SiloError, SiloRateLimited, SiloUnavailable
 
 from lib import util
 from lib.util import T
@@ -74,31 +74,26 @@ class UserSelectWindow(kodigui.BaseWindow):
         if controlID == self.USER_LIST_ID:
             item = self.userList.getSelectedItem()
             if item.dataSource.isProtected:
-                self.setFocusId(self.PIN_ENTRY_GROUP_ID)
+                # Silo PINs are 1 to 72 characters; the keypad below the list only takes four digits
+                pin = xbmcgui.Dialog().input(T(35250, 'PIN for {name}').format(name=item.dataSource.title),
+                                             option=xbmcgui.ALPHANUM_HIDE_INPUT)
+                if pin:
+                    self.userSelected(item, pin)
 
             # refresh clicked
             elif not item.dataSource:
-                from lib import localmode
-                if localmode.isAccountLess():
-                    # account-less: no plex.tv user list to refresh - re-pick the local profiles
-                    localmode.seedUsersFromServer(reselect=True)
-                    with self.propertyContext('busy'):
-                        self.userList.reset()
-                        self.setProperty('initialized', '')
-                        self.start(with_busy=False)
-                    return
-
                 # refresh user list
                 with self.propertyContext('busy'):
+                    try:
+                        plexapp.ACCOUNT.updateHomeUsers(refreshSubscription=True)
+                    except SiloError:
+                        # the profiles as they were, shown again below
+                        util.showNotification(
+                            T(35252, "Can't reach the Silo server. Check your connection and try again."))
                     self.userList.reset()
                     self.setProperty('initialized', '')
-                    plexapp.ACCOUNT.updateHomeUsers(refreshSubscription=True)
                     self.start(with_busy=False)
             else:
-                from lib import localmode
-                # dialogs must not run inside userSelected's busy dialog
-                if localmode.needsProfileToken(item.dataSource):
-                    localmode.promptProfileToken(item.dataSource)
                 self.userSelected(item)
         elif 200 < controlID < 212:
             self.pinEntryClicked(controlID)
@@ -212,29 +207,22 @@ class UserSelectWindow(kodigui.BaseWindow):
         # xbmc.sleep(500)
         util.DEBUG_LOG('Home user selected: {0}', user)
 
-        from lib import plex
-        with plex.CallbackEvent(plexapp.util.APP, 'account:response') as e:
-            try:
-                if plexapp.ACCOUNT.switchHomeUser(user.id, pin) and plexapp.ACCOUNT.switchUser:
-                    util.DEBUG_LOG('Waiting for user change...')
-                else:
-                    e.close()
-                    item.setProperty('pin', item.dataSource.title)
-                    item.setProperty('editing.pin', '')
-                    util.messageDialog(T(32427, 'Failed'), T(32926, 'Wrong pin entered!'))
-                    return
-            except UserSwitchUnreachableException:
-                # no answer from plex.tv: not a wrong PIN, and nothing to wait for
-                e.close()
-                util.messageDialog(T(32427, 'Failed'),
-                                   T(32449, "Can't connect to plex.tv[CR]Check your internet connection and try again."))
+        try:
+            if not plexapp.ACCOUNT.switchHomeUser(user.id, pin):
+                item.setProperty('pin', item.dataSource.title)
+                item.setProperty('editing.pin', '')
+                util.messageDialog(T(32427, 'Failed'), T(32926, 'Wrong pin entered!'))
                 return
-            except UserSwitchForbiddenException:
-                # re-fetch users
-                plexapp.ACCOUNT.updateHomeUsers()
-                self.selected = 'retry'
-                self.doClose()
-                return
+        except SiloRateLimited as e:
+            # Silo locks a profile for five minutes after five wrong PINs
+            minutes = max(1, ((e.retryAfter or 60) + 59) // 60)
+            util.messageDialog(T(32427, 'Failed'),
+                               T(35251, 'Too many wrong PINs. Try again in {minutes} minutes.').format(minutes=minutes))
+            return
+        except SiloUnavailable:
+            util.messageDialog(T(32427, 'Failed'),
+                               T(35252, "Can't reach the Silo server. Check your connection and try again."))
+            return
 
         self.selected = True
         self.doClose()

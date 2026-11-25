@@ -8,6 +8,7 @@ from plexnet import plexplayer, media, plexobjects, util as pnUtil, plexapp, ple
 
 from lib import metadata
 from lib import util
+from lib import watch_together
 from lib.util import T
 from lib.language_util import getNativeLanguages
 from . import busy
@@ -147,7 +148,6 @@ class PrePlayWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutils
     # summaryButtonClicked() below.
     SUMMARY_BUTTON_ID = 350
 
-    PLAYER_STATUS_BUTTON_ID = 204
 
     def __init__(self, *args, **kwargs):
         kodigui.ControlledWindow.__init__(self, *args, **kwargs)
@@ -439,8 +439,6 @@ class PrePlayWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutils
         elif controlID in self.WL_BTN_STATE_BTNS:
             is_watchlisted = self.toggleWatchlist(self.video)
             self.waitAndSetFocus(self.WL_BTN_STATE_WATCHLISTED if is_watchlisted else self.WL_BTN_STATE_NOT_WATCHLISTED)
-        elif controlID == self.PLAYER_STATUS_BUTTON_ID:
-            self.showAudioPlayer()
         elif controlID == self.INFO_BUTTON_ID:
             self.infoButtonClicked()
         elif controlID == self.SUMMARY_BUTTON_ID:
@@ -564,6 +562,10 @@ class PrePlayWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutils
 
         if 'items' in util.getSetting('cache_requests'):
             options.append(('cache_reset', T(33728, "Clear cache for item")))
+
+        # a watch party on a Silo server (decision D26): play this for everyone, or end the party this profile hosts
+        if hasattr(self.video.server, 'pinnedFiles') and self.video.type in ('episode', 'movie'):
+            options.append(('watch_together', T(35260, 'Watch together')))
         # Delete last, wherever it was added (sorted() keeps the rest in order)
         return sorted(options, key=lambda o: o[0] == 'delete')
 
@@ -588,6 +590,8 @@ class PrePlayWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutils
                                 )
         elif key == 'delete':
             self.delete(confirmed=True)
+        elif key == 'watch_together':
+            self.watchTogether()
         elif key == 'refresh':
             self.video.refresh()
             self.video.reload(checkFiles=1, **VIDEO_RELOAD_KW)
@@ -716,8 +720,9 @@ class PrePlayWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutils
         preRoll = util.getUserSetting('preplay_preroll', False)
         preRollFirst = util.getUserSetting('preplay_preroll_first', True)
         trailers = 5 - util.getUserSetting('preplay_trailers', 5)
-        # play playqueue if necessary (trailer preplay or plex told us to preplay something)
-        if not resume:
+        # play playqueue if necessary (trailer preplay or plex told us to preplay something); a server without
+        # play queues (Silo) has neither prerolls nor a queue of trailers to ask for
+        if not resume and playqueue.hasPlayQueues(self.video.getServer()):
             if preRoll or trailers:
                 pq = playqueue.createPlayQueueForItem(self.video, use_async=False, method="POST",
                                                           extrasPrefixCount=trailers)
@@ -749,6 +754,11 @@ class PrePlayWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutils
 
         self.processCommand(videoplayer.play(video=self.video, resume=resume, bgm=self.useBGM, context=self))
         return True
+
+    def watchTogether(self):
+        """Put this up next in a watch party this profile hosts (decision D26), on the party's screen: members mark
+        themselves ready, and the host starts it for everyone."""
+        watch_together.pickItem(self.video, self.video.server.fileId(self.video), watch_together.playerFor(self))
 
     def openItem(self, control=None, item=None, inherit_from_watchlist=True, server=None, is_watchlisted=False, **kw):
         if not item:

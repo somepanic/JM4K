@@ -133,9 +133,10 @@ class UtilityMonitor(xbmc.Monitor, signalsmixin.SignalsMixin):
             LOG("OnQuit: Stopping playback")
             self.trigger('system.exit')
             self.actionStop()
-            LOG("OnQuit: Closing Home")
-            windowutils.HOME.closeOption = "kodi_exit"
-            windowutils.HOME.doClose()
+            if windowutils.HOME is not None:  # none yet on the sign-in card, or as SiloMod starts
+                LOG("OnQuit: Closing Home")
+                windowutils.HOME.closeOption = "kodi_exit"
+                windowutils.HOME.doClose()
             return
 
         elif sender == "xbmc" and method == "GUI.OnSkinUnloading":

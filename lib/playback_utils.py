@@ -26,13 +26,14 @@ ATTR_MAP = {
 VIRTUAL_ATTRS = ("media_version",)
 
 # I know dicts are ordered in py3, but we want to be compatible with py2.
+# A show's switches its playback settings offer (lib/windows/playbacksettings.py). auto_sync is left out: it's Plex's
+# subtitle auto-sync, which a Silo server's subtitles never offer (canAutoSync), so it changes nothing on Silo.
 TRANS_MAP = OrderedDict((
     ("binge_mode", 33618),
     ("auto_skip_intro", 32522),
     ("auto_skip_credits", 32526),
     ("show_intro_skip_early", 33505),
     ("skip_post_play_tv", 32973),
-    ("auto_sync", 33655),
 ))
 
 ATTR_MAP_REV = dict((v, k) for k, v in ATTR_MAP.items())

@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 import six
-from plexnet import playqueue, plexapp, plexlibrary
+from plexnet import playlist, playqueue, plexapp, plexlibrary
 
 from lib import util
 from . import busy
@@ -25,20 +25,13 @@ def open(obj, context=None, **kwargs):
         # queue. Without it BusyWindow is shown the instant this is called, which put a spinner on
         # screen for every track click once music started going through play queues.
         if busy.widthDialog(obj.waitForInitialization, None, delay=True):
-            if obj.type == 'audio':
-                from . import musicplayer
-                # **kwargs, as the photo branch below already does: track clicks route through
-                # here now (trackClicked), and they carry the same dialog_props/window_props
-                # carry-over every other opener branch passes on. handleOpen() pops the auto_play
-                # pair, so library.py's Play All still works the same way.
-                return handleOpen(musicplayer.MusicPlayerWindow, track=obj.current(), playlist=obj, **kwargs)
-            elif obj.type == 'photo':
-                from . import photos
-                return handleOpen(photos.PhotoWindow, play_queue=obj, **kwargs)
-            else:
-                from . import videoplayer
-                videoplayer.play(play_queue=obj, context=context, **kwargs)
-                return ''
+            from . import videoplayer
+            videoplayer.play(play_queue=obj, context=context, **kwargs)
+            return ''
+    elif isinstance(obj, playlist.BasePlaylist):
+        # a queue SiloMod built itself (playqueue.createLocalPlayQueue()): nothing to wait for
+        from . import videoplayer
+        return videoplayer.play(play_queue=obj, context=context, **kwargs)
     elif isinstance(obj, six.string_types):
         key = obj
         if not obj.startswith('/'):
@@ -53,23 +46,10 @@ def open(obj, context=None, **kwargs):
         return playableClicked(obj, context=context, **kwargs)
     elif obj.TYPE in ('show'):
         return showClicked(obj, context=context, **kwargs)
-    elif obj.TYPE in ('artist'):
-        return artistClicked(obj, context=context, **kwargs)
     elif obj.TYPE in ('season'):
         return seasonClicked(obj, context=context, **kwargs)
-    elif obj.TYPE in ('album'):
-        return albumClicked(obj, context=context, **kwargs)
-    elif obj.TYPE in ('photo',):
-        return photoClicked(obj, **kwargs)
     elif obj.TYPE in ('photodirectory'):
         return photoDirectoryClicked(obj, context=context, **kwargs)
-    elif obj.TYPE in ('track'):
-        # No obj.album() lookup any more: createPlayQueueForItem() derives the album from the
-        # track's own parentRatingKey (playqueue.py's track branch), so that round trip bought
-        # nothing.
-        return trackClicked(obj, **kwargs)
-    elif obj.TYPE in ('playlist'):
-        return playlistClicked(obj, context=context, **kwargs)
     elif obj.TYPE in ('clip'):
         from . import videoplayer
         return videoplayer.play(video=obj, context=context)
@@ -190,14 +170,6 @@ def showClicked(show, context=None, **kwargs):
     return handleOpen(subitems.ShowWindow, media_item=show, **kwargs)
 
 
-def artistClicked(artist, context=None, **kwargs):
-    from . import subitems
-    if context is not None:
-        context.openWindow(subitems.ArtistWindow, media_item=artist, **kwargs)
-        return ''
-    return handleOpen(subitems.ArtistWindow, media_item=artist, **kwargs)
-
-
 def seasonClicked(season, context=None, **kwargs):
     from . import episodes
     if context is not None:
@@ -206,64 +178,8 @@ def seasonClicked(season, context=None, **kwargs):
     return handleOpen(episodes.EpisodesWindow, season=season, **kwargs)
 
 
-def albumClicked(album, context=None, **kwargs):
-    from . import tracks
-    if context is not None:
-        context.openWindow(tracks.AlbumWindow, album=album, **kwargs)
-        return ''
-    return handleOpen(tracks.AlbumWindow, album=album, **kwargs)
-
-
-def photoClicked(photo, **kwargs):
-    from . import photos
-    return handleOpen(photos.PhotoWindow, photo=photo, **kwargs)
-
-
-def trackClicked(track, container_path=None, **kwargs):
-    """Play a track, as a Plex client does: a server play queue of the container it belongs to,
-    starting at the track.
-
-    Every track click lands here - the album screen's track list, the music library's Tracks list
-    view, a home hub, a search result - and they all queue the track's own album, so they all read
-    the same way whichever screen you came from. container_path overrides that for callers with a
-    different listable container in hand (ArtistWindow's popular-tracks row, subitems.py).
-
-    Falls back to playing the single track on its own if the server won't give us a queue (a
-    secondary server, or an item that isn't a library item - see
-    PlayQueueFactory.canCreateRemotePlayQueue).
-
-    The track already playing, from a queue of this same container: just the player again, with no
-    new queue - one would replace the playing queue on the server (PMS keeps one per client;
-    checked live 2026-10-07) while Kodi carried on with the old. Playing from anywhere else (Popular
-    Tracks, say, clicked again on its album screen): this container's queue, restarting the track
-    in it (on request, 2026-10-07), so the rest of the container follows.
-    """
-    from lib import player
-    parentRatingKey = track.get('parentRatingKey')
-    source = container_path or (parentRatingKey and '/library/metadata/' + parentRatingKey)
-    if util.trackIsPlaying(track) and player.PLAYER.isPlayingAudioFrom(source):
-        from . import musicplayer
-        return handleOpen(musicplayer.MusicPlayerWindow, **kwargs)
-
-    pq = playqueue.createPlayQueueForItem(track, options={'containerPath': container_path})
-    if pq:
-        return open(pq, **kwargs)
-
-    util.DEBUG_LOG('trackClicked: no play queue for {}, playing the track alone', track)
-    from . import musicplayer
-    return handleOpen(musicplayer.MusicPlayerWindow, track=track, **kwargs)
-
-
 def photoDirectoryClicked(photodirectory, context=None, **kwargs):
     return sectionClicked(photodirectory, context=context, **kwargs)
-
-
-def playlistClicked(pl, context=None, **kwargs):
-    from . import playlist
-    if context is not None:
-        context.openWindow(playlist.PlaylistWindow, playlist=pl, **kwargs)
-        return ''
-    return handleOpen(playlist.PlaylistWindow, playlist=pl, **kwargs)
 
 
 def collectionClicked(collection, context=None, **kwargs):

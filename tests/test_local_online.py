@@ -3,8 +3,6 @@
 Going local and back online in one session (live 2026-10-06, after plan Phase 9.3):
 - in local mode a GDM round that misses a server (Animal never answers GDM) no longer takes away the
   LAN connections plex.tv's list had found for it, which left it offline with nothing to retest;
-- back online, plex.tv's list of servers is asked for and Home waits for it, instead of opening on
-  local mode's token-less connections (Oscar refused everything, 401, for 1¾ min);
 - a library refusing the collections check is logged in a line, not as a traceback.
 
 Importing lib.windows.* starts lib.player's monitor thread unless abort_requested is set first.
@@ -18,7 +16,6 @@ from kodienv import ENV
 
 ENV.abort_requested = True
 from .test_server_state import ManagerTestCase, make_server  # noqa: E402 - imports plexnet's server manager safely
-from lib import plex  # noqa: E402
 from lib.windows import library  # noqa: E402
 from plexnet import exceptions, plexresource  # noqa: E402
 from plexnet import util as pnUtil  # noqa: E402
@@ -62,39 +59,6 @@ class LocalModeListsTest(ManagerTestCase):
                 mock.patch.object(self.manager, 'deviceRefreshComplete') as settle:
             self.manager.updateFromConnectionType([], DISCOVERED)
         settle.assert_called_once_with(DISCOVERED)
-
-
-class RediscoverTest(ManagerTestCase):
-    def test_plex_tvs_list_is_asked_for_and_waited_for(self):
-        self.manager.resourcesAnswered = self.manager.storedLoaded = True
-        with mock.patch.object(plex.plexapp, 'refreshResources') as refresh:
-            self.manager.rediscover()
-        refresh.assert_called_once_with(True)
-        self.assertFalse(self.manager.serversKnown())
-        self.assertTrue(self.manager.waitingForResources)  # signed in: no other list settles them
-
-
-class InitTest(KodiTestCase):
-    """plex.init() going online: rediscovers only when local mode ran before it, in this session."""
-
-    def init(self, was_local, token='tok'):
-        manager = mock.Mock()
-        event = mock.MagicMock(timed_out=False)
-        event.__enter__.return_value = event
-        with mock.patch.object(plex, 'CallbackEvent', return_value=event), \
-                mock.patch.object(plex.plexapp, 'init'), \
-                mock.patch.object(plex.plexapp, 'SERVERMANAGER', manager), \
-                mock.patch.object(plex.plexapp, 'ACCOUNT', mock.Mock(ID='1', authToken=token)), \
-                mock.patch.object(plex, 'PLEX_INTERFACE'), \
-                mock.patch.object(plex.plexnet_util, 'LOCAL_MODE', was_local):
-            self.assertTrue(plex.init(local=False))
-        return manager
-
-    def test_back_online_after_local_mode(self):
-        self.init(was_local=True).rediscover.assert_called_once_with()
-
-    def test_not_on_an_ordinary_start(self):
-        self.init(was_local=False).rediscover.assert_not_called()
 
 
 class CollectionsCheckTest(KodiTestCase):

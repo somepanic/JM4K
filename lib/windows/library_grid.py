@@ -33,7 +33,6 @@ from . import opener
 from . import videoplayer
 from . import panel_colors
 from . import preplay
-from . import subitems
 from . import sidebar_model
 from .dialog import showOptionsDialog
 from .mixins.watchlist import removeFromWatchlistBlind, autoRemoveFromWatchlistBlind, watchlistRef
@@ -129,6 +128,15 @@ TYPE_PLURAL = {
     # watchlist
     'movies_shows': T(34002, "Movies & Shows"),
 }
+
+
+def typePlural(section, itemType):
+    """What the grid lists, as its count and type picker name it: a Silo mixed library's films are "Movies & Shows"
+    (silonet lists it as a film library, mixed="1")."""
+    key = itemType or section.TYPE
+    if key == 'movie' and section.get('mixed').asBool():
+        key = 'movies_shows'
+    return TYPE_PLURAL.get(key, section.TYPE)
 
 SORT_KEYS = {
     'movie': {
@@ -467,8 +475,6 @@ class GridMixin(object):
             self.showPanelClicked()
         elif controlID == self.KEY_LIST_ID:
             self.keyClicked()
-        elif controlID == self.PLAYER_STATUS_BUTTON_ID:
-            self.showAudioPlayer()
         elif controlID == self.PLAY_BUTTON_ID:
             self.playButtonClicked()
         elif controlID == self.SHUFFLE_BUTTON_ID:
@@ -682,6 +688,11 @@ class GridMixin(object):
             args['unwatched'] = '1'
 
         pq = playqueue.createPlayQueueForItem(self.section, options={'shuffle': shuffle}, args=args)
+        if not pq:
+            # a queue SiloMod builds itself is none when nothing in the grid is left to play (all watched)
+            self.playBtnClicked = False
+            util.messageDialog(T(33020, 'Play'), T(35310, 'Nothing to play.'))
+            return
         # back on the grid when it ends: the tiles played updated then (LibraryWindow.onReInit())
         self._watchGridPlayback()
         opener.open(pq, auto_play=True, auto_play_open=True)
@@ -833,7 +844,7 @@ class GridMixin(object):
             for t in ('show', 'episode'):
                 options.append({'type': t, 'display': TYPE_PLURAL.get(t, t)})
         elif self.section.TYPE == 'movie':
-            options.append({'type': 'movie', 'display': TYPE_PLURAL.get('movie', 'movie')})
+            options.append({'type': 'movie', 'display': typePlural(self.section, 'movie')})
             options.append({'type': 'folder', 'display': TYPE_PLURAL.get('folder', 'folder')})
         elif self.section.TYPE == 'artist':
             for t in ('artist', 'album', 'track'):
@@ -936,7 +947,7 @@ class GridMixin(object):
             # it they stayed hidden after Folders -> Films until the screen was opened again (the
             # user, 2026-10-09)
             self.setProperty('media.itemType', self.itemType or self.section.TYPE)
-            self.setProperty('media.type', TYPE_PLURAL.get(self.itemType or self.section.TYPE, self.section.TYPE))
+            self.setProperty('media.type', typePlural(self.section, self.itemType))
             display = self.sortDisplay()
             if display is None:
                 # stored sort isn't valid for this item type
@@ -1369,8 +1380,9 @@ class GridMixin(object):
 
         extra_kwargs = {}
 
-        # watchlist
-        if sectionType == 'movies_shows':
+        # watchlist: Discover's items, found again in a library; a Silo watchlist's are library items already
+        discoverWatchlist = sectionType == 'movies_shows' and getattr(self.section.server, 'platform', None) != 'silo'
+        if discoverWatchlist:
             extra_kwargs['from_watchlist'] = True
             extra_kwargs['directly_from_watchlist'] = True
             extra_kwargs['external_item'] = True
@@ -1427,16 +1439,8 @@ class GridMixin(object):
                 # ManagedControlList data reads, not native-control reads, and self.showPanelControl
                 # lives on this outer, persistent LibraryWindow instance (never torn down when
                 # hosting a shell - only self._current, the native window, is).
-                self.openWindow(preplay.PrePlayWindow if not sectionType == 'movies_shows' else preplay.PrePlayWindowWL,
+                self.openWindow(preplay.PrePlayWindowWL if discoverWatchlist else preplay.PrePlayWindow,
                                  video=datasource, parent_list=self.showPanelControl, **extra_kwargs)
-        elif self.section.TYPE == 'artist' or mli.dataSource.TYPE == 'artist' or mli.dataSource.TYPE == 'album' or mli.dataSource.TYPE == 'track':
-            if self.itemType == 'album' or mli.dataSource.TYPE == 'album' or mli.dataSource.TYPE == 'track':
-                self.openItem(mli.dataSource, entry_section_id=self.entrySectionId)
-            else:
-                # hashed-orbiting-pizza.md Phase 4 item 3: self.openWindow(), not
-                # opener.handleOpen() directly - same reasoning as the PrePlayWindow branch above.
-                self.openWindow(subitems.ArtistWindow, media_item=mli.dataSource, parent_list=self.showPanelControl,
-                                 entry_section_id=self.entrySectionId, entry_from_watchlist=self.entryFromWatchlist)
         elif self.section.TYPE in ('photo', 'photodirectory'):
             self.showPhoto(mli.dataSource)
             # Every other branch only posts a swap (openWindow()), so there's nothing to refresh

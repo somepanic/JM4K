@@ -53,3 +53,29 @@ class MetaRowTest(KodiTestCase):
                      subitems.ShowWindow.updateProperties):
             missing = set(CommonMixin.META_ROW_PROPERTIES) - keys_written(func)
             self.assertEqual(set(), missing, func.__qualname__)
+
+
+class ShowDurationTest(KodiTestCase):
+    """A show with no duration - Silo gives a series none, only its episodes - leaves the row's duration out
+    (an empty field takes no room) rather than showing "0s" (seen on the Kodi box, 2026-11-24)."""
+
+    def duration(self, ms):
+        from unittest import mock
+
+        win = subitems.ShowWindow.__new__(subitems.ShowWindow)
+        written = {}
+        win.setProperty = written.__setitem__
+        for name in ('setBoolProperty', 'updateBackgroundFrom', 'setPlayButtonState', 'blankMetaRow'):
+            setattr(win, name, mock.Mock())
+        win.fromWatchlist = False
+        win.mediaItem = mock.MagicMock()
+        win.mediaItem.fixedDuration.return_value = ms
+        with mock.patch.object(subitems.util, 'clearLogoFrom', return_value=''):
+            win.updateProperties()
+        return written['duration']
+
+    def test_a_show_without_a_duration_shows_none(self):
+        self.assertEqual(self.duration(0), '')
+
+    def test_a_shows_duration(self):
+        self.assertEqual(self.duration(25 * 60000), '25m')

@@ -18,7 +18,7 @@ from kodienv import ENV
 
 ENV.abort_requested = True
 import requests  # noqa: E402
-from plexnet import myplexaccount, plexapp, plexconnection, plexobjects, plexserver  # noqa: E402
+from plexnet import plexapp, plexconnection, plexobjects, plexserver  # noqa: E402
 from plexnet import util as pnUtil  # noqa: E402
 
 from .base import KodiTestCase, ensure_plex_interface  # noqa: E402
@@ -32,7 +32,7 @@ ensure_plex_interface()
 # The module builds a MANAGER as it's imported, which reads the account and hooks itself onto the
 # shared APP's signals - other tests would then trip over it. Import it unhooked (myplexserver
 # imports it too).
-with mock.patch.object(plexapp, "ACCOUNT", myplexaccount.ACCOUNT), mock.patch.object(pnUtil.APP, "on"):
+with mock.patch.object(plexapp, "ACCOUNT", mock.Mock()), mock.patch.object(pnUtil.APP, "on"):
     from plexnet import plexservermanager  # noqa: E402
     from plexnet import myplexserver  # noqa: E402
 

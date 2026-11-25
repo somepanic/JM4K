@@ -82,8 +82,7 @@
     </control>
 
     <!-- GROUP BUTTONS ###################################################################### -->
-    <!-- Cast / Crew for credits (SeeMoreWindow.GROUP_BUTTON_IDS, labelGroupButtons()): the
-         Filmography screen's type buttons as they are (script-plex-filmography.xml.tpl), the group
+    <!-- Cast / Crew for credits (SeeMoreWindow.GROUP_BUTTON_IDS, labelGroupButtons()): the group
          shown in the sidebar's active orange by its label's colour tag. A grid without groups (a
          row's) has none; its tiles start higher instead (its own layouts). -->
     <control type="grouplist" id="910">

@@ -6,3 +6,56 @@ TESTING_SQUAD.md  # Plex Uno's list of testers
 changelog.txt  # Plex Uno's release history; this add-on keeps its own
 docs/settings-audit.md  # a one-off audit of Plex Uno's settings at 60ed0301, cited by nothing here
 docs/subtitle-selection.md  # how PM4K follows Plex's subtitle preselection, cited by nothing here
+resources/skins/Main/media/script.plex/sign_in/generating-code.jpg  # plex.tv's sign-in screen; SM4K's PIN window shows Silo's code as text
+resources/skins/Main/media/script.plex/sign_in/linking-account.jpg  # plex.tv's sign-in screen; SM4K's PIN window shows Silo's code as text
+resources/skins/Main/media/script.plex/sign_in/pin-display.jpg  # plex.tv's sign-in screen (Plex logo, plex.tv/link); replaced by text labels
+lib/_included_packages/plexnet/myplex.py  # plex.tv PIN sign-in; SM4K signs in to Silo (lib/silo.py)
+lib/_included_packages/plexnet/myplexaccount.py  # plex.tv account; replaced by silonet.account.SiloAccount
+lib/_included_packages/plexnet/myplexmanager.py  # plex.tv resources; SM4K has no plex.tv
+lib/_included_packages/plexnet/myplexrequest.py  # plex.tv requests; SM4K has no plex.tv
+lib/_included_packages/plexnet/audio.py  # Plex music objects, only imported by myplex.py; no music in SM4K (D4)
+lib/_included_packages/plexnet/photo.py  # Plex photo objects, only imported by myplex.py; no photos in SM4K (D4)
+lib/localmode.py  # Plex local mode ("Go local"); SM4K talks to its Silo server directly
+lib/plex_hosts.py  # plex.direct host mapping in advancedsettings.xml; Plex only
+lib/windows/plexdirect.py  # plex.direct host mapping; Plex only
+resources/skins/Main/1080i/templates/script-plex-signin_background.xml.tpl  # plex.tv sign-in screens; Silo uses the PIN window alone
+resources/skins/Main/1080i/templates/script-plex-signin_blank.xml.tpl  # plex.tv sign-in screens; Silo uses the PIN window alone
+resources/skins/Main/1080i/templates/script-plex-plex_pass.xml.tpl  # Plex Pass screen; Silo has no paid tier
+resources/skins/Main/1080i/templates/script-plex-pre_signin.xml.tpl  # plex.tv sign-in screens; Silo uses the PIN window alone
+resources/skins/Main/1080i/templates/script-plex-refresh_code.xml.tpl  # plex.tv code-expired screen; Silo replaces unopened codes
+resources/skins/Main/media/script.plex/sign_in/  # plex.tv sign-in pictures and PIN digit images
+tests/test_account_offline_retry.py  # tested plexnet/myplexaccount.py (removed)
+tests/test_localmode.py  # tested lib/localmode.py (removed)
+tests/test_music_not_marked.py  # tested plexnet/audio.py (removed)
+tests/test_plexdirect.py  # tested lib/windows/plexdirect.py (removed)
+tests/test_plexnet_resources.py  # tested plexnet/myplexmanager.py (removed)
+lib/windows/photos.py  # Plex photo viewer; Silo has no photos (D4)
+resources/skins/Main/1080i/templates/script-plex-photo.xml.tpl  # the photo viewer's screen (D4)
+resources/skins/Main/media/script.plex/indicators/camera.png  # only the photo viewer used it (D4)
+resources/skins/Main/media/script.plex/indicators/info-sep.png  # only the photo viewer used it (D4)
+resources/skins/Main/media/script.plex/thumb_fallbacks/broken-photo-thumb.png  # only the photo viewer used it (D4)
+lib/windows/playlist.py  # Plex playlist screen; Silo has no playlists (D4)
+resources/skins/Main/1080i/templates/script-plex-playlist.xml.tpl  # the playlist screen (D4)
+lib/windows/musicplayer.py  # Plex music player; Silo has no music (D4)
+lib/windows/currentplaylist.py  # the music player's play queue screen (D4)
+lib/windows/tracks.py  # Plex album screen (D4)
+lib/_included_packages/plexnet/audioobject.py  # Plex audio objects, already unused (D4)
+resources/skins/Main/1080i/templates/script-plex-album.xml.tpl  # the album screen (D4)
+resources/skins/Main/1080i/templates/script-plex-artist.xml.tpl  # the artist screen, subitems.ArtistWindow (D4)
+resources/skins/Main/1080i/templates/script-plex-music_current_playlist.xml.tpl  # the music play queue screen (D4)
+resources/skins/Main/1080i/templates/script-plex-music_player.xml.tpl  # the music player (D4)
+resources/skins/Main/1080i/templates/script-plex-track_context.xml.tpl  # the music player's track menu (D4)
+resources/skins/Main/1080i/templates/includes/music_player_buttons.xml.tpl  # only the music player used it (D4)
+resources/skins/Main/media/script.plex/home/background-fallback.png  # only the music screens used it (D4)
+resources/skins/Main/media/script.plex/masks/seekbar-mask-1536.png  # only the music player used it (D4)
+resources/skins/Main/media/script.plex/masks/seekbar-mask-1152.png  # only the music player used it (D4)
+resources/skins/Main/media/script.plex/indicators/player-selection-time_box.png  # only the music player used it (D4)
+resources/skins/Main/media/script.plex/indicators/player-selection-time_arrow.png  # only the music player used it (D4)
+lib/windows/filmography.py  # plex.tv Discover's credits screen for a person; SM4K has no plex.tv (D10)
+resources/skins/Main/1080i/templates/script-plex-filmography.xml.tpl  # the Discover credits screen's skin (D10)
+resources/skins/Main/media/script.plex/social/  # social link icons on the person screen, from plex.tv Discover's person details (D10)
+lib/windows/bif_index.py  # Plex's BIF preview index reader; Silo's previews are trickplay sheets (silonet.trickplay, D17)
+tests/test_bif_index.py  # tested lib/windows/bif_index.py (removed)
+docs/preview-thumbnails.md  # the plan for Plex's BIF previews, built as bif_index.py and the BIF download (removed)
+resources/skins/Main/media/script.plex/home/type/artist.png  # Search's Music button and music sections' sidebar icon; Silo has no music (D4)
+resources/skins/Main/media/script.plex/home/type/photo.png  # Search's Photos button and photo sections' sidebar icon; Silo has no photos (D4)

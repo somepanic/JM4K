@@ -1045,8 +1045,8 @@
     <posy>{{ vscale(20) }}</posy>
     <width>459</width>
     <height>{{ vscale(87) }}</height>
-    <!-- SECTIONS: the type buttons (SearchWindow.SECTION_BUTTONS), six across - All, then
-         an icon each for Movies, Shows, Music, Photos and People. Each a rounded tile in the
+    <!-- SECTIONS: the type buttons (SearchWindow.SECTION_BUTTONS), four across - All, then
+         an icon each for Movies, Shows and People (no Music or Photos: Silo has neither, D4). Each a rounded tile in the
          Libraries picker's tracking grey at rest (script-plex-card_list.xml.tpl), as the keys
          are, and focused two steps brighter than its focus grey (55 against 33 - the user,
          2026-10-07); the selected type's label or icon in the sidebar's active orange. -->
@@ -1063,7 +1063,7 @@
                 <visible>!Control.HasFocus(911)</visible>
                 <posx>0</posx>
                 <posy>0</posy>
-                <width>74</width>
+                <width>114</width>
                 <height>{{ vscale(60) }}</height>
                 <texture colordiffuse="22FFFFFF" border="10">script.plex/white-square-rounded.png</texture>
             </control>
@@ -1072,7 +1072,7 @@
                     <visible>Control.HasFocus(911)</visible>
                     <posx>0</posx>
                     <posy>0</posy>
-                    <width>74</width>
+                    <width>114</width>
                     <height>{{ vscale(60) }}</height>
                     <texture colordiffuse="55FFFFFF" border="10">script.plex/white-square-rounded.png</texture>
                 </control>
@@ -1081,7 +1081,7 @@
                     <scroll>false</scroll>
                     <posx>0</posx>
                     <posy>0</posy>
-                    <width>74</width>
+                    <width>114</width>
                     <height>{{ vscale(60) }}</height>
                     <font>font12</font>
                     <align>center</align>
@@ -1094,7 +1094,7 @@
                     <scroll>false</scroll>
                     <posx>0</posx>
                     <posy>0</posy>
-                    <width>74</width>
+                    <width>114</width>
                     <height>{{ vscale(60) }}</height>
                     <font>font12</font>
                     <align>center</align>
@@ -1105,13 +1105,13 @@
             </control>
         </control>
         <control type="group">
-            <posx>77</posx>
+            <posx>115</posx>
             <posy>0</posy>
             <control type="image">
                 <visible>!Control.HasFocus(912)</visible>
                 <posx>0</posx>
                 <posy>0</posy>
-                <width>74</width>
+                <width>114</width>
                 <height>{{ vscale(60) }}</height>
                 <texture colordiffuse="22FFFFFF" border="10">script.plex/white-square-rounded.png</texture>
             </control>
@@ -1120,13 +1120,13 @@
                     <visible>Control.HasFocus(912)</visible>
                     <posx>0</posx>
                     <posy>0</posy>
-                    <width>74</width>
+                    <width>114</width>
                     <height>{{ vscale(60) }}</height>
                     <texture colordiffuse="55FFFFFF" border="10">script.plex/white-square-rounded.png</texture>
                 </control>
                 <control type="image">
                     <visible>!String.IsEqual(Window.Property(search.section),movie)</visible>
-                    <posx>25</posx>
+                    <posx>45</posx>
                     <posy>{{ vscale(18) }}</posy>
                     <width>24</width>
                     <height>{{ vscale(24) }}</height>
@@ -1134,7 +1134,7 @@
                 </control>
                 <control type="image">
                     <visible>String.IsEqual(Window.Property(search.section),movie)</visible>
-                    <posx>25</posx>
+                    <posx>45</posx>
                     <posy>{{ vscale(18) }}</posy>
                     <width>24</width>
                     <height>{{ vscale(24) }}</height>
@@ -1143,13 +1143,13 @@
             </control>
         </control>
         <control type="group">
-            <posx>154</posx>
+            <posx>230</posx>
             <posy>0</posy>
             <control type="image">
                 <visible>!Control.HasFocus(913)</visible>
                 <posx>0</posx>
                 <posy>0</posy>
-                <width>74</width>
+                <width>114</width>
                 <height>{{ vscale(60) }}</height>
                 <texture colordiffuse="22FFFFFF" border="10">script.plex/white-square-rounded.png</texture>
             </control>
@@ -1158,13 +1158,13 @@
                     <visible>Control.HasFocus(913)</visible>
                     <posx>0</posx>
                     <posy>0</posy>
-                    <width>74</width>
+                    <width>114</width>
                     <height>{{ vscale(60) }}</height>
                     <texture colordiffuse="55FFFFFF" border="10">script.plex/white-square-rounded.png</texture>
                 </control>
                 <control type="image">
                     <visible>!String.IsEqual(Window.Property(search.section),show)</visible>
-                    <posx>25</posx>
+                    <posx>45</posx>
                     <posy>{{ vscale(18) }}</posy>
                     <width>24</width>
                     <height>{{ vscale(24) }}</height>
@@ -1172,7 +1172,7 @@
                 </control>
                 <control type="image">
                     <visible>String.IsEqual(Window.Property(search.section),show)</visible>
-                    <posx>25</posx>
+                    <posx>45</posx>
                     <posy>{{ vscale(18) }}</posy>
                     <width>24</width>
                     <height>{{ vscale(24) }}</height>
@@ -1181,89 +1181,13 @@
             </control>
         </control>
         <control type="group">
-            <posx>231</posx>
-            <posy>0</posy>
-            <control type="image">
-                <visible>!Control.HasFocus(914)</visible>
-                <posx>0</posx>
-                <posy>0</posy>
-                <width>74</width>
-                <height>{{ vscale(60) }}</height>
-                <texture colordiffuse="22FFFFFF" border="10">script.plex/white-square-rounded.png</texture>
-            </control>
-            <control type="group">
-                <control type="image">
-                    <visible>Control.HasFocus(914)</visible>
-                    <posx>0</posx>
-                    <posy>0</posy>
-                    <width>74</width>
-                    <height>{{ vscale(60) }}</height>
-                    <texture colordiffuse="55FFFFFF" border="10">script.plex/white-square-rounded.png</texture>
-                </control>
-                <control type="image">
-                    <visible>!String.IsEqual(Window.Property(search.section),artist)</visible>
-                    <posx>25</posx>
-                    <posy>{{ vscale(18) }}</posy>
-                    <width>24</width>
-                    <height>{{ vscale(24) }}</height>
-                    <texture colordiffuse="FFFFFFFF">script.plex/home/type/artist.png</texture>
-                </control>
-                <control type="image">
-                    <visible>String.IsEqual(Window.Property(search.section),artist)</visible>
-                    <posx>25</posx>
-                    <posy>{{ vscale(18) }}</posy>
-                    <width>24</width>
-                    <height>{{ vscale(24) }}</height>
-                    <texture colordiffuse="FFE5A00D">script.plex/home/type/artist.png</texture>
-                </control>
-            </control>
-        </control>
-        <control type="group">
-            <posx>308</posx>
-            <posy>0</posy>
-            <control type="image">
-                <visible>!Control.HasFocus(915)</visible>
-                <posx>0</posx>
-                <posy>0</posy>
-                <width>74</width>
-                <height>{{ vscale(60) }}</height>
-                <texture colordiffuse="22FFFFFF" border="10">script.plex/white-square-rounded.png</texture>
-            </control>
-            <control type="group">
-                <control type="image">
-                    <visible>Control.HasFocus(915)</visible>
-                    <posx>0</posx>
-                    <posy>0</posy>
-                    <width>74</width>
-                    <height>{{ vscale(60) }}</height>
-                    <texture colordiffuse="55FFFFFF" border="10">script.plex/white-square-rounded.png</texture>
-                </control>
-                <control type="image">
-                    <visible>!String.IsEqual(Window.Property(search.section),photo)</visible>
-                    <posx>25</posx>
-                    <posy>{{ vscale(18) }}</posy>
-                    <width>24</width>
-                    <height>{{ vscale(24) }}</height>
-                    <texture colordiffuse="FFFFFFFF">script.plex/home/type/photo.png</texture>
-                </control>
-                <control type="image">
-                    <visible>String.IsEqual(Window.Property(search.section),photo)</visible>
-                    <posx>25</posx>
-                    <posy>{{ vscale(18) }}</posy>
-                    <width>24</width>
-                    <height>{{ vscale(24) }}</height>
-                    <texture colordiffuse="FFE5A00D">script.plex/home/type/photo.png</texture>
-                </control>
-            </control>
-        </control>
-        <control type="group">
-            <posx>385</posx>
+            <posx>345</posx>
             <posy>0</posy>
             <control type="image">
                 <visible>!Control.HasFocus(916)</visible>
                 <posx>0</posx>
                 <posy>0</posy>
-                <width>74</width>
+                <width>114</width>
                 <height>{{ vscale(60) }}</height>
                 <texture colordiffuse="22FFFFFF" border="10">script.plex/white-square-rounded.png</texture>
             </control>
@@ -1272,13 +1196,13 @@
                     <visible>Control.HasFocus(916)</visible>
                     <posx>0</posx>
                     <posy>0</posy>
-                    <width>74</width>
+                    <width>114</width>
                     <height>{{ vscale(60) }}</height>
                     <texture colordiffuse="55FFFFFF" border="10">script.plex/white-square-rounded.png</texture>
                 </control>
                 <control type="image">
                     <visible>!String.IsEqual(Window.Property(search.section),people)</visible>
-                    <posx>25</posx>
+                    <posx>45</posx>
                     <posy>{{ vscale(18) }}</posy>
                     <width>24</width>
                     <height>{{ vscale(24) }}</height>
@@ -1286,7 +1210,7 @@
                 </control>
                 <control type="image">
                     <visible>String.IsEqual(Window.Property(search.section),people)</visible>
-                    <posx>25</posx>
+                    <posx>45</posx>
                     <posy>{{ vscale(18) }}</posy>
                     <width>24</width>
                     <height>{{ vscale(24) }}</height>
@@ -1301,10 +1225,10 @@
                 <posx>0</posx>
                 <posy>0</posy>
                 <control type="button" id="911">
-                    <hitrect x="0" y="0" w="74" h="60" />
+                    <hitrect x="0" y="0" w="114" h="60" />
                     <posx>-40</posx>
                     <posy>{{ vscale(-40) }}</posy>
-                    <width>154</width>
+                    <width>194</width>
                     <height>{{ vscale(140) }}</height>
                     <onleft>899</onleft>
                     <onright>912</onright>
@@ -1315,13 +1239,13 @@
                 </control>
             </control>
             <control type="group">
-                <posx>77</posx>
+                <posx>115</posx>
                 <posy>0</posy>
                 <control type="button" id="912">
-                    <hitrect x="0" y="0" w="74" h="60" />
+                    <hitrect x="0" y="0" w="114" h="60" />
                     <posx>-40</posx>
                     <posy>{{ vscale(-40) }}</posy>
-                    <width>154</width>
+                    <width>194</width>
                     <height>{{ vscale(140) }}</height>
                     <onleft>911</onleft>
                     <onright>913</onright>
@@ -1332,49 +1256,15 @@
                 </control>
             </control>
             <control type="group">
-                <posx>154</posx>
+                <posx>230</posx>
                 <posy>0</posy>
                 <control type="button" id="913">
-                    <hitrect x="0" y="0" w="74" h="60" />
+                    <hitrect x="0" y="0" w="114" h="60" />
                     <posx>-40</posx>
                     <posy>{{ vscale(-40) }}</posy>
-                    <width>154</width>
+                    <width>194</width>
                     <height>{{ vscale(140) }}</height>
                     <onleft>912</onleft>
-                    <onright>914</onright>
-                    <ondown>2100</ondown>
-                    <texturefocus>-</texturefocus>
-                    <texturenofocus>-</texturenofocus>
-                    <label> </label>
-                </control>
-            </control>
-            <control type="group">
-                <posx>231</posx>
-                <posy>0</posy>
-                <control type="button" id="914">
-                    <hitrect x="0" y="0" w="74" h="60" />
-                    <posx>-40</posx>
-                    <posy>{{ vscale(-40) }}</posy>
-                    <width>154</width>
-                    <height>{{ vscale(140) }}</height>
-                    <onleft>913</onleft>
-                    <onright>915</onright>
-                    <ondown>2100</ondown>
-                    <texturefocus>-</texturefocus>
-                    <texturenofocus>-</texturenofocus>
-                    <label> </label>
-                </control>
-            </control>
-            <control type="group">
-                <posx>308</posx>
-                <posy>0</posy>
-                <control type="button" id="915">
-                    <hitrect x="0" y="0" w="74" h="60" />
-                    <posx>-40</posx>
-                    <posy>{{ vscale(-40) }}</posy>
-                    <width>154</width>
-                    <height>{{ vscale(140) }}</height>
-                    <onleft>914</onleft>
                     <onright>916</onright>
                     <ondown>2100</ondown>
                     <texturefocus>-</texturefocus>
@@ -1383,15 +1273,15 @@
                 </control>
             </control>
             <control type="group">
-                <posx>385</posx>
+                <posx>345</posx>
                 <posy>0</posy>
                 <control type="button" id="916">
-                    <hitrect x="0" y="0" w="74" h="60" />
+                    <hitrect x="0" y="0" w="114" h="60" />
                     <posx>-40</posx>
                     <posy>{{ vscale(-40) }}</posy>
-                    <width>154</width>
+                    <width>194</width>
                     <height>{{ vscale(140) }}</height>
-                    <onleft>915</onleft>
+                    <onleft>913</onleft>
                     <ondown>2100</ondown>
                     <texturefocus>-</texturefocus>
                     <texturenofocus>-</texturenofocus>

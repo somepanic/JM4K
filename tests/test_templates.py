@@ -375,7 +375,7 @@ class BackgroundFillTest(KodiTestCase):
     keeps its base fill."""
 
     MAIN_WINDOWS = ("posters", "posters-small", "squares", "ar16x9", "pre_play", "episodes", "collection",
-                    "recommended", "photo", "see_more_poster")
+                    "recommended", "see_more_poster")
     def setUp(self):
         super(BackgroundFillTest, self).setUp()
         self.rendered = render_theme(make_engine(self.mktemp()), "modern-colored")
@@ -398,18 +398,6 @@ class BackgroundFillTest(KodiTestCase):
                 self.assertEqual("0xff111111", root.findtext("backgroundcolor"))
                 # the Recommended view's cover keeps exactly one, to hide the rows under it
                 self.assertEqual(1 if window == "recommended" else 0, len(self.flatLayers(root)))
-
-    def test_the_photo_viewer_has_the_panel_but_no_hero_box(self):
-        """The neutral panel (PhotoWindow.paintInitialBackground()); the hero box showed a blurred copy of the photo
-        in its top-right vignette (the user, 2026-10-28)."""
-        root = ET.fromstring(self.rendered["photo"])
-        self.assertFalse([c for c in root.iter("control") if "Window.Property(background)" in (c.findtext("texture") or "")])
-        self.assertTrue([c for c in root.iter("control") if c.get("id") == "2109"])
-
-    def test_the_music_screens_keep_their_static_base(self):
-        for window in ("music_player", "music_current_playlist"):
-            with self.subTest(window=window):
-                self.assertEqual(1, len(self.flatLayers(ET.fromstring(self.rendered[window]))))
 
 
 

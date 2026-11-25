@@ -1,4 +1,6 @@
 from __future__ import absolute_import
+import threading
+
 from kodi_six import xbmcvfs
 from . import plexobjects
 from . import plexstream
@@ -120,6 +122,17 @@ class PlexPart(plexobjects.PlexObject):
         else:
             return None
 
+        server = self.getServer()
+        if hasattr(server, 'rememberStream'):
+            # a Silo server keeps a show's choice for its episodes (SiloServer.rememberStream())
+            chosen = next((s for s in self.streams if s.id == streamId), None)
+            args = (video, streamType, chosen, list(self.streams))
+            if _async:
+                threading.Thread(target=server.rememberStream, args=args, name='silo.trackpref').start()
+            else:
+                server.rememberStream(*args)
+            return self._markSelected(streamType, streamId)
+
         path = "/library/parts/{0}?{1}StreamID={2}".format(self.id(''), typeString, streamId)
 
         if self.getServer().supportsFeature("allPartsStreamSelection"):
@@ -136,6 +149,10 @@ class PlexPart(plexobjects.PlexObject):
         else:
             request.postToStringWithTimeout()
 
+        return self._markSelected(streamType, streamId)
+
+    def _markSelected(self, streamType, streamId):
+        """The streams of streamType marked as chosen: streamId's selected, the others not."""
         matching = plexstream.NoneStream()
 
         # Update any affected streams

@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+import random
 import re
 import six.moves.urllib.request, six.moves.urllib.parse, six.moves.urllib.error
 import time
@@ -116,8 +117,60 @@ class PlayOptions(util.AttributeDict):
         self.context = self.CONTEXT_AUTO
 
 
-def createLocalPlayQueue(item, children, contentType, options):
-    pass
+# Plex's episode type: a library listing of it lists every episode in the library (silonet: Silo's type=episode)
+EPISODE_TYPE = 4
+
+
+def hasPlayQueues(server):
+    """Whether the server keeps play queues: Plex does, Silo has none (SiloServer.platform), so SiloMod builds its
+    queues itself (createLocalPlayQueue())."""
+    return getattr(server, 'platform', None) != 'silo'
+
+
+def createLocalPlayQueue(item, children, contentType, options, args=None):
+    """A queue built here, for a server without play queues: item's titles in its listing's order - a library grid's,
+    in its sort and filter (args), or a collection's - each show as its episodes, shuffled when asked, only the
+    unwatched ones when args say so (Silo has no unwatched filter). None when nothing is left."""
+    from . import playlist
+
+    args = dict(args or {})
+    unwatched = args.pop('unwatched', None) == '1'
+    args.pop('sourceType', None)
+    if item.TYPE == 'collection':
+        titles = list(item.all())
+    else:
+        titles = list(item.all(collections=False, params=args))
+
+    items = []
+    episodes = showEpisodes(item, [t for t in titles if t.TYPE == 'show'])
+    for title in titles:
+        items += episodes.get(title.ratingKey, []) if title.TYPE == 'show' else [title]
+    if unwatched:
+        items = [i for i in items if not i.isWatched]
+    if options.shuffle:
+        random.shuffle(items)
+    return playlist.LocalPlaylist(items, item.getServer()) if items else None
+
+
+def showEpisodes(item, shows):
+    """Each show's episodes in order, by the show's key: a library's from one listing of its episodes, a collection's
+    show by show. Each episode knows its show, as the player reads it (episodes.py)."""
+    if not shows:
+        return {}
+    byKey = {show.ratingKey: show for show in shows}
+    episodes = {key: [] for key in byKey}
+    if item.TYPE == 'collection':
+        for show in shows:
+            episodes[show.ratingKey] = list(show.episodes())
+    else:
+        for episode in item.all(type_=EPISODE_TYPE, collections=False):
+            if episode.grandparentRatingKey in episodes:
+                episodes[episode.grandparentRatingKey].append(episode)
+    for key, run in episodes.items():
+        run.sort(key=lambda e: (e.parentIndex.asInt(), e.index.asInt()))
+        for episode in run:
+            episode._show = byKey[key]
+    return episodes
 
 
 class PlayQueueFactory(object):
@@ -132,7 +185,9 @@ class PlayQueueFactory(object):
         return None
 
     def canCreateRemotePlayQueue(self):
-        if self.item.getServer().isSecondary():
+        if not hasPlayQueues(self.item.getServer()):
+            reason = "Server has no play queues"
+        elif self.item.getServer().isSecondary():
             reason = "Server is secondary"
         elif not (self.item.isLibraryItem() or self.item.isGracenoteCollection() or self.item.isLibraryPQ or self.item.isCollection):
             reason = "Item is not a library item or gracenote collection"
@@ -210,7 +265,7 @@ def createPlayQueueForItem(item, children=None, options=None, args=None, use_asy
             util.DEBUG_LOG("Can't create remote PQs and item does not support local PQs")
             return None
         else:
-            return createLocalPlayQueue(item, children, contentType, options)
+            return createLocalPlayQueue(item, children, contentType, options, args)
 
 
 class PlayQueue(signalsmixin.SignalsMixin):

@@ -1,12 +1,9 @@
 {% extends "default.xml.tpl" %}
-{# The Filmography button, not the poster row (on request, 2026-10-08): focusing the row slides
-   the screen down to it (group 50 below), which it did as the screen opened. The button shows
-   once its property is set, after this is read, so person.py focuses it too (focusDefault()). #}
-{# The Filmography button's group (303), not the button (302): the button shows only once
-   filmography.available is set, after the window opens, and Kodi logged "Control 302 ... has been
-   asked to focus, but it can't" each time (AM6B, 2026-10-09). A group with nothing to focus yet is
-   passed over quietly; focusDefault() (person.py) focuses the button once it shows. #}
-{% block headers %}<defaultcontrol>303</defaultcontrol>{% endblock %}
+{# The bio's group (311), not the poster row (on request, 2026-10-08): focusing the row slides the
+   screen down to it (group 50 below), which it did as the screen opened. The bio shows only once
+   person.summary is set, after the window opens: a group with nothing to focus yet is passed over
+   quietly, and person.py focuses the bio once it shows (focusDefault()). #}
+{% block headers %}<defaultcontrol>311</defaultcontrol>{% endblock %}
 {% block header %}
     {{ super() }}
     {% include "includes/sidebar.xml.tpl" %}
@@ -35,12 +32,11 @@
         <width>1800</width>
         <height>{{ vscale(580) }}</height>
 
-        <!-- Photo: Discover's 2:3 cover poster (person.py's onPersonDetails(); on request,
-             2026-10-08 - it was the square photo in a circle), 376x564: the text column's height at
-             its longest, its top level with the name's box. A poster card as the row's below have
-             them - the rounded poster mask on the directional drop shadow (shadow box the art plus
-             24, the art 3 in), the person fallback until it loads. The square photo, without a
-             cover poster, is cropped to the shape from its top. -->
+        <!-- Photo: a 2:3 poster (person.py's onPersonDetails(); on request, 2026-10-08 - it was the
+             square photo in a circle), 376x564, its top level with the name's box. A poster card as
+             the row's below have them - the rounded poster mask on the directional drop shadow
+             (shadow box the art plus 24, the art 3 in), the person fallback until it loads. The
+             photo is cropped to the shape from its top. -->
         <control type="group">
             <posx>0</posx>
             <posy>0</posy>
@@ -71,15 +67,12 @@
             </control>
         </control>
 
-        <!-- Person Info (on request, 2026-10-08): the name; the credit types, Discover's names in its
-             order less Appearances and Additional Credits (person.creditTypesLine()); born, with
+        <!-- Person Info (on request, 2026-10-08): the name; born, with
              the age while they're alive; died, with the age then; the bio, in pre-play's summary
-             box and opening the whole of it the same way; the social links, an icon and the
-             handle a line; the Filmography button. A vertical grouplist, so a line with nothing to
+             box and opening the whole of it the same way. A vertical grouplist, so a line with nothing to
              show is hidden and everything below moves up - each line a group carrying the gap
              above it, so a hidden line takes its gap with it: 25 above born, 15 above died, 25
-             above the bio, 25 above the first social link and 15 above each other, 25 above the
-             button (on request, 2026-10-08). Its two focus stops, the bio and the button, carry their own navigation: a
+             above the bio (on request, 2026-10-08). Its focus stop, the bio, carries its own navigation: a
              grouplist's own is broken by the labels between (see library_posters.xml.tpl's
              notes), its children's explicit tags aren't. Each child 5 in from its edge: a
              grouplist clips to its own box, and the bio's focus highlight reaches 5 outside the
@@ -108,19 +101,6 @@
                 <label>$INFO[Window.Property(person.name)]</label>
             </control>
 
-            <!-- Credit types: "Producer, Actor, Writer, Editor" - the hero's album artist line under
-                 that heading, font30_title, but white. A 36 box, close round its 30px text. -->
-            <control type="label">
-                <posx>5</posx>
-                <visible>!String.IsEmpty(Window.Property(person.credit_types))</visible>
-                <width>1400</width>
-                <height>{{ vscale(36) }}</height>
-                <font>font30_title</font>
-                <align>left</align>
-                <aligny>center</aligny>
-                <textcolor>FFFFFFFF</textcolor>
-                <label>$INFO[Window.Property(person.credit_types)]</label>
-            </control>
 
             <!-- Born, then died (PersonWindow.lifeLines()): "Born" / "Died" in the bio's grey, then
                  20 along the date in white, "2 April 1975 (51)" - font10, a 26 box. -->
@@ -164,7 +144,7 @@
                  and shadow, the text cut to its three lines (util.summaryForBox()), an invisible
                  button over it opening the whole of it (summaryButtonClicked()), and its focus
                  highlight 5px out on every side. 25 above it. -->
-            <control type="group">
+            <control type="group" id="311">
                 <posx>5</posx>
                 <visible>!String.IsEmpty(Window.Property(person.summary))</visible>
                 <width>823</width>
@@ -190,7 +170,6 @@
                     <height>{{ vscale(90) }}</height>
                     <onup condition="Player.HasAudio + String.IsEmpty(Window(10000).Property(script.plex.theme_playing))">204</onup>
                     <onup>noop</onup>
-                    <ondown condition="Control.IsVisible(302)">302</ondown>
                     <ondown condition="Control.IsVisible(300)">300</ondown>
                     <ondown>400</ondown>
                     <onleft>9000</onleft>
@@ -210,82 +189,14 @@
                 </control>
             </control>
 
-            <!-- Social links (PersonWindow.setSocialLinks()): the network's icon
-                 (script.plex/social/<source>.png, the link icon for one without its own), white,
-                 then the handle in the bio's grey, centred on the icon's height - a 40 line (the
-                 icon 40, 80% bigger than its first 22 - on request, 2026-10-08), 25 above the
-                 first, 15 above the others. -->
-            {% for i, gap, line_height in ((0, 25, 65), (1, 15, 55), (2, 15, 55)) %}
-            <control type="group">
-                <posx>5</posx>
-                <visible>!String.IsEmpty(Window.Property(person.social.{{ i }}.label))</visible>
-                <width>813</width>
-                <height>{{ vscale(line_height) }}</height>
-                <control type="image">
-                    <posx>0</posx>
-                    <posy>{{ vscale(gap) }}</posy>
-                    <width>40</width>
-                    <height>{{ vscale(40) }}</height>
-                    <texture>$INFO[Window.Property(person.social.{{ i }}.icon)]</texture>
-                    <aspectratio>keep</aspectratio>
-                </control>
-                <control type="label">
-                    <posx>52</posx>
-                    <posy>{{ vscale(gap) }}</posy>
-                    <width>761</width>
-                    <height>{{ vscale(40) }}</height>
-                    <font>font10</font>
-                    <align>left</align>
-                    <aligny>center</aligny>
-                    <textcolor>FFD2CCCE</textcolor>
-                    <shadowcolor>66000000</shadowcolor>
-                    <label>$INFO[Window.Property(person.social.{{ i }}.label)]</label>
-                </control>
-            </control>
-            {% endfor %}
 
-            <!-- Filmography: every credit Discover has (person.py's openFilmography()), shown once
-                 the person's plex.tv key is known (updateFilmographyButton()). Search's type
-                 buttons' tile (script-plex-search.xml.tpl) - 22FFFFFF at rest, 55FFFFFF focused,
-                 60 tall, font12 - sized to its caption, 25 above it. -->
-            <control type="group" id="303">
-                <posx>5</posx>
-                <visible>!String.IsEmpty(Window.Property(filmography.available))</visible>
-                <defaultcontrol>302</defaultcontrol>
-                <width>813</width>
-                <height>{{ vscale(85) }}</height>
-                <control type="button" id="302">
-                    <visible>!String.IsEmpty(Window.Property(filmography.available))</visible>
-                    <posx>0</posx>
-                    <posy>{{ vscale(25) }}</posy>
-                    <width>auto</width>
-                    <height>{{ vscale(60) }}</height>
-                    <font>font12</font>
-                    <align>center</align>
-                    <aligny>center</aligny>
-                    <textoffsetx>24</textoffsetx>
-                    <textcolor>FFFFFFFF</textcolor>
-                    <focusedcolor>FFFFFFFF</focusedcolor>
-                    <texturenofocus colordiffuse="22FFFFFF" border="10">script.plex/white-square-rounded.png</texturenofocus>
-                    <texturefocus colordiffuse="55FFFFFF" border="10">script.plex/white-square-rounded.png</texturefocus>
-                    <onup condition="Control.IsVisible(310)">310</onup>
-                    <onup condition="Player.HasAudio + String.IsEmpty(Window(10000).Property(script.plex.theme_playing))">204</onup>
-                    <onup>noop</onup>
-                    <ondown condition="Control.IsVisible(300)">300</ondown>
-                    <ondown>400</ondown>
-                    <onleft>9000</onleft>
-                    <onright>noop</onright>
-                    <label>$ADDON[script.plexmod 35160]</label>
-                </control>
-            </control>
         </control>
     </control>
 
     <!-- Filmography List -->
     <control type="group" id="500">
         <posx>0</posx>
-        <!-- 730, not 460: below the text column at its longest (every line, three social links -
-             it ends at 684), on request (2026-10-08). The posters' bottom edge may run off the
+        <!-- 730, not 460: below the text column at its longest, on request (2026-10-08). The posters' bottom edge may run off the
              screen. -->
         <posy>{{ vscale(730) }}</posy>
         <width>1920</width>
@@ -332,7 +243,6 @@
                 <textoffsetx>15</textoffsetx>
                 <texturefocus colordiffuse="FFFFFFFF" border="8">script.plex/white-square-rounded-top-padded.png</texturefocus>
                 <texturenofocus colordiffuse="40FFFFFF" border="8">script.plex/white-square-rounded-top-padded.png</texturenofocus>
-                <onup condition="Control.IsVisible(302)">302</onup>
                 <onup condition="Control.IsVisible(310)">310</onup>
                 <onup>201</onup>
                 <ondown condition="Integer.IsGreater(Container(400).NumItems,0)">400</ondown>
@@ -360,7 +270,6 @@
             <width>1920</width>
             <height>{{ vscale(540) }}</height>
             <onup condition="Control.IsVisible(300)">300</onup>
-            <onup condition="Control.IsVisible(302)">302</onup>
             <onup condition="Control.IsVisible(310)">310</onup>
             <onup>noop</onup>
             <ondown>noop</ondown>

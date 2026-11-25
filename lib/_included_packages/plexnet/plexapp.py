@@ -15,28 +15,6 @@ MANAGER = None
 PLATFORM = util.X_PLEX_DEVICE
 
 
-def init(local=False):
-    global MANAGER, SERVERMANAGER, ACCOUNT
-    from . import myplexaccount
-    ACCOUNT = myplexaccount.ACCOUNT
-    util.DEBUG_LOG("Waiting for account initialization...")
-    ACCOUNT.init()
-    if local:
-        ACCOUNT.setLocal()
-    from . import plexservermanager
-    SERVERMANAGER = plexservermanager.MANAGER
-    from . import myplexmanager
-    util.MANAGER = MANAGER = myplexmanager.MANAGER
-    util.ACCOUNT = ACCOUNT
-    util.SERVERMANAGER = SERVERMANAGER
-    if local:
-        util.DEBUG_LOG("Local mode: skipping account verification")
-        util.APP.clearInitializer("myplex")
-    else:
-        util.DEBUG_LOG("Verifying account...")
-        ACCOUNT.verifyAccount()
-
-
 class App(signalsmixin.SignalsMixin):
     def __init__(self):
         signalsmixin.SignalsMixin.__init__(self)
@@ -109,7 +87,7 @@ class App(signalsmixin.SignalsMixin):
             util.DEBUG_LOG('Canceling App() timers...')
             self.cancelAllTimers()
 
-        servers = SERVERMANAGER.getServers()
+        servers = SERVERMANAGER.getServers() if SERVERMANAGER else []  # none before SM4K's sign-in
         if servers:
             # every server's in-flight requests: any of them may be in use (there's no one
             # selected server now)
@@ -401,21 +379,6 @@ def setUserAgent(agent):
 def setAbortFlagFunction(func):
     from . import asyncadapter
     asyncadapter.ABORT_FLAG_FUNCTION = func
-
-
-def refreshResources(force=False):
-    from . import gdm
-    gdm.DISCOVERY.discover()
-    if util.LOCAL_MODE:
-        util.LOG("[LOCAL] skipping plex.tv resource refresh")
-        # without the plex.tv resource response nothing else kicks reachability testing;
-        # do it ourselves, so local connections get tested
-        if force:
-            SERVERMANAGER.resetLastTest()
-        SERVERMANAGER.updateReachability(force)
-    else:
-        util.MANAGER.refreshResources(force)
-    SERVERMANAGER.refreshManualConnections()
 
 
 util.setApp(App())

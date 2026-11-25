@@ -441,10 +441,6 @@ class UtilMixin(GoHomeMixin):
         self.exitCommand = command
         self.doClose()
 
-    def showAudioPlayer(self, **kwargs):
-        from . import musicplayer
-        self.processCommand(opener.handleOpen(musicplayer.MusicPlayerWindow, **kwargs))
-
     def getNextShowEp(self, pl, items, on_deck=None, specials_mode='default', start_over=False):
         """Pick which episode `pl` should start on, and return whether to resume it: always, when
         it has a resume point, unless `start_over` (the Restart button's) asks for its beginning.

@@ -5,7 +5,6 @@ import json
 import time
 
 import plexnet
-from kodi_six import xbmc
 from kodi_six import xbmcgui
 from plexnet import plexapp
 from six.moves import range
@@ -18,6 +17,7 @@ from . import grid_labels
 from . import home
 from . import hub_config
 from . import hub_limits
+from . import itemmenu
 from . import kodigui
 from . import opener
 from . import optionsdialog
@@ -1654,10 +1654,6 @@ class HubsMixin(object):
                 if self.tabList and self.section.TYPE != 'mixed':
                     self.setFocusId(self.TAB_LIST_ID)
                     return True
-                elif xbmc.getCondVisibility(
-                        'Player.HasAudio + String.IsEmpty(Window(10000).Property(script.plex.theme_playing))'):
-                    self.setFocusId(self.PLAYER_STATUS_BUTTON_ID)
-                    return True
             self._startHubSlide(-1 if action_id == xbmcgui.ACTION_MOVE_UP else 1)
             return True
         elif action_id in (xbmcgui.ACTION_MOVE_LEFT, xbmcgui.ACTION_MOVE_RIGHT):
@@ -1709,8 +1705,6 @@ class HubsMixin(object):
             self.tabListClicked()
         elif 399 < controlID < 500:
             self.hubItemClicked(controlID)
-        elif controlID == self.PLAYER_STATUS_BUTTON_ID:
-            self.showAudioPlayer()
 
     def hubFocus(self, controlID):
         """The Recommended view's own focus handling: every focus event the host's routeFocus()
@@ -1935,7 +1929,8 @@ class HubsMixin(object):
             'entry_section_id': self.entrySectionId,
             'entry_from_watchlist': self.entryFromWatchlist,
         }
-        if self.section.TYPE == 'movies_shows':
+        # a Silo watchlist's items are library items already: none of Discover's lookups
+        if self.section.TYPE == 'movies_shows' and getattr(self.section.server, 'platform', None) != 'silo':
             extra_kwargs['from_watchlist'] = True
             extra_kwargs['directly_from_watchlist'] = True
             extra_kwargs['external_item'] = True
@@ -2073,6 +2068,10 @@ class HubsMixin(object):
             if ds.TYPE in ('episode', 'season'):
                 places.append(('to_show', T(32323, "Go To Show")))
 
+            favorite = itemmenu.favoriteRow(ds)
+            if favorite:
+                marks.append(favorite)
+
             if 'items' in util.getSetting('cache_requests'):
                 places.append(('cache_reset', T(33728, "Clear cache for item")))
 
@@ -2101,6 +2100,11 @@ class HubsMixin(object):
 
             # The tile's ticks are updated above; the rows themselves are fetched again, in place:
             # a film marked played leaves Continue Watching, an episode moves On Deck along.
+            self.refreshHubsInPlace(choice.replace('_', ' '), manual=True)
+
+        elif choice in ("add_favorite", "remove_favorite"):
+            # Home's Favorites row is fetched again with the rest
+            itemmenu.run(self, mli, choice)
             self.refreshHubsInPlace(choice.replace('_', ' '), manual=True)
 
         elif choice == "remove_cw":

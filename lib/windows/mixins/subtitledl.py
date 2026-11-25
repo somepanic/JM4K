@@ -86,7 +86,11 @@ class PlexSubtitleDownloadMixin(object):
                     # Caught here, as the search above: a failed download is reported as no
                     # subtitle, as it always was, rather than let out into the player.
                     try:
-                        video.downloadSubtitles(sk_to_k[choice])
+                        downloaded = video.downloadSubtitles(sk_to_k[choice])
+                        if hasattr(video.server, 'downloadSubtitle'):
+                            # Silo's download comes back as the selected stream (SiloServer.downloadSubtitle()):
+                            # nothing to wait for or reload
+                            return downloaded or None
                         tries = 0
                         sub_downloaded = False
                         util.DEBUG_LOG("Waiting for subtitle download: {}", choice)

@@ -6,9 +6,10 @@ before anything under `lib/` is imported.
 ## Running
 
 ```sh
+python3 -m pip install -r requirements-dev.txt  # once: pytest, plus six, requests and Pillow (Kodi supplies those)
 python3 -m pytest                          # nicest output
 python3 -m pytest tests/test_templates.py  # one area
-python3 -m unittest discover -s tests -t . # no dependencies at all
+python3 -m unittest discover -s tests -t . # without pytest
 ```
 
 Tests are plain `unittest.TestCase` classes, so both runners work. pytest is
@@ -66,7 +67,7 @@ does not retroactively change those. Call the function under test
 constant explicitly and restore it in a `finally`.
 
 Same story for the module singletons — `advancedsettings.adv`, `path_mapping.pmm`,
-`cache.kcm`, `data_cache.dcm`, `plex_hosts.pdm`. They read their files once. The
+`cache.kcm`, `data_cache.dcm`. They read their files once. The
 tests either construct a private instance (`Manager.__new__(Manager)`) or
 explicitly re-`load()` the singleton; see `tests/test_advancedsettings.py`.
 
@@ -81,7 +82,6 @@ explicitly re-`load()` the singleton; see `tests/test_advancedsettings.py`.
 | `lib/util.py` formatting, time/date formats, platform probes | `test_util.py` |
 | Typed settings read/write | `test_settings_util.py` |
 | Path mapping, broken-mapping bookkeeping | `test_path_mapping.py` |
-| Local mode ("Go local") | `test_localmode.py` |
 | Seamless branching detection and SB markers | `test_seamless_branching.py` |
 | Shuffle eligibility and picking | `test_shuffle.py` |
 | Native-language / subtitle suppression | `test_language_util.py` |

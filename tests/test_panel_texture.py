@@ -235,8 +235,7 @@ class WindowTest(PanelTextureCase):
 
 class TemplateTest(KodiTestCase):
     """The panel is one image, in every window that has it, with the hero art over it through its cut-out."""
-    MAIN_WINDOWS = ("posters", "ar16x9", "pre_play", "episodes", "recommended", "photo", "music_player",
-                    "music_current_playlist")
+    MAIN_WINDOWS = ("posters", "ar16x9", "pre_play", "episodes", "recommended")
     CORNER_IDS = set(str(i) for i in list(range(2101, 2109)) + list(range(2111, 2119)))
 
     def render(self):
@@ -254,9 +253,7 @@ class TemplateTest(KodiTestCase):
                 image = [c for c in root.iter("control") if c.get("id") == "2109"][0]
                 self.assertEqual("script.plex/masks/panel-dither.png", image.find("texture").get("diffuse"))
                 self.assertEqual(("1920", "1080"), (image.findtext("width"), image.findtext("height")))
-                # the music screens' static panel swaps without a fade
-                static = window.startswith("music_")
-                self.assertEqual(None if static else "200", image.findtext("fadetime"))
+                self.assertEqual("200", image.findtext("fadetime"))
 
     def test_the_hero_art_is_the_box_over_the_panel_through_its_cutout(self):
         rendered = self.render()

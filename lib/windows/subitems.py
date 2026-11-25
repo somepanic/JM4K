@@ -3,10 +3,9 @@ from __future__ import absolute_import
 
 from kodi_six import xbmc
 from kodi_six import xbmcgui
-from plexnet import playlist, playqueue, util as pnUtil, plexapp, plexlibrary
+from plexnet import playlist, util as pnUtil, plexapp, plexlibrary
 
 from lib import metadata
-from lib import player
 from lib import util
 from lib.util import T
 from lib.language_util import getNativeLanguages
@@ -15,13 +14,11 @@ from . import dropdown
 from . import episodes
 from . import info
 from . import kodigui
-from . import panel_colors
 from . import opener
 from . import optionsdialog
 from . import pagination
 from . import playbacksettings
 from . import playersettings
-from . import tracks
 from . import videoplayer
 from . import windowutils
 from .mixins.seasons import SeasonsMixin
@@ -92,7 +89,6 @@ class ShowWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutils.Si
 
     OPTIONS_GROUP_ID = 200
 
-    PLAYER_STATUS_BUTTON_ID = 204
 
     MAIN_BUTTON_GROUP_ID = 300
     # Play and Resume are the same action - the show-level pick resumes by itself when it lands on
@@ -481,7 +477,9 @@ class ShowWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutils.Si
         self.setProperty('clear.logo', logo)
         self.setProperty('summary', util.summaryForBox(self.mediaItem.summary))
         self.updateBackgroundFrom(self.mediaItem)
-        self.setProperty('duration', util.durationToShortText(self.mediaItem.fixedDuration(), noSpaces=True))
+        duration = self.mediaItem.fixedDuration()
+        # a show with none (Silo gives a series no runtime) leaves the row's field out, not "0s"
+        self.setProperty('duration', util.durationToShortText(duration, noSpaces=True) if duration else '')
         self.setProperty('info', '')
         self.setProperty('date', self.mediaItem.year)
         self.setProperty('content.rating', self.mediaItem.contentRating.split('/', 1)[-1])
@@ -675,8 +673,6 @@ class ShowWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutils.Si
                                  is_watchlisted=self.is_watchlisted, directly_from_watchlist=True)
         elif controlID == self.SEASON_TABS_LIST_ID:
             self.seasonTabClicked()
-        elif controlID == self.PLAYER_STATUS_BUTTON_ID:
-            self.showAudioPlayer()
         elif controlID == self.EXTRA_LIST_ID:
             self.openItem(self.extraListControl)
         elif controlID == self.RELATED_LIST_ID:
@@ -926,15 +922,6 @@ class ShowWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutils.Si
                                                  entry_section_id=self.entrySectionId,
                                                  entry_from_watchlist=self.entryFromWatchlist)
             update = True
-        elif self.mediaItem.type == 'artist':
-            # Continues the chain like a season poster above. Opened standalone, the Album screen's
-            # Back and sidebar bypassed the host (live, 2026-10-04: every album opened from an
-            # artist built its own sidebar outside the chain).
-            if self._liveChainHost() is not None:
-                self.openItem(item=mli.dataSource, parent_list=self.subItemListControl)
-                return
-            w = tracks.AlbumWindow.open(album=mli.dataSource, parent_list=self.subItemListControl,
-                                        entry_section_id=self.entrySectionId)
 
         if not mli:
             return
@@ -1231,319 +1218,3 @@ class ShowWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutils.Si
 
     def fillRoles(self):
         return self.fillCreditsRow()
-
-
-class ArtistWindow(ShowWindow):
-    xmlFile = 'script-plex-artist.xml'
-
-    # Square, not the base class's 268x402 poster dims: this screen's Similar Artists row draws
-    # square 240x240 tiles (script-plex-artist.xml.tpl's list 401, same recipe as the album rows'
-    # includes/artist_album_row.xml.tpl), so a 2:3 poster fetch was pulling art taller than the
-    # tile could ever use. 240 matches the drawn size exactly.
-    RELATED_DIM = util.scaleResolution(240, 240)
-
-    SUB_ITEM_LIST_ID = 400
-    EXTRA_LIST_ID = None
-    ROLES_LIST_ID = None
-    RELATED_LIST_ID = 401
-    POPULAR_TRACKS_LIST_ID = 402
-
-    # One row per otherAlbums hub (Artist.OTHER_ALBUM_HUBS, plexnet/audio.py), each its own list
-    # control (on request: separate lists per album type, not everything dumped into one row sorted
-    # by year) - (mediaItem attr, control id, header Window.Property name, string id, default text).
-    # Control ids/order match script-plex-artist.xml.tpl's grouplist 600 album-row includes.
-    ALBUM_TYPE_ROWS = (
-        ('liveAlbums', 404, 'live_albums.header', 35066, 'Live Albums'),
-        ('compilationAlbums', 405, 'compilation_albums.header', 35067, 'Compilations'),
-        ('singleAlbums', 406, 'single_albums.header', 35068, 'Singles & EPs'),
-        ('soundtrackAlbums', 407, 'soundtrack_albums.header', 35069, 'Soundtracks'),
-        ('demoAlbums', 408, 'demo_albums.header', 35070, 'Demos'),
-        ('remixAlbums', 409, 'remix_albums.header', 35071, 'Remixes'),
-    )
-    ALBUM_TYPE_LIST_IDS = tuple(cid for _attr, cid, _hp, _sid, _default in ALBUM_TYPE_ROWS)
-
-    # Explicit hub.focus tier per row-list id, in visual/grouplist-stacking order - Popular Tracks
-    # (402) is drawn first despite Albums (400) having the lower numeric id (SUB_ITEM_LIST_ID can't
-    # move off 400, the shared base class's own convention), so the plain controlID-399 arithmetic
-    # onFocus() normally uses would give tiers wildly out of visual order (402->3, 400->1, 404->5...).
-    # script-plex-artist.xml.tpl's own per-tier reveal animations (group 50) key off these same
-    # numbers 1-9 paired with each row's own group id (501-508, Related's existing 500) - the two
-    # must be kept in sync by hand.
-    HUB_FOCUS_TIERS = {
-        402: 1,  # Popular Tracks (group id 501)
-        400: 2,  # Albums (group id 502)
-        404: 3,  # Live Albums (group id 503)
-        405: 4,  # Compilations (group id 504)
-        406: 5,  # Singles & EPs (group id 505)
-        407: 6,  # Soundtracks (group id 506)
-        408: 7,  # Demos (group id 507)
-        409: 8,  # Remixes (group id 508)
-        401: 9,  # Related Artists (group id 500)
-    }
-
-    def restoreRows(self):
-        # Every row: Popular Tracks, the album rows and Similar Artists (RowRestoreMixin).
-        return self.backResetRows()
-
-    def asyncRestoreRows(self):
-        # None: every row here is filled in setup() itself, before onFirstInit() restores.
-        return ()
-
-    def onFirstInit(self):
-        self.subItemListControl = kodigui.ManagedControlList(self, self.SUB_ITEM_LIST_ID, 5)
-        self.relatedListControl = kodigui.ManagedControlList(self, self.RELATED_LIST_ID, 5)
-        self.popularTracksListControl = kodigui.ManagedControlList(self, self.POPULAR_TRACKS_LIST_ID, 5)
-        self.albumTypeListControls = {}
-        for _attr, cid, _header_prop, _sid, _default in self.ALBUM_TYPE_ROWS:
-            self.albumTypeListControls[cid] = kodigui.ManagedControlList(self, cid, 5)
-
-        # This fully overrides ShowWindow.onFirstInit() rather than calling super(), so unlike
-        # every other ShowWindow-based screen the sidebar's section list is never populated for
-        # free via inheritance - needs its own copy of the same build-or-reuse branch.
-        if self.sectionList is None:
-            self.sectionList = kodigui.ManagedControlList(self, self.SECTION_LIST_ID, 15)
-            self.buildSectionList()
-        else:
-            self.sectionList.newControl(self)
-        self._selectActiveSection()
-        self.displayServerAndUser()
-
-        self.setup()
-        self.initialized = True
-        player.PLAYER.on('started.audio', self.updatePopularPlayingHere)
-
-        if not (self.restoreFocus and self._restoreRowFocus()):
-            self.setFocusId(self.PLAY_BUTTON_ID)
-
-    def onReInit(self):
-        ShowWindow.onReInit(self)
-        self.updatePopularPlayingHere()
-
-    def _refreshShow(self, reason):
-        # A show's (seasons, Play/Resume): an artist's screen has neither, and its fill() takes no
-        # update - not refreshed, shown again or after idle.
-        pass
-
-    def doClose(self, **kw):
-        player.PLAYER.off('started.audio', self.updatePopularPlayingHere)
-        ShowWindow.doClose(self, **kw)
-
-    def _settlePopularTracksBelow(self, controlID, lastFocusID):
-        """Up from the rows under Popular Tracks lands on its selected track, which is its last
-        whenever focus went down through it (a vertical list is only left downwards from its last
-        item). Arriving in those rows any other way - a Back restore straight onto an album
-        (RowRestoreMixin), say - left it on the first, so up jumped to the top of the list
-        (live-reported 2026-10-07). Set to the last here instead, while it isn't focused, so
-        nothing on screen moves."""
-        tier = self.HUB_FOCUS_TIERS.get(controlID)
-        if tier is None or tier < 2:
-            return
-        lastTier = self.HUB_FOCUS_TIERS.get(lastFocusID)
-        if lastTier is not None:
-            return  # within the rows already, or straight down out of Popular Tracks
-        popular = getattr(self, 'popularTracksListControl', None)
-        if popular is not None and popular.size():
-            popular.setSelectedItemByPos(popular.size() - 1)
-
-    def updatePopularPlayingHere(self, *args, **kwargs):
-        """popular.playing.here: whether the music playing comes from this artist's Popular Tracks
-        queue (popularTrackClicked() queues the popular-tracks listing; PlexPlayer.
-        isPlayingAudioFrom()). The row's now-playing accent needs it as well as the track's id
-        (script-plex-artist.xml.tpl's list 402), so a popular track playing from its album isn't
-        marked here (on request, 2026-10-07) - the Album screen's playing.here, the other way
-        round."""
-        self.setBoolProperty('popular.playing.here',
-                             player.PLAYER.isPlayingAudioFrom(self.mediaItem.popularTracksKey))
-
-    def backResetRows(self):
-        # Own list, not ShowWindow's: this screen has no Roles/Extras controls (ShowWindow's version
-        # raised AttributeError here, so Back never reset a row on Artist), and Albums (400) is one
-        # row among several here, not the screen's main selection the way Seasons' 400 is.
-        rows = {self.SUB_ITEM_LIST_ID: self.subItemListControl,
-                self.RELATED_LIST_ID: self.relatedListControl,
-                self.POPULAR_TRACKS_LIST_ID: self.popularTracksListControl}
-        rows.update(self.albumTypeListControls)
-        return rows
-
-    def onFocus(self, controlID):
-        # Not live on its host yet, or any more (kodigui.BaseWindow.ignoresInput()).
-        # first, whether or not this is live yet: the sidebar rows read it (SidebarMixin)
-        self.trackSidebarFocus(controlID)
-        if self.ignoresInput():
-            return
-        # Full override, not ShowWindow.onFocus()'s shared version - that one exempts
-        # SUB_ITEM_LIST_ID (400) from on.extras on the theory it's "the season row", which already
-        # gets its own dedicated tier-1 slide separate from the general -300 (true for Seasons, whose
-        # season row really is first). On Artist, 400 is Albums, not the first row (Popular Tracks,
-        # 402, is) - inheriting that exemption cleared on.extras right at the Popular Tracks->Albums
-        # boundary while the animation's own tier2 condition was simultaneously switching on, so the
-        # -300 retracting and the new tier's -500 extending fought each other for one frame (live-
-        # reported as "content moves up before dropping back down slightly"). This screen's reveal
-        # animations are all uniform stacked tiers (script-plex-artist.xml.tpl's group 50), the same
-        # scheme script-plex-pre_play.xml.tpl uses - so this is a straight port of PrePlayWindow's own
-        # onFocus() (preplay.py), not ShowWindow's: only SUMMARY_BUTTON_ID is exempted, and hub.focus
-        # is never reset back to 0 (same as Pre-play - other controls key off it staying "seen at
-        # least once", not off returning to exactly 0).
-        self.reselectActiveSection(controlID, self.lastFocusID)
-        self._settlePopularTracksBelow(controlID, self.lastFocusID)
-        self.lastFocusID = controlID
-
-        if 399 < controlID < 500:
-            tier = self.HUB_FOCUS_TIERS.get(controlID, controlID - 399)
-            self.setProperty('hub.focus', str(tier))
-            self.setProperty('row.focused', '1')
-        else:
-            self.setProperty('row.focused', '')
-
-        if (controlID == self.SUMMARY_BUTTON_ID or
-                xbmc.getCondVisibility('ControlGroup(50).HasFocus(0) + ControlGroup(300).HasFocus(0)')):
-            self.setProperty('on.extras', '')
-        elif xbmc.getCondVisibility('ControlGroup(50).HasFocus(0) + !ControlGroup(300).HasFocus(0)'):
-            self.setProperty('on.extras', '1')
-
-    def setup(self):
-        self.relatedPaginator = RelatedPaginator(self.relatedListControl, leaf_count=int(self.mediaItem.relatedCount),
-                                                 parent_window=self)
-        self.updateProperties()
-        self.fill()
-        self.fillRelated()
-        self.fillPopularTracks()
-        self.updatePopularPlayingHere()
-        self.fillAlbumTypeRows()
-        # the albums' covers' colours (panel_colors.py), ready for the Album screens they open
-        panel_colors.warmLater([mli.dataSource for control in [self.subItemListControl] +
-                                list(self.albumTypeListControls.values())
-                                for mli in control if mli.dataSource is not None])
-
-    def playButtonClicked(self, shuffle=False):
-        # The artist itself - a server play queue of their material, the way a Plex client plays an
-        # artist. Was a LocalPlaylist of self.mediaItem.all() pushed straight into Kodi's playlist,
-        # which the server never heard about. Artist is the one type plexnet insists on a remote
-        # queue for (PlayQueueFactory.itemRequiresRemotePlayQueue).
-        pq = playqueue.createPlayQueueForItem(self.mediaItem, options={'shuffle': shuffle})
-        if not pq:
-            util.DEBUG_LOG('ArtistWindow: no play queue for {}', self.mediaItem)
-            return
-        self.processCommand(opener.open(pq))
-
-    def popularTrackClicked(self):
-        mli = self.popularTracksListControl.getSelectedItem()
-        if not mli:
-            return
-        # Queue the popular-tracks *query*, not the handful of rows on screen. <PopularLeaves>
-        # carries its own key (Artist._setData, plexnet/audio.py) - a real listable
-        # /library/sections/<id>/all?artist.id=...&sort=ratingCount:desc&type=10 - and it returns
-        # considerably more than the row shows (5 visible, 24 behind the key for The Beautiful
-        # South, checked against the live server). That larger popularity-ranked list is what a
-        # real client plays, and Next/Previous still walks it in rank order rather than dropping
-        # into album-order playback. Without the key we fall back to the track's album, same as
-        # any other track click.
-        self.processCommand(opener.trackClicked(mli.dataSource,
-                                                container_path=self.mediaItem.popularTracksKey))
-
-    def albumListClicked(self, listControl):
-        # The 'artist' branch of subItemListClicked() above, generalized to any of the 6 otherAlbums
-        # rows - those never need that method's 'show' branch (seasons) or its empty-list
-        # close-the-screen cleanup (this is a secondary row, not the screen's own primary content).
-        mli = listControl.getSelectedItem()
-        if not mli:
-            return
-        if self._liveChainHost() is not None:
-            # the open is only queued; Back rebuilds this screen, so there's no row to tidy
-            self.openItem(item=mli.dataSource, parent_list=listControl)
-            return
-        tracks.AlbumWindow.open(album=mli.dataSource, parent_list=listControl,
-                                entry_section_id=self.entrySectionId)
-        if not mli.dataSource.exists():
-            listControl.removeItem(mli.pos())
-
-    def updateProperties(self):
-        self.setProperty('summary', util.summaryForBox(self.mediaItem.summary))
-        self.setProperty('related.header', T(32960, 'Similar Artists'))
-        self.setProperty('popular_tracks.header', T(35065, 'Popular Tracks'))
-        # 'Albums' (35072), not the album-type rows' own headers below - the primary/studio row
-        # (Artist.albums(), the /children listing) never had a header of its own before these other
-        # rows existed alongside it, sorted-and-merged into a single unlabeled row.
-        self.setProperty('albums.header', T(35072, 'Albums'))
-        for _attr, _cid, header_prop, string_id, default in self.ALBUM_TYPE_ROWS:
-            self.setProperty(header_prop, T(string_id, default))
-        self.updateBackgroundFrom(self.mediaItem)
-
-    @busy.dialog()
-    def fill(self):
-        self.mediaItem.reload(includeRelated=1, includeRelatedCount=20, includePopularLeaves=1)
-        # Again, from the full artist: one from the Music grid comes without its biography
-        # (plexlibrary.gridListingParams()), so updateProperties() had none to show.
-        self.setProperty('summary', util.summaryForBox(self.mediaItem.summary))
-        self.setProperty('artist.title', self.mediaItem.title)
-        genres = u' / '.join([g.tag for g in util.removeDups(self.mediaItem.genres())][:6])
-        self.setProperty('artist.genre', genres)
-        # Primary/studio row only now - the otherAlbums hub types (Live/Compilation/Singles &
-        # EPs/Soundtracks/Demos/Remixes) get their own separate rows below (fillAlbumTypeRows()),
-        # rather than being merged in here alongside these (on request).
-        #
-        # Server order, no local sort: PMS has a per-library preference for exactly this decision -
-        # albumSort, "How to sort the albums for artists", offering Newest first / Oldest first / By
-        # name - and /children already comes back honouring it (verified against a live server:
-        # newest-first at the default setting, and the endpoint re-orders when the preference or an
-        # explicit sort= says otherwise). Sorting here by year overrode that choice unconditionally,
-        # and reversing it would only have overridden it in the other direction. Same reasoning
-        # fillPopularTracks() below already documents for its own server-ranked row.
-        items = []
-        idx = 0
-        for album in self.mediaItem.albums():
-            mli = self.createListItem(album)
-            if mli:
-                mli.setProperty('index', str(idx))
-                mli.setProperty('year', album.year)
-                mli.setProperty('thumb.fallback', 'script.plex/thumb_fallbacks/music.png')
-                items.append(mli)
-                idx += 1
-
-        self.subItemListControl.reset()
-        self.subItemListControl.addItems(items)
-
-    def fillAlbumTypeRows(self):
-        for attr, cid, _header_prop, _string_id, _default in self.ALBUM_TYPE_ROWS:
-            listControl = self.albumTypeListControls[cid]
-            items = []
-            idx = 0
-            # Server order here too - and these hubs arrive embedded in the artist's own metadata
-            # (Artist._setData(), plexnet/audio.py), so there's no sort parameter to send even if we
-            # wanted one: whatever order PMS puts them in is the only order available. See fill()
-            # above for the albumSort preference this defers to.
-            for album in getattr(self.mediaItem, attr):
-                mli = self.createListItem(album)
-                if mli:
-                    mli.setProperty('index', str(idx))
-                    mli.setProperty('year', album.year)
-                    mli.setProperty('thumb.fallback', 'script.plex/thumb_fallbacks/music.png')
-                    items.append(mli)
-                    idx += 1
-
-            listControl.reset()
-            listControl.addItems(items)
-
-    def fillPopularTracks(self):
-        items = []
-        idx = 0
-        # A real track row (title over its album, duration to the right - loosely
-        # script-plex-album.xml.tpl's own recipe, minus the number column that one carries), not
-        # another square-art carousel like Albums/Related above it - this is a list of tracks you
-        # click to play (popularTrackClicked() below), not another set of things you open (on
-        # request, after the first pass wrongly copied the card-carousel treatment).
-        # PopularLeaves entries arrive already sorted by ratingCount (server-side, see the request's
-        # own &sort= in fill()'s reload()) - no local re-sort, unlike the album loop above.
-        for track in self.mediaItem.popularTracks:
-            mli = kodigui.ManagedListItem(track.title or '', data_source=track)
-            mli.setProperty('index', str(idx))
-            mli.setProperty('track.ID', track.ratingKey)
-            # parentTitle = the track's own album (playlist.py's own track rows use the same
-            # field for their album line) - the row's second, dimmed caption line.
-            mli.setProperty('track.album', track.parentTitle or '')
-            mli.setProperty('track.duration', util.simplifiedTimeDisplay(track.duration.asInt()))
-            items.append(mli)
-            idx += 1
-
-        self.popularTracksListControl.reset()
-        self.popularTracksListControl.addItems(items)

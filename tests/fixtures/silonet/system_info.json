@@ -1,0 +1,11 @@
+{
+  "server_version": "a2ec4094",
+  "api_major": 2,
+  "contract_digest": "e9fc1d87a0353aa83e8d209ba72ed4d26a7a726c6b45a3c299dac1137ffd4d77",
+  "links": {
+    "openapi": "/api/v2/openapi.json",
+    "capabilities": "/api/v2/capabilities",
+    "identity": "/api/v2/system/identity"
+  },
+  "request_origin": "http://silo.example:8090"
+}
