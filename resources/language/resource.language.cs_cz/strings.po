@@ -167,8 +167,8 @@ msgid "Server Discovery (GDM)"
 msgstr "Objevení serveru (GDM)"
 
 msgctxt "#32043"
-msgid "Start SM4K On Kodi Startup"
-msgstr "Spustit plex při spuštění Kodi"
+msgid "Start JM4K On Kodi Startup"
+msgstr "Spustit JM4K při spuštění Kodi"
 
 msgctxt "#32044"
 msgid "Connection 1 IP"
@@ -431,7 +431,7 @@ msgid "Confirm Exit"
 msgstr "Potvrdit odchod"
 
 msgctxt "#32335"
-msgid "Are you ready to exit SM4K?"
+msgid "Are you ready to exit JM4K?"
 msgstr ""
 
 msgctxt "#32336"

@@ -134,8 +134,8 @@ msgstr "Detección del Servidor (GDM)"
 
 #: 
 msgctxt "#32043"
-msgid "Start SM4K On Kodi Startup"
-msgstr "Arrancar SM4K al iniciar Kodi"
+msgid "Start JM4K On Kodi Startup"
+msgstr "Arrancar JM4K al iniciar Kodi"
 
 #: 
 msgctxt "#32044"
@@ -464,8 +464,8 @@ msgstr "Confirmar salida"
 
 #: 
 msgctxt "#32335"
-msgid "Are you ready to exit SM4K?"
-msgstr "¿Listo para salir de SM4K?"
+msgid "Are you ready to exit JM4K?"
+msgstr "¿Listo para salir de JM4K?"
 
 #: 
 msgctxt "#32336"
@@ -1450,8 +1450,8 @@ msgstr "Utilizar capítulos virtuales"
 
 #: 
 msgctxt "#33604"
-msgid "When the above is enabled and no video chapters are available, simulate them by using the markers identified by the Silo Server (Intro, Credits)."
-msgstr "Cuando lo anterior esté activado y no haya capítulos de vídeo disponibles, simúlelos utilizando los marcadores identificados por el Servidor Silo (Intro, Créditos)."
+msgid "When the above is enabled and no video chapters are available, simulate them by using the markers identified by the Jellyfin Server (Intro, Credits)."
+msgstr "Cuando lo anterior esté activado y no haya capítulos de vídeo disponibles, simúlelos utilizando los marcadores identificados por el Servidor Jellyfin (Intro, Créditos)."
 
 #: 
 msgctxt "#33605"
@@ -1569,8 +1569,8 @@ msgstr "Intervalo de salto automático de introducción/créditos"
 
 #: 
 msgctxt "#33630"
-msgid "Intro/credits markers might be a little early in Silo. When auto skipping add (or subtract) this many seconds from the marker. This avoids cutting off content, while possibly skipping the marker a little late."
-msgstr "Los marcadores de introducción/créditos pueden ser un poco tempranos en Silo. Al saltar automáticamente, añada (o reste) esta cantidad de segundos al marcador. Esto evita cortar el contenido, mientras que posiblemente salta el marcador un poco tarde."
+msgid "Intro/credits markers might be a little early in Jellyfin. When auto skipping add (or subtract) this many seconds from the marker. This avoids cutting off content, while possibly skipping the marker a little late."
+msgstr "Los marcadores de introducción/créditos pueden ser un poco tempranos en Jellyfin. Al saltar automáticamente, añada (o reste) esta cantidad de segundos al marcador. Esto evita cortar el contenido, mientras que posiblemente salta el marcador un poco tarde."
 
 #: 
 msgctxt "#32631"
@@ -3049,8 +3049,8 @@ msgstr "Consulte"
 
 #: 
 msgctxt "#33695"
-msgid "Where do you want to download subtitles from? Applies to Download subtitles in the player, from the Subtitles button or the player's Settings. Before playback it always uses Silo."
-msgstr "¿De dónde quieres descargar los subtítulos? Se aplica a Descargar subtítulos en el reproductor, desde el botón de subtítulos o los ajustes del reproductor. Antes de la reproducción siempre se usa Silo."
+msgid "Where do you want to download subtitles from? Applies to Download subtitles in the player, from the Subtitles button or the player's Settings. Before playback it always uses Jellyfin."
+msgstr "¿De dónde quieres descargar los subtítulos? Se aplica a Descargar subtítulos en el reproductor, desde el botón de subtítulos o los ajustes del reproductor. Antes de la reproducción siempre se usa Jellyfin."
 
 #: 
 msgctxt "#33696"
@@ -3084,8 +3084,8 @@ msgstr "Volver a Kodi"
 
 #: 
 msgctxt "#33702"
-msgid "When no subtitles are found via the Silo subtitle search, fall back to Kodi subtitle search. Only in the player: before playback, subtitles always come from Silo."
-msgstr "Cuando no se encuentran subtítulos a través de la búsqueda de subtítulos de Silo, vuelve a la búsqueda de subtítulos de Kodi. Solo en el reproductor: antes de la reproducción, los subtítulos siempre vienen de Silo."
+msgid "When no subtitles are found via the Jellyfin subtitle search, fall back to Kodi subtitle search. Only in the player: before playback, subtitles always come from Jellyfin."
+msgstr "Cuando no se encuentran subtítulos a través de la búsqueda de subtítulos de Jellyfin, vuelve a la búsqueda de subtítulos de Kodi. Solo en el reproductor: antes de la reproducción, los subtítulos siempre vienen de Jellyfin."
 
 #: 
 msgctxt "#33703"
@@ -3366,8 +3366,8 @@ msgstr "Utilizar Lista de Seguimiento"
 
 #: 
 msgctxt "#34008"
-msgid "Activates the current user's Silo watchlist as a section item. Adds watchlist functionality to certain media screens. Per-user setting. Default: On"
-msgstr "Activa la lista de seguimiento de Silo del usuario actual como un elemento de sección. Añade la funcionalidad de lista de seguimiento a ciertas pantallas multimedia. Configuración por usuario. Predeterminado: Activo"
+msgid "Activates the current user's Jellyfin watchlist as a section item. Adds watchlist functionality to certain media screens. Per-user setting. Default: On"
+msgstr "Activa la lista de seguimiento de Jellyfin del usuario actual como un elemento de sección. Añade la funcionalidad de lista de seguimiento a ciertas pantallas multimedia. Configuración por usuario. Predeterminado: Activo"
 
 #: 
 msgctxt "#34009"

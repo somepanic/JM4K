@@ -1812,7 +1812,7 @@ class SeekDialog(kodigui.BaseDialog, windowutils.GoHomeMixin, PlexSubtitleDownlo
             button = optionsdialog.show(
                 T(33693, 'Download subtitles using'),
                 T(33704, 'Using which service?'),
-                'Plex',
+                'Jellyfin',
                 'Kodi'
             )
 

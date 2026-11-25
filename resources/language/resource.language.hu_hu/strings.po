@@ -134,7 +134,7 @@ msgstr "Szerver felderítése (GDM)"
 
 #: 
 msgctxt "#32043"
-msgid "Start SM4K On Kodi Startup"
+msgid "Start JM4K On Kodi Startup"
 msgstr ""
 
 #: 
@@ -464,7 +464,7 @@ msgstr "Kilépés megerősítése"
 
 #: 
 msgctxt "#32335"
-msgid "Are you ready to exit SM4K?"
+msgid "Are you ready to exit JM4K?"
 msgstr ""
 
 #: 
@@ -1450,8 +1450,8 @@ msgstr "Virtuális fejezetek használata"
 
 #: 
 msgctxt "#33604"
-msgid "When the above is enabled and no video chapters are available, simulate them by using the markers identified by the Silo Server (Intro, Credits)."
-msgstr "Ha a fentiek engedélyezve vannak, és nem állnak rendelkezésre videókapacitások, szimulálja azokat a Silo szerver által azonosított jelölésekkel (Főcím, Stáblista)."
+msgid "When the above is enabled and no video chapters are available, simulate them by using the markers identified by the Jellyfin Server (Intro, Credits)."
+msgstr "Ha a fentiek engedélyezve vannak, és nem állnak rendelkezésre videókapacitások, szimulálja azokat a Jellyfin szerver által azonosított jelölésekkel (Főcím, Stáblista)."
 
 #: 
 msgctxt "#33605"
@@ -1569,7 +1569,7 @@ msgstr "Automatikus átugrás főcím/stáblista eltolás"
 
 #: 
 msgctxt "#33630"
-msgid "Intro/credits markers might be a little early in Silo. When auto skipping add (or subtract) this many seconds from the marker. This avoids cutting off content, while possibly skipping the marker a little late."
+msgid "Intro/credits markers might be a little early in Jellyfin. When auto skipping add (or subtract) this many seconds from the marker. This avoids cutting off content, while possibly skipping the marker a little late."
 msgstr ""
 
 #: 
@@ -3050,7 +3050,7 @@ msgstr "Kérdezz"
 
 #: 
 msgctxt "#33695"
-msgid "Where do you want to download subtitles from? Applies to Download subtitles in the player, from the Subtitles button or the player's Settings. Before playback it always uses Silo."
+msgid "Where do you want to download subtitles from? Applies to Download subtitles in the player, from the Subtitles button or the player's Settings. Before playback it always uses Jellyfin."
 msgstr ""
 
 #: 
@@ -3085,7 +3085,7 @@ msgstr "Visszacsatolás a Kodiba"
 
 #: 
 msgctxt "#33702"
-msgid "When no subtitles are found via the Silo subtitle search, fall back to Kodi subtitle search. Only in the player: before playback, subtitles always come from Silo."
+msgid "When no subtitles are found via the Jellyfin subtitle search, fall back to Kodi subtitle search. Only in the player: before playback, subtitles always come from Jellyfin."
 msgstr ""
 
 #: 
@@ -3367,8 +3367,8 @@ msgstr "Figyelőlista használata"
 
 #: 
 msgctxt "#34008"
-msgid "Activates the current user's Silo watchlist as a section item. Adds watchlist functionality to certain media screens. Per-user setting. Default: On"
-msgstr "Aktiválja az aktuális felhasználó Silo-figyelőlistáját, mint szakasz elemet. Figyelőlista funkciót ad bizonyos média képernyőkhöz. Felhasználónkénti beállítás. Alapértelmezett: Be"
+msgid "Activates the current user's Jellyfin watchlist as a section item. Adds watchlist functionality to certain media screens. Per-user setting. Default: On"
+msgstr "Aktiválja az aktuális felhasználó Jellyfin-figyelőlistáját, mint szakasz elemet. Figyelőlista funkciót ad bizonyos média képernyőkhöz. Felhasználónkénti beállítás. Alapértelmezett: Be"
 
 #: 
 msgctxt "#34009"

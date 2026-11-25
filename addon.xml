@@ -26,8 +26,12 @@
         <website>https://jellyfin.org</website>
         <platform>all</platform>
         <news>
-0.1.0 - early development
-- JellyMod (JM4K) is being adapted from SM4K and Plex Uno to connect to Jellyfin servers
+0.1.0 - the first JellyMod test build
+- Sign in to a Jellyfin server (10.11 or newer) with Quick Connect (with a QR code) or a username and password, and find servers on your network
+- Home, libraries, collections, shows, search, people and favorites from Jellyfin
+- Plays from Jellyfin: Direct Play, remux or transcode, with skip markers, seek-bar previews, theme music and Stream Info
+- Play All and Shuffle, path mapping to your own shares, and switching between Jellyfin servers
+- Watch together: synced group playback with Jellyfin SyncPlay
         </news>
         <assets>
             <icon>icon2.png</icon>

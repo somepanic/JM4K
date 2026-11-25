@@ -67,6 +67,7 @@ tests/silonet_fakes.py  # Silo HTTP test fakes; replaced by tests/jellynet_fakes
 tests/fixtures/silonet/  # Silo API test fixtures; replaced by tests/fixtures/jellynet/
 tests/test_episodes_watch_together.py  # tested Silo watch party in episodes (removed)
 tests/test_file_info.py  # tested silonet.detail file info (removed; Jellyfin detail tests land in Phase 4)
+tests/test_settings_silo.py  # tested SM4K/Silo settings; replaced by tests/test_settings_jellyfin.py
 tests/test_silo_map_path_menu.py  # tested Silo library path mapping menu (removed; Jellyfin lands in Phase 5)
 tests/test_silo_party_on_close.py  # tested Silo watch party on Home close (removed, J-D9)
 tests/test_silo_path_mapping.py  # tested Silo path mapping (removed; Jellyfin lands in Phase 5)

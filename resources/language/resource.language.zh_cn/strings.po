@@ -134,8 +134,8 @@ msgstr "发现服务器（GDM）"
 
 #: 
 msgctxt "#32043"
-msgid "Start SM4K On Kodi Startup"
-msgstr "打开 Kodi 时自动启动 SM4K"
+msgid "Start JM4K On Kodi Startup"
+msgstr "打开 Kodi 时自动启动 JM4K"
 
 #: 
 msgctxt "#32044"
@@ -464,8 +464,8 @@ msgstr "确定退出"
 
 #: 
 msgctxt "#32335"
-msgid "Are you ready to exit SM4K?"
-msgstr "您确定要退出 SM4K 吗？"
+msgid "Are you ready to exit JM4K?"
+msgstr "您确定要退出 JM4K 吗？"
 
 #: 
 msgctxt "#32336"
@@ -1448,8 +1448,8 @@ msgstr "使用虚拟章节"
 
 #: 
 msgctxt "#33604"
-msgid "When the above is enabled and no video chapters are available, simulate them by using the markers identified by the Silo Server (Intro, Credits)."
-msgstr "当上述功能已启用但并没有可用的视频章节时，使用 Silo 服务器识别的标记（片头、片尾）来模拟它们。"
+msgid "When the above is enabled and no video chapters are available, simulate them by using the markers identified by the Jellyfin Server (Intro, Credits)."
+msgstr "当上述功能已启用但并没有可用的视频章节时，使用 Jellyfin 服务器识别的标记（片头、片尾）来模拟它们。"
 
 #: 
 msgctxt "#33605"
@@ -1567,8 +1567,8 @@ msgstr "自动跳过片头/片尾的偏移时间"
 
 #: 
 msgctxt "#33630"
-msgid "Intro/credits markers might be a little early in Silo. When auto skipping add (or subtract) this many seconds from the marker. This avoids cutting off content, while possibly skipping the marker a little late."
-msgstr "Silo 中的片头/片尾标记可能会有些提前。在自动跳过时从标记中增加（或减少）对应的秒数。可以避免错过内容，也可能会延迟跳过标记的时间。"
+msgid "Intro/credits markers might be a little early in Jellyfin. When auto skipping add (or subtract) this many seconds from the marker. This avoids cutting off content, while possibly skipping the marker a little late."
+msgstr "Jellyfin 中的片头/片尾标记可能会有些提前。在自动跳过时从标记中增加（或减少）对应的秒数。可以避免错过内容，也可能会延迟跳过标记的时间。"
 
 #: 
 msgctxt "#32631"
@@ -3048,8 +3048,8 @@ msgstr "问"
 
 #: 
 msgctxt "#33695"
-msgid "Where do you want to download subtitles from? Applies to Download subtitles in the player, from the Subtitles button or the player's Settings. Before playback it always uses Silo."
-msgstr "您想从哪里下载字幕？适用于播放器中的“下载字幕”，无论是从字幕按钮还是播放器设置进入。播放前始终使用 Silo。"
+msgid "Where do you want to download subtitles from? Applies to Download subtitles in the player, from the Subtitles button or the player's Settings. Before playback it always uses Jellyfin."
+msgstr "您想从哪里下载字幕？适用于播放器中的“下载字幕”，无论是从字幕按钮还是播放器设置进入。播放前始终使用 Jellyfin。"
 
 #: 
 msgctxt "#33696"
@@ -3084,8 +3084,8 @@ msgstr "回退到 Kodi\n"
 
 #: 
 msgctxt "#33702"
-msgid "When no subtitles are found via the Silo subtitle search, fall back to Kodi subtitle search. Only in the player: before playback, subtitles always come from Silo."
-msgstr "如果通过 Silo 字幕搜索未找到字幕，请回退到 Kodi 字幕搜索。仅在播放器中有效：播放前，字幕始终来自 Silo。"
+msgid "When no subtitles are found via the Jellyfin subtitle search, fall back to Kodi subtitle search. Only in the player: before playback, subtitles always come from Jellyfin."
+msgstr "如果通过 Jellyfin 字幕搜索未找到字幕，请回退到 Kodi 字幕搜索。仅在播放器中有效：播放前，字幕始终来自 Jellyfin。"
 
 #: 
 msgctxt "#33703"
@@ -3360,7 +3360,7 @@ msgstr ""
 
 #: 
 msgctxt "#34008"
-msgid "Activates the current user's Silo watchlist as a section item. Adds watchlist functionality to certain media screens. Per-user setting. Default: On"
+msgid "Activates the current user's Jellyfin watchlist as a section item. Adds watchlist functionality to certain media screens. Per-user setting. Default: On"
 msgstr ""
 
 #: 
