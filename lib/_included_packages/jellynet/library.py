@@ -89,7 +89,7 @@ LIBRARY_ROW_PATH = '/hubs/jellyfin/library/'
 LATEST_SEE_MORE_MIN = 100
 
 
-def _isTruthy(value):
+def isTruthy(value):
     return str(value or '').lower() in ('1', 'true', 'yes')
 
 
@@ -100,9 +100,9 @@ def extractFilters(args):
         val = args.get(plex_key)
         if val:
             params[jf_param] = val
-    if any(_isTruthy(args.get(key)) for key in UNWATCHED_ARGS):
+    if any(isTruthy(args.get(key)) for key in UNWATCHED_ARGS):
         params['isPlayed'] = 'false'
-    if _isTruthy(args.get('favorite')):
+    if isTruthy(args.get('favorite')):
         params['isFavorite'] = 'true'
     return params
 
@@ -350,17 +350,19 @@ def jumpBar(client, library_id, args, section_type='', collection_type='', cache
     )
 
 
-def _fetchRow(client, path, params, row_name):
+def fetchRow(client, path, params, row_name):
+    """A Home or library row's answer, or None when Jellyfin couldn't give it (the row is left out); a refused
+    session still ends."""
     try:
         return client.get(path, params=params)
     except JellyfinAuthError:
         raise
     except JellyfinError as e:
-        log(f'library row {row_name} failed: {e.status}')
+        log(f'row {row_name} failed: {e.status}')
         return None
 
 
-def _itemsAndTotal(answer):
+def itemsAndTotal(answer):
     if isinstance(answer, list):
         return answer, len(answer)
     if isinstance(answer, dict):
@@ -388,8 +390,8 @@ def libraryRows(client, library_id, count=None, section_type='', collection_type
             'enableTotalRecordCount': 'true',
             **limit_param,
         }
-        resume_ans = _fetchRow(client, '/UserItems/Resume', resume_params, 'continue_watching')
-        resume_items, resume_total = _itemsAndTotal(resume_ans)
+        resume_ans = fetchRow(client, '/UserItems/Resume', resume_params, 'continue_watching')
+        resume_items, resume_total = itemsAndTotal(resume_ans)
         resume_els = itemElements(resume_items, section_id=library_id)
         if resume_els:
             rows.append(
@@ -411,8 +413,8 @@ def libraryRows(client, library_id, count=None, section_type='', collection_type
                 'enableTotalRecordCount': 'true',
                 **limit_param,
             }
-            next_up_ans = _fetchRow(client, '/Shows/NextUp', next_up_params, 'next_up')
-            next_up_items, next_up_total = _itemsAndTotal(next_up_ans)
+            next_up_ans = fetchRow(client, '/Shows/NextUp', next_up_params, 'next_up')
+            next_up_items, next_up_total = itemsAndTotal(next_up_ans)
             next_up_els = itemElements(next_up_items, section_id=library_id)
             if next_up_els:
                 rows.append(
@@ -433,8 +435,8 @@ def libraryRows(client, library_id, count=None, section_type='', collection_type
         'enableUserData': 'true',
         **limit_param,
     }
-    latest_ans = _fetchRow(client, '/Items/Latest', latest_params, 'latest')
-    latest_items, _ = _itemsAndTotal(latest_ans)
+    latest_ans = fetchRow(client, '/Items/Latest', latest_params, 'latest')
+    latest_items, _ = itemsAndTotal(latest_ans)
     latest_els = itemElements(latest_items, section_id=library_id)
     if latest_els:
         full = bool(count) and len(latest_els) >= int(count)
@@ -474,7 +476,7 @@ def libraryRowItems(client, library_id, row_kind, args=None, offset=None, limit=
         if size is not None:
             params['limit'] = size
         answer = client.get(endpoint, params=params) or {}
-        items, total = _itemsAndTotal(answer)
+        items, total = itemsAndTotal(answer)
         return container(itemElements(items, section_id=library_id), totalSize=total, offset=start)
 
     if row_kind == 'latest':
@@ -489,7 +491,7 @@ def libraryRowItems(client, library_id, row_kind, args=None, offset=None, limit=
                 'limit': want,
             },
         )
-        items, _ = _itemsAndTotal(answer)
+        items, _ = itemsAndTotal(answer)
         elements = itemElements(items, section_id=library_id)
         page = [] if size == 0 else elements[start : None if size is None else start + size]
         return container(page, totalSize=len(elements), offset=start)

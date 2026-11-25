@@ -240,12 +240,6 @@ class JellyfinHomeRowsTest(KodiTestCase):
             ['Continue Watching', 'Next Up', 'Latest Movies', 'Latest TV Shows'],
         )
 
-        # homeCapabilities reports available read-only layout with supported sections
-        caps = srv.homeCapabilities()
-        self.assertEqual(caps.get('state'), 'available')
-        self.assertFalse(caps.get('editable'))
-        self.assertEqual(caps.get('sections'), ['resume', 'nextup', 'latestmedia'])
-
     def test_latest_skips_excluded_libraries(self):
         views = (
             view_dto('view-movies', 'Movies', 'movies'),

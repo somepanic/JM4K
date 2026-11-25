@@ -7,12 +7,11 @@ url|Authorization=... pipe header syntax using Jellyfin's MediaBrowser Authoriza
 
 from urllib.parse import quote, urlencode
 
-from . import detail, streaminfo, trackprefs
+from . import detail, trackprefs
 from .client import log
 from .errors import JellyfinError
+from .items import ms_to_ticks, seconds_to_ticks
 
-TICKS_PER_SECOND = 10_000_000
-TICKS_PER_MILLISECOND = 10_000
 DEFAULT_MAX_BITRATE = 1_000_000_000
 
 PLAY_METHOD_DECISIONS = {
@@ -51,16 +50,6 @@ ERROR_MESSAGES = {
     'NoCompatibleStream': 'No compatible stream is available for this item.',
     'RateLimitExceeded': 'Playback rate limit exceeded. Try again later.',
 }
-
-
-def seconds_to_ticks(seconds):
-    """Convert seconds to Jellyfin ticks (10,000,000 ticks/second)."""
-    return round(max(0.0, float(seconds or 0.0)) * TICKS_PER_SECOND)
-
-
-def ms_to_ticks(milliseconds):
-    """Convert milliseconds to Jellyfin ticks (10,000 ticks/millisecond)."""
-    return round(max(0.0, float(milliseconds or 0.0))) * TICKS_PER_MILLISECOND
 
 
 def device_profile(max_bitrate=None, hdr=True):
@@ -327,11 +316,6 @@ class PlaybackSession:
             'PositionTicks': self.position_ticks,
         }
         self._post_safe('/Sessions/Playing/Stopped', json=payload)
-
-
-def session_element(session):
-    """Build a Plex /status/sessions-shaped <Video> element for an active PlaybackSession."""
-    return streaminfo.sessionElement(session)
 
 
 class Playback:

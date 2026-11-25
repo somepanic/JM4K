@@ -181,14 +181,13 @@ class JellyfinServerTest(KodiTestCase):
             'close',
             'dropIdleConnections',
             'hubs',
-            'homeCapabilities',
             'playlists',
             'library',
             'libraryLocations',
         ]
         srv = make_server(FakeSession())
 
-        self.assertEqual(len(required), 29)
+        self.assertEqual(len(required), 28)
         for name in required:
             with self.subTest(method=name):
                 self.assertTrue(hasattr(srv, name), f'JellyfinServer missing {name}')

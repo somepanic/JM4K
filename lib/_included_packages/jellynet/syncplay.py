@@ -5,7 +5,6 @@ MediaBrowser Authorization header.
 """
 
 import json
-import math
 import re
 import threading
 import time
@@ -15,32 +14,14 @@ from urllib.parse import quote
 from . import ws
 from .client import log
 from .errors import JellyfinError
+from .items import seconds_to_ticks
 
-TICKS_PER_SECOND = 10_000_000
 TERMINAL_STATUSES = (401, 403)
 DEFAULT_KEEPALIVE = 30.0
 MIN_KEEPALIVE = 5.0
 CLOCK_SAMPLES = 8
 
 _ISO_RE = re.compile(r'^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.(\d+))?(Z|[+-]\d\d:\d\d)$')
-
-
-def seconds_to_ticks(seconds):
-    """Convert playback seconds to Jellyfin 100ns ticks; negative or invalid values clamp to 0."""
-    if seconds is None:
-        return 0
-    value = float(seconds)
-    if not math.isfinite(value) or value <= 0.0:
-        return 0
-    return round(value * TICKS_PER_SECOND)
-
-
-def ticks_to_seconds(ticks):
-    """Convert Jellyfin 100ns ticks to seconds (float); missing or non-positive values return 0.0."""
-    if not ticks:
-        return 0.0
-    value = int(ticks)
-    return value / TICKS_PER_SECOND if value > 0 else 0.0
 
 
 def iso_now(seconds=None):
@@ -109,17 +90,6 @@ def set_new_queue(client, item_ids, playing_position=0, start_seconds=0.0):
     )
 
 
-def queue_items(client, item_ids, mode='Queue'):
-    """POST /SyncPlay/Queue with QueueRequestDto."""
-    client.post(
-        '/SyncPlay/Queue',
-        json={
-            'ItemIds': [str(item_id) for item_id in item_ids],
-            'Mode': str(mode),
-        },
-    )
-
-
 def pause(client):
     """POST /SyncPlay/Pause."""
     client.post('/SyncPlay/Pause')
@@ -138,19 +108,6 @@ def stop(client):
 def seek(client, position_seconds):
     """POST /SyncPlay/Seek with SeekRequestDto."""
     client.post('/SyncPlay/Seek', json={'PositionTicks': seconds_to_ticks(position_seconds)})
-
-
-def buffering(client, when_iso, position_seconds, is_playing, playlist_item_id):
-    """POST /SyncPlay/Buffering with BufferRequestDto."""
-    client.post(
-        '/SyncPlay/Buffering',
-        json={
-            'When': str(when_iso),
-            'PositionTicks': seconds_to_ticks(position_seconds),
-            'IsPlaying': bool(is_playing),
-            'PlaylistItemId': str(playlist_item_id),
-        },
-    )
 
 
 def ready(client, when_iso, position_seconds, is_playing, playlist_item_id):

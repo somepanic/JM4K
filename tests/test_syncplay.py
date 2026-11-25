@@ -704,7 +704,6 @@ class SyncPlaySessionAndMenusTest(KodiTestCase):
 
         # onAVStarted fires before server PlayQueue delivers PlaylistItemId -> must NOT POST empty GUID
         ctrl.on_local_start()
-        ctrl.report_buffering()
         self.assertEqual(http_session.calls, [])
 
         # Once PlayQueue delivers the real PlaylistItemId GUID, deferred Ready fires automatically

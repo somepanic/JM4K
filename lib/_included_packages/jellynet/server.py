@@ -114,7 +114,6 @@ class JellyfinServer(SignalsMixin):
         self._rawVersion = str(getattr(stored, 'version', '') or '') or None
         self._unmapped = set()
         self._routes = {'/library/sections': self._sections}
-        self._homeCapabilities = None
         self._libraryTypes = {}
         self._libraryTitles = {}
         self._collectionTypes = {}
@@ -1127,16 +1126,6 @@ class JellyfinServer(SignalsMixin):
         self._cacheTypesFromXml(root)
         hubs_container = plexobjects.PlexContainer(root, initpath='/hubs', server=self, address='/hubs')
         return [plexlibrary.Hub(elem, server=self, container=hubs_container) for elem in root]
-
-    def homeCapabilities(self):
-        """Home row capabilities supported on Jellyfin (read-only layout from DisplayPreferences and UserViews)."""
-        if self._homeCapabilities is None:
-            self._homeCapabilities = {
-                'state': 'available',
-                'editable': False,
-                'sections': list(home.DEFAULT_SECTIONS),
-            }
-        return dict(self._homeCapabilities)
 
     def playlists(self):
         return []

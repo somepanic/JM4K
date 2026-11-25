@@ -296,9 +296,6 @@ class JellyfinAccount:
         self._rebuild_home_users()
         self._notify_change()
 
-    def refreshAccount(self):
-        self.updateHomeUsers()
-
     def cancelOfflineRetry(self):
         pass
 

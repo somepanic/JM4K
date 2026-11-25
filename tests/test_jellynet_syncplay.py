@@ -6,7 +6,7 @@ and SyncPlaySocket WebSocket client (Task 9.1).
 import json
 from typing import ClassVar
 
-from jellynet import syncplay, ws
+from jellynet import items, syncplay, ws
 from jellynet.client import ClientIdentity, JellyfinClient
 
 from .base import KodiTestCase
@@ -82,11 +82,9 @@ class SyncPlayRestTest(KodiTestCase):
             ok(group_dto),  # create_group
             ok(None, 204),  # join_group
             ok(None, 204),  # leave_group
-            ok(None, 204),  # queue_items
             ok(None, 204),  # pause
             ok(None, 204),  # unpause
             ok(None, 204),  # stop
-            ok(None, 204),  # buffering
             ok(None, 204),  # ready
             ok(None, 204),  # ping
             ok(None, 204),  # next_item
@@ -109,11 +107,9 @@ class SyncPlayRestTest(KodiTestCase):
         created = syncplay.create_group(client, "Alice's group")
         syncplay.join_group(client, 'grp-1')
         syncplay.leave_group(client)
-        syncplay.queue_items(client, ['mov-2', 'mov-3'], mode='QueueNext')
         syncplay.pause(client)
         syncplay.unpause(client)
         syncplay.stop(client)
-        syncplay.buffering(client, '2026-11-25T10:00:01.000Z', 42.5, True, 'pli-1')
         syncplay.ready(client, '2026-11-25T10:00:02.000Z', 42.5, True, 'pli-1')
         syncplay.ping(client, 37.8)
         syncplay.next_item(client, 'pli-1')
@@ -134,20 +130,9 @@ class SyncPlayRestTest(KodiTestCase):
                 ('POST', '/SyncPlay/New', {'GroupName': "Alice's group"}),
                 ('POST', '/SyncPlay/Join', {'GroupId': 'grp-1'}),
                 ('POST', '/SyncPlay/Leave', None),
-                ('POST', '/SyncPlay/Queue', {'ItemIds': ['mov-2', 'mov-3'], 'Mode': 'QueueNext'}),
                 ('POST', '/SyncPlay/Pause', None),
                 ('POST', '/SyncPlay/Unpause', None),
                 ('POST', '/SyncPlay/Stop', None),
-                (
-                    'POST',
-                    '/SyncPlay/Buffering',
-                    {
-                        'When': '2026-11-25T10:00:01.000Z',
-                        'PositionTicks': 425_000_000,
-                        'IsPlaying': True,
-                        'PlaylistItemId': 'pli-1',
-                    },
-                ),
                 (
                     'POST',
                     '/SyncPlay/Ready',
@@ -170,11 +155,10 @@ class SyncPlayRestTest(KodiTestCase):
         session = FakeSession(ok(None, 204), ok(None, 204))
         client = make_client(session)
 
-        self.assertEqual(syncplay.TICKS_PER_SECOND, 10_000_000)
-        self.assertEqual(syncplay.seconds_to_ticks(12.345), 123_450_000)
-        self.assertEqual(syncplay.seconds_to_ticks(-5.0), 0)
-        self.assertAlmostEqual(syncplay.ticks_to_seconds(123_450_000), 12.345, places=6)
-        self.assertEqual(syncplay.ticks_to_seconds(None), 0.0)
+        self.assertEqual(items.seconds_to_ticks(12.345), 123_450_000)
+        self.assertEqual(items.seconds_to_ticks(-5.0), 0)
+        self.assertAlmostEqual(items.ticks_to_seconds(123_450_000), 12.345, places=6)
+        self.assertEqual(items.ticks_to_seconds(None), 0.0)
         self.assertEqual(syncplay.iso_now(1000.25), '1970-01-01T00:16:40.250Z')
         self.assertAlmostEqual(syncplay.parse_iso('1970-01-01T00:16:40.2500000Z'), 1000.25, places=6)
         self.assertIsNone(syncplay.parse_iso('not-a-timestamp'))

@@ -640,10 +640,6 @@ def detailElement(item, on_item=None, track_prefs=None, section_id=None, section
     return root
 
 
-def _isTruthy(value):
-    return str(value or '').lower() in ('1', 'true', 'yes')
-
-
 def _attachOnDeck(client, series_id, root, on_item=None):
     try:
         answer = (
@@ -708,11 +704,11 @@ def itemDetail(
         )
         if root is None:
             return container()
-        if dto.get('Type') == 'Series' and _isTruthy(params.get('includeOnDeck')):
+        if dto.get('Type') == 'Series' and library.isTruthy(params.get('includeOnDeck')):
             _attachOnDeck(client, item_id, root, on_item=on_item)
         if (
             extras_fetcher is not None
-            and _isTruthy(params.get('includeExtras'))
+            and library.isTruthy(params.get('includeExtras'))
             and int(dto.get('SpecialFeatureCount') or 0) > 0
         ):
             extras_el = extras_fetcher(client, item_id)

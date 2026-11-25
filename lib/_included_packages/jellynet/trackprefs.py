@@ -237,8 +237,3 @@ class TrackPrefsStore:
         with self._lock:
             entry = self._by_series.setdefault(str(series_id), {})
             entry[kind] = record
-
-    def all_series(self):
-        """Return a shallow copy of stored series preferences."""
-        with self._lock:
-            return {sid: dict(val) for sid, val in self._by_series.items()}
