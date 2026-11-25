@@ -858,7 +858,9 @@ class SeekPlayerHandler(BasePlayerHandler):
         self.ignoreTimelines = False
 
         # check if embedded subtitle was set correctly
-        if self.isDirectPlay and self.player.video and self.player.video.current_subtitle_is_embedded:
+        is_transcoded_meta = bool(getattr(getattr(self.player.playerObject, 'metadata', None), 'isTranscoded', False))
+        if (self.isDirectPlay and not is_transcoded_meta
+                and self.player.video and self.player.video.current_subtitle_is_embedded):
             # The resume SeekOnStart (player.seekTime) issued just above is async. Any
             # subtitle-stream manipulation below (the mismatch re-apply, or the kernel-fix
             # close/reopen) disrupts the renderer; doing it while the seek is still
@@ -1620,7 +1622,16 @@ class SeekPlayerHandler(BasePlayerHandler):
             # the subtitle stream might not have had the correct amount of data set to properly determine auto sync
             # reinit the auto sync state with our current video
             subs.init_auto_sync(video=self.player.video)
+            is_transcoded_meta = bool(
+                getattr(getattr(self.player.playerObject, 'metadata', None), 'isTranscoded', False)
+            )
             path = subs.getSubtitleServerPath(auto_sync=subs.should_auto_sync)
+            if not path and is_transcoded_meta:
+                server = getattr(self.player.video, 'server', None)
+                if getattr(server, 'platform', None) == 'jellyfin' and subs.index:
+                    session = server.playback.find_session(rating_key=self.player.video.ratingKey)
+                    if session is not None:
+                        path = session.external_subtitle_url(subs.index.asInt())
             if self.isDirectPlay:
                 if path:
                     self.player.showSubtitles(False)
@@ -1629,7 +1640,7 @@ class SeekPlayerHandler(BasePlayerHandler):
                     self.player.showSubtitles(True)
                     self._lastSetEmbeddedSubIdx = None
 
-                else:
+                elif not is_transcoded_meta:
                     # u_til.TEST(subs.__dict__)
                     # u_til.TEST(self.player.video.mediaChoice.__dict__)
 
@@ -2762,10 +2773,15 @@ class PlexPlayer(xbmc.Player, signalsmixin.SignalsMixin):
                 else:
                     util.DEBUG_LOG('LAV mode switch not necessary')
 
+        is_jellyfin = getattr(getattr(self.video, 'server', None), 'platform', None) == 'jellyfin'
+
         # fixme: this handler might be accessing a new playerObject, not the one it's expecting to access,
         #        especially when .next() is used
         self.handler.reset()
-        self.handler.setup(self.video.duration.asInt(), meta, offset, bifURL, title=self.video.grandparentTitle,
+        # Jellyfin's HLS VOD playlist always starts at segment 0 (full timeline), so baseOffset stays 0 and
+        # resume/intro seeking uses Kodi's absolute seekOnStart instead of Plex's relative offset= transcode model.
+        setup_offset = 0 if (meta.isTranscoded and is_jellyfin) else offset
+        self.handler.setup(self.video.duration.asInt(), meta, setup_offset, bifURL, title=self.video.grandparentTitle,
                            title2=self.video.title, seeking=seeking, chapters=self.video.chapters,
                            is_mapped=meta.isMapped)
 
@@ -2776,7 +2792,7 @@ class PlexPlayer(xbmc.Player, signalsmixin.SignalsMixin):
             if probOff:
                 introOffset = probOff
 
-        if meta.isTranscoded:
+        if meta.isTranscoded and not is_jellyfin:
             self.handler.mode = self.handler.MODE_RELATIVE
 
             if introOffset:
@@ -2825,7 +2841,7 @@ class PlexPlayer(xbmc.Player, signalsmixin.SignalsMixin):
 
             self.handler.mode = self.handler.MODE_ABSOLUTE
 
-        if not meta.isMapped:
+        if not meta.isMapped and not is_jellyfin:
             # Kodi 19 will try to look for subtitles in the directory containing the file. '/' and `/file.mkv` both
             # point to the file, and Kodi will happily try to read the whole file without recognizing it isn't a
             # directory. To get around that, we omit the filename here since it is unnecessary.

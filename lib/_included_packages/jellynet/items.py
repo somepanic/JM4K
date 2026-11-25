@@ -204,11 +204,12 @@ def itemElement(item, section_id=None, member_type=None):
         offset_ms = ticks_to_ms(user_data.get('PlaybackPositionTicks'))
         if offset_ms:
             attrs['viewOffset'] = str(offset_ms)
+        played = user_data.get('Played')
         play_count = user_data.get('PlayCount')
-        if play_count and int(play_count) > 0:
+        if played is True:
+            attrs['viewCount'] = str(max(1, int(play_count or 0)))
+        elif played is None and play_count and int(play_count) > 0:
             attrs['viewCount'] = str(int(play_count))
-        elif user_data.get('Played'):
-            attrs['viewCount'] = '1'
 
         if kind == 'Episode':
             setIf(attrs, 'parentIndex', item.get('ParentIndexNumber'))

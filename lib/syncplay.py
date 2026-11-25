@@ -66,13 +66,16 @@ class SyncPlayController:
         self._token = 0
         self._converging = False
         self._echo_until = 0.0
+        self._pending_ready = False
+        self._lock = threading.RLock()
         self._stop = threading.Event()
         self.changed = threading.Event()
 
     def current_queue_item(self):
-        if 0 <= self.playing_item_index < len(self.playlist):
-            return self.playlist[self.playing_item_index]
-        return None
+        with self._lock:
+            if 0 <= self.playing_item_index < len(self.playlist):
+                return self.playlist[self.playing_item_index]
+            return None
 
     @property
     def selected_item_id(self):
@@ -98,36 +101,46 @@ class SyncPlayController:
 
     def adopt_queue(self, item_ids, playing_position=0, start_seconds=0.0):
         """Adopt a locally submitted queue immediately before the server's PlayQueue broadcast arrives."""
-        self.playlist = [{'ItemId': str(item_id), 'PlaylistItemId': ''} for item_id in item_ids]
-        self.playing_item_index = int(playing_position) if self.playlist else -1
-        self.start_position_ticks = jf_syncplay.seconds_to_ticks(start_seconds)
-        self.is_playing = bool(self.playlist)
-        self.state = 'Waiting' if self.playlist else 'Idle'
-        self.queue_updated_at = None
-        self.queue_revision += 1
-        self.version += 1
-        self.changed.set()
+        with self._lock:
+            self.playlist = [{'ItemId': str(item_id), 'PlaylistItemId': ''} for item_id in item_ids]
+            self.playing_item_index = int(playing_position) if self.playlist else -1
+            self.start_position_ticks = jf_syncplay.seconds_to_ticks(start_seconds)
+            self.is_playing = bool(self.playlist)
+            self.state = 'Waiting' if self.playlist else 'Idle'
+            self.queue_updated_at = None
+            self._pending_ready = False
+            self.queue_revision += 1
+            self.version += 1
+            self.changed.set()
 
     def mark_stopped(self):
         """Mark the group idle after a local Stop-for-everyone action."""
-        self.state = 'Idle'
-        self.is_playing = False
-        self.version += 1
-        self.changed.set()
+        with self._lock:
+            self.state = 'Idle'
+            self.is_playing = False
+            self._pending_ready = False
+            self.version += 1
+            self.changed.set()
 
     def selection(self):
         """Return (item_id, playlist_item_id, start_seconds) while active with a queued item, else None."""
-        item = self.current_queue_item()
-        if item is None or self.state == 'Idle':
-            return None
-        item_id = str(item.get('ItemId') or '')
-        if not item_id:
-            return None
-        playlist_item_id = str(item.get('PlaylistItemId') or '')
-        position = jf_syncplay.ticks_to_seconds(self.start_position_ticks)
-        if self.state == 'Playing' and self.is_playing and self.queue_updated_at is not None and self.link is not None:
-            position += max(0.0, self.link.server_time() - self.queue_updated_at)
-        return item_id, playlist_item_id, position
+        with self._lock:
+            item = self.current_queue_item()
+            if item is None or self.state == 'Idle':
+                return None
+            item_id = str(item.get('ItemId') or '')
+            if not item_id:
+                return None
+            playlist_item_id = str(item.get('PlaylistItemId') or '')
+            position = jf_syncplay.ticks_to_seconds(self.start_position_ticks)
+            if (
+                self.state == 'Playing'
+                and self.is_playing
+                and self.queue_updated_at is not None
+                and self.link is not None
+            ):
+                position += max(0.0, self.link.server_time() - self.queue_updated_at)
+            return item_id, playlist_item_id, position
 
     def _position(self):
         position = self.player.position()
@@ -155,36 +168,40 @@ class SyncPlayController:
         data = update.get('Data')
 
         if kind == 'GroupJoined' and isinstance(data, dict):
-            self.group_id = str(data.get('GroupId') or self.group_id)
-            self.group_name = str(data.get('GroupName') or self.group_name)
-            if data.get('State'):
-                self.state = str(data['State'])
-            if isinstance(data.get('Participants'), list):
-                self.participants = [str(p) for p in data['Participants'] if p]
-            self.version += 1
-            self.changed.set()
+            with self._lock:
+                self.group_id = str(data.get('GroupId') or self.group_id)
+                self.group_name = str(data.get('GroupName') or self.group_name)
+                if data.get('State'):
+                    self.state = str(data['State'])
+                if isinstance(data.get('Participants'), list):
+                    self.participants = [str(p) for p in data['Participants'] if p]
+                self.version += 1
+                self.changed.set()
         elif kind == 'UserJoined' and data:
             name = str(data)
-            if name not in self.participants:
-                self.participants.append(name)
-            self.version += 1
-            self.changed.set()
+            with self._lock:
+                if name not in self.participants:
+                    self.participants = [*self.participants, name]
+                self.version += 1
+                self.changed.set()
         elif kind == 'UserLeft' and data:
             name = str(data)
-            self.participants = [p for p in self.participants if p != name]
-            self.version += 1
-            self.changed.set()
+            with self._lock:
+                self.participants = [p for p in self.participants if p != name]
+                self.version += 1
+                self.changed.set()
         elif kind == 'PlayQueue' and isinstance(data, dict):
             self._apply_play_queue(data)
         elif kind == 'StateUpdate' and isinstance(data, dict):
-            new_state = str(data.get('State') or self.state)
-            self.state = new_state
-            if new_state == 'Playing':
-                self.is_playing = True
-            elif new_state in ('Idle', 'Paused'):
-                self.is_playing = False
-            self.version += 1
-            self.changed.set()
+            with self._lock:
+                new_state = str(data.get('State') or self.state)
+                self.state = new_state
+                if new_state == 'Playing':
+                    self.is_playing = True
+                elif new_state in ('Idle', 'Paused'):
+                    self.is_playing = False
+                self.version += 1
+                self.changed.set()
         elif kind == 'GroupLeft':
             self._end('group_left', T(35352, 'Left the Watch together group'))
         elif kind == 'NotInGroup':
@@ -195,41 +212,48 @@ class SyncPlayController:
             self._end('library_access_denied', T(35354, "You don't have access to this library"))
 
     def _apply_play_queue(self, data):
-        prev_item_id = self.selected_item_id
-        prev_pli = self.selected_playlist_item_id
-        raw_playlist = data.get('Playlist')
-        if isinstance(raw_playlist, list):
-            self.playlist = [
-                {
-                    'ItemId': str(entry.get('ItemId') or ''),
-                    'PlaylistItemId': str(entry.get('PlaylistItemId') or ''),
-                }
-                for entry in raw_playlist
-                if isinstance(entry, dict) and entry.get('ItemId')
-            ]
-        raw_index = data.get('PlayingItemIndex')
-        if raw_index is not None:
-            self.playing_item_index = int(raw_index)
-        elif not self.playlist:
-            self.playing_item_index = -1
-        if 'StartPositionTicks' in data and data.get('StartPositionTicks') is not None:
-            self.start_position_ticks = int(data['StartPositionTicks'])
-        if 'IsPlaying' in data:
-            self.is_playing = bool(data['IsPlaying'])
-        self.queue_updated_at = jf_syncplay.parse_iso(data.get('LastUpdate'))
+        send_ready_pli = None
+        with self._lock:
+            prev_item_id = self.selected_item_id
+            prev_pli = self.selected_playlist_item_id
+            raw_playlist = data.get('Playlist')
+            if isinstance(raw_playlist, list):
+                self.playlist = [
+                    {
+                        'ItemId': str(entry.get('ItemId') or ''),
+                        'PlaylistItemId': str(entry.get('PlaylistItemId') or ''),
+                    }
+                    for entry in raw_playlist
+                    if isinstance(entry, dict) and entry.get('ItemId')
+                ]
+            raw_index = data.get('PlayingItemIndex')
+            if raw_index is not None:
+                self.playing_item_index = int(raw_index)
+            elif not self.playlist:
+                self.playing_item_index = -1
+            if 'StartPositionTicks' in data and data.get('StartPositionTicks') is not None:
+                self.start_position_ticks = int(data['StartPositionTicks'])
+            if 'IsPlaying' in data:
+                self.is_playing = bool(data['IsPlaying'])
+            self.queue_updated_at = jf_syncplay.parse_iso(data.get('LastUpdate'))
 
-        if self.current_queue_item() is None:
-            self.state = 'Idle'
-            self.is_playing = False
-        elif self.state == 'Idle':
-            self.state = 'Playing' if self.is_playing else 'Paused'
+            if self.current_queue_item() is None:
+                self.state = 'Idle'
+                self.is_playing = False
+            elif self.state == 'Idle':
+                self.state = 'Playing' if self.is_playing else 'Paused'
 
-        new_item_id = self.selected_item_id
-        new_pli = self.selected_playlist_item_id
-        if new_item_id != prev_item_id or (prev_pli and new_pli != prev_pli):
-            self.queue_revision += 1
-        self.version += 1
-        self.changed.set()
+            new_item_id = self.selected_item_id
+            new_pli = self.selected_playlist_item_id
+            if new_item_id != prev_item_id or (prev_pli and new_pli != prev_pli):
+                self.queue_revision += 1
+                self._pending_ready = False
+            elif self._pending_ready and new_pli and self._group_item_playing():
+                send_ready_pli = new_pli
+            self.version += 1
+            self.changed.set()
+        if send_ready_pli:
+            self.report_ready(playlist_item_id=send_ready_pli)
 
     # --- WebSocket transport commands ---
 
@@ -357,20 +381,28 @@ class SyncPlayController:
         return jf_syncplay.iso_now(when)
 
     def report_ready(self, playlist_item_id=None):
-        """Send POST /SyncPlay/Ready for the currently playing item."""
+        """Send POST /SyncPlay/Ready once a valid PlaylistItemId GUID is known; defer if still awaiting PlayQueue."""
         if self.client is None or self._over():
             return
-        pli = str(playlist_item_id or self.selected_playlist_item_id or '')
+        with self._lock:
+            pli = str(playlist_item_id or self.selected_playlist_item_id or '').strip()
+            if not pli:
+                self._pending_ready = True
+                return
+            self._pending_ready = False
         try:
             jf_syncplay.ready(self.client, self._now_iso(), self._position(), not self.player.isPaused(), pli)
         except JellyfinError as e:
             util.LOG('SyncPlay: Ready failed: {0}', e)
 
     def report_buffering(self, playlist_item_id=None):
-        """Send POST /SyncPlay/Buffering for the currently playing item."""
+        """Send POST /SyncPlay/Buffering for the currently playing item when its PlaylistItemId GUID is known."""
         if self.client is None or self._over():
             return
-        pli = str(playlist_item_id or self.selected_playlist_item_id or '')
+        with self._lock:
+            pli = str(playlist_item_id or self.selected_playlist_item_id or '').strip()
+        if not pli:
+            return
         try:
             jf_syncplay.buffering(self.client, self._now_iso(), self._position(), not self.player.isPaused(), pli)
         except JellyfinError as e:
@@ -407,14 +439,23 @@ class SyncPlayController:
             return
 
     def _end(self, reason, text):
-        self.ended = reason
+        global CURRENT
+        with self._lock:
+            self.ended = reason
+            self._pending_ready = False
+            self._stop.set()
+            self.version += 1
+            self.changed.set()
         if self._group_item_playing():
             self._echo_until = self.clock() + ECHO
             self.player.stop()
+        if self.link is not None:
+            self.link.stop()
+        if hasattr(self.player, 'controller'):
+            self.player.controller = None
+        if CURRENT is not None and getattr(CURRENT, 'controller', None) is self:
+            CURRENT = None
         self.player.notify(text)
-        self._stop.set()
-        self.version += 1
-        self.changed.set()
 
 
 class KodiPlayer(xbmc.Player):
@@ -486,6 +527,7 @@ class SyncPlaySession:
             server.client,
             on_command=self.controller.on_command,
             on_group_update=self.controller.on_group_update,
+            sync_time=True,
             **kwargs,
         )
         self.controller.link = self.link
@@ -493,6 +535,9 @@ class SyncPlaySession:
 
     def begin(self):
         self.link.start()
+
+    def wait_connected(self, timeout=2.0):
+        return self.link.wait_connected(timeout=timeout)
 
     def leave(self):
         """Stop the controller and WebSocket, detach Kodi player hooks, and POST /SyncPlay/Leave."""
@@ -565,6 +610,9 @@ def start_with_item(video, play):
         if session is None:
             group = jf_syncplay.create_group(server.client, _default_group_name(server))
             session = _begin(server, group)
+            wait_fn = getattr(session, 'wait_connected', None)
+            if callable(wait_fn):
+                wait_fn()
         jf_syncplay.set_new_queue(server.client, [item_id])
         session.controller.adopt_queue([item_id], playing_position=0, start_seconds=0.0)
     except JellyfinError as e:
@@ -630,13 +678,17 @@ def open_syncplay(server, play, pick_group=None, ask_name=None):
         run_group(session, play)
     elif isinstance(choice, str) and choice.startswith('join:'):
         group_id = choice.split(':', 1)[1]
+        session = _begin(server, groups_by_id.get(group_id) or {'GroupId': group_id})
+        wait_fn = getattr(session, 'wait_connected', None)
+        if callable(wait_fn):
+            wait_fn()
         try:
             jf_syncplay.join_group(server.client, group_id)
         except JellyfinError as e:
+            session.leave()
             util.LOG('SyncPlay: joining group failed: {0}', e)
             util.showNotification(T(35350, "Couldn't join the group"), header=T(35330, 'Watch together'))
             return
-        session = _begin(server, groups_by_id.get(group_id) or {'GroupId': group_id})
         run_group(session, play)
 
 

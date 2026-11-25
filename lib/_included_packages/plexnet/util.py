@@ -209,7 +209,7 @@ def cleanToken(url):
     # Strip Plex tokens, Kodi pipe Authorization headers, and Jellyfin MediaBrowser tokens before logging
     cleaned = re.sub(r'X-Plex-Token=[^&]+', 'X-Plex-Token=****', url)
     cleaned = re.sub(r'([?&]st=)[^&]+', r'\1****', cleaned)
-    cleaned = re.sub(r'([?&]api_key=)[^&|]+', r'\1****', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'([?&]api_?key=)[^&|]+', r'\1****', cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r'([|&?]Authorization=)[^&\s]+', r'\1****', cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r'(Token=)"[^"]*"', r'\1"****"', cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r'(Token=)[^",\s&|]+', r'\1****', cleaned, flags=re.IGNORECASE)

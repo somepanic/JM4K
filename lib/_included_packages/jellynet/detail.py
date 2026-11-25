@@ -13,7 +13,7 @@ from xml.etree import ElementTree
 
 from . import library
 from .client import log
-from .errors import JellyfinError
+from .errors import JellyfinAuthError, JellyfinError
 from .items import buildImageUrl, container, itemArt, itemElement, itemThumb, ticks_to_ms
 
 DETAIL_FIELDS = (
@@ -648,6 +648,8 @@ def _attachOnDeck(client, series_id, root, on_item=None):
             )
             or {}
         )
+    except JellyfinAuthError:
+        raise
     except JellyfinError as e:
         log(f'on deck of {series_id} failed: {e.status}')
         return

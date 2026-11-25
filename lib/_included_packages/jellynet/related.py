@@ -9,7 +9,7 @@ from xml.etree import ElementTree
 
 from . import detail, library
 from .client import log
-from .errors import JellyfinError
+from .errors import JellyfinAuthError, JellyfinError
 from .items import container, hubElement, itemElements, itemThumb, ticks_to_ms
 
 MOST = 50
@@ -128,6 +128,8 @@ def extrasElement(client, item_id):
     """Fetch GET /Items/{itemId}/SpecialFeatures and wrap as <Extras> for detail reload; None if empty/error."""
     try:
         answer = client.get(f'/Items/{quote(str(item_id), safe="")}/SpecialFeatures') or []
+    except JellyfinAuthError:
+        raise
     except JellyfinError as e:
         log(f'extras of {item_id} failed: {e.status}')
         return None

@@ -244,7 +244,13 @@ class PlexPlayer(BasePlayer):
         audio = self.choice.audioStream
         subtitle = None if self.shouldSuppressSubtitleForAudioLanguage() else self.choice.subtitleStream
         audio_index = audio.index.asInt() if audio and audio.index else None
-        subtitle_index = subtitle.index.asInt() if subtitle and subtitle.index else None
+        if subtitle is not None and subtitle.index:
+            subtitle_index = subtitle.index.asInt()
+        elif any(s.streamType.asInt() == 3 for s in (getattr(part, 'streams', None) or ())):
+            # Explicitly tell Jellyfin subtitles are off so PlaybackInfo does not fall back to DefaultSubtitleStreamIndex
+            subtitle_index = -1
+        else:
+            subtitle_index = None
         # the Quality setting (decision D12): Original leaves bitrate uncapped, a lower one caps MaxStreamingBitrate
         quality = self.item.settings.getQualityIndex(self.item.getQualityType(server))
         bitrates = self.item.settings.getGlobal("transcodeVideoBitrates")
