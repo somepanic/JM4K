@@ -115,7 +115,11 @@ class JellyfinServerTest(KodiTestCase):
 
         self.assertEqual(
             [(s.key, s.title, s.type) for s in sections],
-            [('view-movies', 'Movies', 'movie'), ('view-shows', 'TV Shows', 'show')],
+            [
+                ('view-movies', 'Movies', 'movie'),
+                ('view-shows', 'TV Shows', 'show'),
+                ('view-boxsets', 'Collections', 'movie'),
+            ],
         )
         self.assertEqual(session.calls[0]['url'], 'http://jellyfin.lan:8096/UserViews')
         self.assertEqual(srv.platform, 'jellyfin')

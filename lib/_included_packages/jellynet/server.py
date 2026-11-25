@@ -11,17 +11,25 @@ from xml.etree import ElementTree
 
 from plexnet.signalsmixin import SignalsMixin
 
-from . import library
+from . import library, lists
 from .client import log
 from .errors import JellyfinError
 from .items import buildImageUrl, container
 
 # Jellyfin CollectionType values mapped to Plex section types.
-# boxsets is mapped in Phase 3; music is hidden until Phase 10/11 (D4); other types are left out.
-SECTION_TYPES = {'movies': 'movie', 'tvshows': 'show'}
+# music is hidden until Phase 10/11 (D4); other types are left out.
+SECTION_TYPES = {'movies': 'movie', 'tvshows': 'show', 'boxsets': 'movie'}
 
-# Library grid, sorts, and jump bar paths
-LIBRARY_PATH = re.compile(r'^/library/sections/([^/]+)/(all|sorts|firstCharacter)$')
+# Library grid, sorts, filters, collections tab, and jump bar paths
+LIBRARY_PATH = re.compile(
+    r'^/library/sections/([^/]+)/(all|sorts|firstCharacter|filters|collections|genre|year|contentRating|label|tag)$'
+)
+# Collection contents (/library/collections/<id>/children and /library/metadata/<id>/children)
+COLLECTION_CHILDREN_PATH = re.compile(r'^/library/(?:collections|metadata)/([^/]+)/children$')
+# All episodes of a show (for expanding shows inside a collection's Play All queue)
+ALL_LEAVES_PATH = re.compile(r'^/library/metadata/([^/]+)/allLeaves$')
+# Recommended rows for one library section
+SECTION_HUBS_PATH = re.compile(r'^/hubs/sections/([^/]+)$')
 
 
 class JellyfinConnection:
@@ -88,6 +96,29 @@ class JellyfinServer(SignalsMixin):
             collection_type = self._collectionTypes.get(section_id, '')
             if action == 'sorts':
                 handler = library.sortsContainer
+            elif action == 'filters':
+                handler = functools.partial(library.filtersContainer, section_id)
+            elif action in library.FILTER_CHOICE_KEYS:
+                handler = functools.partial(
+                    library.filterChoices,
+                    self.client,
+                    section_id,
+                    action,
+                    args=args,
+                    section_type=section_type,
+                    collection_type=collection_type,
+                )
+            elif action == 'collections':
+                handler = functools.partial(
+                    lists.collectionsGrid,
+                    self.client,
+                    library_id=section_id if collection_type == 'boxsets' else None,
+                    args=args,
+                    offset=kwargs.get('offset'),
+                    limit=kwargs.get('limit'),
+                    member_type=section_type or 'movie',
+                    section_id=section_id,
+                )
             elif action == 'firstCharacter':
                 handler = functools.partial(
                     library.jumpBar,
@@ -109,6 +140,47 @@ class JellyfinServer(SignalsMixin):
                     section_type=section_type,
                     collection_type=collection_type,
                 )
+        if handler is None and route.startswith(library.LIBRARY_ROW_PATH):
+            row_section_id, _, row_kind = route[len(library.LIBRARY_ROW_PATH) :].partition('/')
+            handler = functools.partial(
+                library.libraryRowItems,
+                self.client,
+                row_section_id,
+                row_kind,
+                args=args,
+                offset=kwargs.get('offset'),
+                limit=kwargs.get('limit'),
+            )
+        section_hubs_match = SECTION_HUBS_PATH.match(route) if handler is None else None
+        if section_hubs_match and section_hubs_match.group(1) != 'home':
+            hub_section_id = section_hubs_match.group(1)
+            raw_count = args.get('count')
+            hub_count = int(raw_count) if raw_count and str(raw_count).isdigit() else None
+            handler = functools.partial(
+                self._sectionHubsContainer,
+                hub_section_id,
+                hub_count,
+            )
+        collection_match = COLLECTION_CHILDREN_PATH.match(route) if handler is None else None
+        if collection_match:
+            handler = functools.partial(
+                lists.collectionItems,
+                self.client,
+                collection_match.group(1),
+                args=args,
+                offset=kwargs.get('offset'),
+                limit=kwargs.get('limit'),
+            )
+        leaves_match = ALL_LEAVES_PATH.match(route) if handler is None else None
+        if leaves_match:
+            handler = functools.partial(
+                lists.showLeaves,
+                self.client,
+                leaves_match.group(1),
+                args=args,
+                offset=kwargs.get('offset'),
+                limit=kwargs.get('limit'),
+            )
         if handler is None:
             if route not in self._unmapped:
                 self._unmapped.add(route)
@@ -263,8 +335,28 @@ class JellyfinServer(SignalsMixin):
     def dropIdleConnections(self):
         self.client.dropIdleConnections()
 
+    def _sectionHubsContainer(self, section_id, count=None):
+        rows = library.libraryRows(
+            self.client,
+            section_id,
+            count=count,
+            section_type=self._libraryTypes.get(section_id, ''),
+            collection_type=self._collectionTypes.get(section_id, ''),
+        )
+        return container(rows)
+
     def hubs(self, section=None, count=None, search_query=None, section_ids=None, continue_watching_count=None):
-        return []
+        if not section:
+            return []
+        from plexnet import plexlibrary, plexobjects, video  # noqa: F401
+
+        try:
+            root = self._sectionHubsContainer(str(section), count=count)
+        except JellyfinError as e:
+            log(f'library rows failed: {e.status}')
+            return []
+        hubs_container = plexobjects.PlexContainer(root, initpath='/hubs', server=self, address='/hubs')
+        return [plexlibrary.Hub(elem, server=self, container=hubs_container) for elem in root]
 
     def homeCapabilities(self):
         return {}

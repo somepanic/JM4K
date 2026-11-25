@@ -136,8 +136,10 @@ def createLocalPlayQueue(item, children, contentType, options, args=None):
     args = dict(args or {})
     unwatched = args.pop('unwatched', None) == '1'
     args.pop('sourceType', None)
+    if options.shuffle:
+        args['sort'] = 'random'
     if item.TYPE == 'collection':
-        titles = list(item.all())
+        titles = list(item.all(params=args or None))
     else:
         titles = list(item.all(collections=False, params=args))
 
