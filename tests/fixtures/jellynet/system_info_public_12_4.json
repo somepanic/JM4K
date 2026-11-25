@@ -1,0 +1,10 @@
+{
+  "_synthetic": "Synthetic Jellyfin 12.4.0 fixture modeled on PublicSystemInfo (not recorded from a live server).",
+  "LocalAddress": "http://172.19.0.10:8096",
+  "ServerName": "Home Jellyfin",
+  "Version": "12.4.0",
+  "ProductName": "Jellyfin Server",
+  "OperatingSystem": "",
+  "Id": "00000000000000000000000000000002",
+  "StartupWizardCompleted": true
+}
