@@ -8,13 +8,15 @@ from unittest import mock
 from urllib.parse import parse_qs, unquote, urlsplit
 from xml.etree import ElementTree
 
+from kodienv import ENV
+
+ENV.abort_requested = True
 from jellynet.client import ClientIdentity, JellyfinClient
 from jellynet.errors import JellyfinError
 from jellynet.server import JellyfinServer
-from kodienv import ENV
-from plexnet import plexobjects, plexplayer, serverdecision, util, video
-
+from lib import player as kodi_player
 from lib.jellyfin import StoredServer
+from plexnet import plexobjects, plexplayer, serverdecision, util, video
 
 from .base import KodiTestCase, ensure_plex_interface
 from .jellynet_fakes import FakeResponse, FakeSession, problem
@@ -452,3 +454,135 @@ class JellyfinPlaybackTest(KodiTestCase):
         self.assertEqual(qs.get('static'), ['false'])
         self.assertEqual(qs.get('playSessionId'), ['ps-ds'])
         self.assertEqual(srv.playback.sessions['item-1'].play_method, 'DirectStream')
+
+    def test_transcoding_url_strips_apikey_and_cleantoken_masks_apikey(self):
+        transcode_source = {
+            'Id': 'src-1',
+            'Container': 'mkv',
+            'TranscodingContainer': 'ts',
+            'TranscodingSubProtocol': 'hls',
+            'TranscodingUrl': (
+                f'/videos/item-1/master.m3u8?MediaSourceId=src-1&PlaySessionId=ps-tc'
+                f'&ApiKey={SECRET_TOKEN}&VideoCodec=h264&AudioCodec=aac'
+            ),
+            'Bitrate': 20_000_000,
+            'SupportsDirectPlay': False,
+            'SupportsDirectStream': False,
+            'SupportsTranscoding': True,
+            'MediaStreams': [],
+        }
+        session = FakeSession(playback_info_response(sources=[transcode_source], play_session_id='ps-tc'))
+        srv = make_server(session, token=SECRET_TOKEN)
+        movie = make_movie(srv)
+
+        player = plexplayer.PlexPlayer(movie, 0)
+        player.build()
+
+        active = srv.playback.sessions['item-1']
+        self.assertNotIn(SECRET_TOKEN, active.stream_url)
+        self.assertNotIn('ApiKey', active.stream_url)
+        base_part, sep, header_part = player.metadata.streamUrls[0].partition('|')
+        self.assertEqual(sep, '|')
+        self.assertNotIn(SECRET_TOKEN, base_part)
+        self.assertNotIn('ApiKey', base_part)
+        self.assertTrue(header_part.startswith('Authorization='))
+        self.assertFalse(ENV.logged(SECRET_TOKEN))
+        # cleanToken also scrubs ApiKey= (no underscore) as defense-in-depth
+        self.assertNotIn(SECRET_TOKEN, util.cleanToken(f'http://h/m.m3u8?ApiKey={SECRET_TOKEN}&x=1'))
+        self.assertIn('ApiKey=****', util.cleanToken(f'http://h/m.m3u8?ApiKey={SECRET_TOKEN}&x=1'))
+
+    def test_subtitles_off_sends_minus_one_and_clears_server_default(self):
+        sources = [
+            {
+                'Id': 'src-1',
+                'Container': 'mkv',
+                'SupportsDirectPlay': True,
+                'SupportsDirectStream': True,
+                'SupportsTranscoding': True,
+                'DefaultAudioStreamIndex': 1,
+                'DefaultSubtitleStreamIndex': 2,
+                'MediaStreams': [],
+            }
+        ]
+        session = FakeSession(playback_info_response(sources=sources, play_session_id='ps-nosub'))
+        srv = make_server(session)
+        # make_movie has subtitle stream index 2 unselected -> user wants subtitles OFF
+        movie = make_movie(srv)
+
+        player = plexplayer.PlexPlayer(movie, 0)
+        player.build()
+
+        self.assertEqual(session.calls[0]['json'].get('SubtitleStreamIndex'), -1)
+        self.assertIsNone(srv.playback.sessions['item-1'].subtitle_stream_index)
+
+    def test_play_video_preserves_jellyfin_auth_header_and_hls_absolute_timeline(self):
+        from types import SimpleNamespace
+
+        transcode_source = {
+            'Id': 'src-1',
+            'Container': 'mkv',
+            'TranscodingContainer': 'ts',
+            'TranscodingSubProtocol': 'hls',
+            'TranscodingUrl': (
+                '/videos/item-1/master.m3u8?MediaSourceId=src-1&PlaySessionId=ps-hls&VideoCodec=h264&AudioCodec=aac'
+            ),
+            'Bitrate': 20_000_000,
+            'SupportsDirectPlay': False,
+            'SupportsDirectStream': False,
+            'SupportsTranscoding': True,
+            'MediaStreams': [
+                {
+                    'Type': 'Subtitle',
+                    'Index': 2,
+                    'Codec': 'subrip',
+                    'IsExternal': False,
+                    'DeliveryMethod': 'External',
+                    'DeliveryUrl': f'/Videos/item-1/src-1/Subtitles/2/0/Stream.subrip?ApiKey={SECRET_TOKEN}',
+                }
+            ],
+        }
+        session = FakeSession(playback_info_response(sources=[transcode_source], play_session_id='ps-hls'))
+        srv = make_server(session, token=SECRET_TOKEN)
+        movie = make_movie(srv)
+        # Select subtitle stream index 2 so SeekHandler.setSubtitles() resolves it on transcode
+        movie.media()[0].parts[0].streams[2].set('selected', '1')
+
+        p = kodi_player.PlexPlayer.__new__(kodi_player.PlexPlayer)
+        kodi_player.PlexPlayer.__init__(p)
+        p.video = movie
+        p.sessionID = 'sess-jf'
+        p.handler = kodi_player.SeekPlayerHandler(p, 'sess-jf')
+        p.handler.dialog = SimpleNamespace(setup=mock.Mock(), baseOffset=0, hideOSD=mock.Mock())
+        p.handler.blackoutDialog = SimpleNamespace(show=mock.Mock(), doClose=mock.Mock(), isOpen=False)
+        p.handler.getIntroOffset = mock.Mock(return_value=None)
+        p.handler.skipMarkersBefore = mock.Mock()
+        p.isPlaying = lambda: False
+        p.stopAndWait = lambda *a, **kw: None
+        played = []
+        p.play = lambda url, li: played.append(url)
+        applied_subs = []
+        p.setSubtitles = lambda path: applied_subs.append(path)
+        p.showSubtitles = mock.Mock()
+        p.setSubtitleStream = mock.Mock()
+
+        with (
+            mock.patch.object(kodi_player.util, 'CE_SB_LAV_SWITCH', False),
+            mock.patch.object(kodi_player.util, 'KODI_VERSION_MAJOR', 19),
+            mock.patch.object(kodi_player.p3i_detector, 'arm_skip', return_value=None),
+        ):
+            p._playVideo(offset=600_000)
+
+        self.assertEqual(len(played), 1)
+        play_url = played[0]
+        # Must NOT append X-Plex-* params onto Kodi's |Authorization=... pipe header
+        self.assertNotIn('X-Plex-', play_url)
+        self.assertIn('|Authorization=', play_url)
+        # Jellyfin HLS VOD starts at segment 0: handler uses absolute timeline + seekOnStart instead of baseOffset
+        self.assertEqual(p.handler.mode, p.handler.MODE_ABSOLUTE)
+        self.assertEqual(p.handler.baseOffset, 0)
+        self.assertEqual(p.handler.dialog.baseOffset, 0)
+        self.assertEqual(p.handler.seekOnStart, 596_000)
+        # On transcode, externalized subtitle DeliveryUrl from PlaybackInfo is loaded via setSubtitles (ApiKey stripped)
+        p.handler.setSubtitles(do_sleep=False)
+        self.assertEqual(applied_subs, [f'{BASE}/Videos/item-1/src-1/Subtitles/2/0/Stream.subrip'])
+        p.setSubtitleStream.assert_not_called()

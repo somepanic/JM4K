@@ -406,7 +406,7 @@ class Playback:
             container = str(source.get('Container') or '')
         elif transcoding_url:
             play_method = 'DirectStream' if (supports_ds and not supports_tc) else 'Transcode'
-            stream_url = _join_url(self.client.base_url, transcoding_url)
+            stream_url = _join_url(self.client.base_url, detail.cleanDeliveryUrl(transcoding_url))
             container = str(source.get('TranscodingContainer') or source.get('Container') or '')
         elif supports_ds:
             play_method = 'DirectStream'
@@ -440,7 +440,8 @@ class Playback:
 
         raw_default_sub = source.get('DefaultSubtitleStreamIndex')
         if subtitle_index is not None:
-            effective_sub = int(subtitle_index)
+            parsed_sub = int(subtitle_index)
+            effective_sub = parsed_sub if parsed_sub >= 0 else None
         elif raw_default_sub is not None:
             effective_sub = int(raw_default_sub) if int(raw_default_sub) >= 0 else None
         else:
