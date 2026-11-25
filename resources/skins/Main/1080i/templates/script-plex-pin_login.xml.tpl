@@ -134,6 +134,7 @@
         </control>
 </control>
 <control type="image">
+    <visible>!String.IsEmpty(Window.Property(quickconnect.enabled))</visible>
     <posx>959</posx>
     <posy>{{ vscale(290) }}</posy>
     <width>2</width>
@@ -141,6 +142,7 @@
     <texture colordiffuse="1FFFFFFF">script.plex/white-square.png</texture>
 </control>
 <control type="group">
+    <visible>!String.IsEmpty(Window.Property(quickconnect.enabled))</visible>
     <posx>1060</posx>
     <posy>0</posy>
         <control type="label">

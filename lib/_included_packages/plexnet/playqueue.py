@@ -122,9 +122,9 @@ EPISODE_TYPE = 4
 
 
 def hasPlayQueues(server):
-    """Whether the server keeps play queues: Plex does, Silo has none (SiloServer.platform), so SiloMod builds its
-    queues itself (createLocalPlayQueue())."""
-    return getattr(server, 'platform', None) != 'silo'
+    """Whether the server keeps play queues: Plex does, Jellyfin has none (JellyfinServer.platform), so JM4K builds
+    its queues itself (createLocalPlayQueue())."""
+    return getattr(server, 'platform', None) != 'jellyfin'
 
 
 def createLocalPlayQueue(item, children, contentType, options, args=None):

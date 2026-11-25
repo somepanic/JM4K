@@ -1380,8 +1380,8 @@ class GridMixin(object):
 
         extra_kwargs = {}
 
-        # watchlist: Discover's items, found again in a library; a Silo watchlist's are library items already
-        discoverWatchlist = sectionType == 'movies_shows' and getattr(self.section.server, 'platform', None) != 'silo'
+        # watchlist: Discover's items, found again in a library; Jellyfin's items are library items already
+        discoverWatchlist = sectionType == 'movies_shows' and getattr(self.section.server, 'platform', None) != 'jellyfin'
         if discoverWatchlist:
             extra_kwargs['from_watchlist'] = True
             extra_kwargs['directly_from_watchlist'] = True

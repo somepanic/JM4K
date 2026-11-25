@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import hashlib
 import os
+from urllib.parse import quote
 
 from kodi_six import xbmcgui
 
@@ -42,18 +43,20 @@ class PinLoginWindow(kodigui.BaseWindow):
     SIGN_IN_ID = 203
     CHANGE_ID = 204
 
-    # what the user did on the card, read by lib/silo.py's signIn() while it waits
+    # what the user did on the card, read by lib/jellyfin.py's signIn() while it waits
     abort = submitted = change = False
     username = password = ''
 
     def setOptions(self, options, address, username):
-        """The server's name and subtitle (silonet.server_info.LoginOptions), its address and the last username."""
+        """The server's name and disclaimer (jellynet.server_info.LoginOptions), its address and the last username."""
+        self._address = address
         self.username = username
         self.setProperty('server.name', options.name or util.T(32460, 'Sign In'))
         self.setProperty('subtitle', options.subtitle)
         self.setProperty('address', address)
         self.setProperty('username', username)
         self.setProperty('password.enabled', '1' if options.password else '')
+        self.setProperty('quickconnect.enabled', '1' if getattr(options, 'quick_connect', False) else '')
         if not options.password:
             # the username field the card starts on is hidden: Change is its one button then
             self.setFocusId(self.CHANGE_ID)
@@ -74,14 +77,19 @@ class PinLoginWindow(kodigui.BaseWindow):
         self.setProperty('password', '')
         self.setProperty('error', message)
 
-    def setCode(self, code):
-        """Silo's sign-in code (silonet.auth.DeviceCode): eight digits and the page to enter them on."""
-        from silonet.auth import formatUserCode
+    def setCode(self, code, address=None):
+        """Jellyfin's Quick Connect code (jellynet.auth.QuickConnectCode): six digits, web link, and QR."""
+        base = (address or getattr(self, '_address', '')).rstrip('/')
+        page_url = f'{base}/web/#/quickconnect' if base else ''
+        qr_url = f'{page_url}?code={quote(str(code.code), safe="")}' if page_url else str(code.code)
         self.setProperty('heading', util.T(32460, 'Sign In'))
-        self.setProperty('instructions', util.T(35243, 'On a phone or computer, open {link} and enter this code:').format(
-            link=code.verificationUri))
-        self.setProperty('pin', formatUserCode(code.userCode))
-        self.setProperty('qr', qrImage(code.verificationUriComplete))
+        self.setProperty(
+            'instructions',
+            util.T(35243, 'On a phone or computer, open {link} and enter this code:').format(link=page_url),
+        )
+        self.setProperty('pin', str(code.code))
+        self.setProperty('qr', qrImage(qr_url))
+        self.setProperty('quickconnect.enabled', '1')
 
     def onClick(self, controlID):
         if controlID in (self.USERNAME_ID, self.PASSWORD_ID, self.SIGN_IN_ID):

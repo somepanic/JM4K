@@ -22,10 +22,10 @@ from kodi_six import xbmc
 sys.modules['_asyncio'] = None
 
 from . import plex
-from . import silo
+from . import jellyfin
 
 from plexnet import plexapp
-from silonet.errors import SiloUnavailable
+from jellynet.errors import JellyfinUnavailable
 from plexnet.util import cleanToken
 from .templating import render_templates
 from .windows import background, userselect, home, library, windowutils, kodigui
@@ -306,9 +306,9 @@ def _main():
     util.setGlobalProperty('is_active', '1')
 
     try:
-        previousServer = None  # the Silo server the user menu's Switch server left (silo.initAfterSwitch())
+        previousServer = None  # the Jellyfin server the user menu's Switch server left (jellyfin.initAfterSwitch())
         while not util.MONITOR.abortRequested():
-            ready = silo.initAfterSwitch(previousServer) if previousServer else silo.init()
+            ready = jellyfin.initAfterSwitch(previousServer) if previousServer else jellyfin.init()
             previousServer = None
             if ready:
                 background.setSplash(False)
@@ -401,10 +401,10 @@ def _main():
                             plexapp.ACCOUNT.isAuthenticated = False
                             fromSwitch = True
                         elif closeOption == 'session_ended':
-                            # Silo refused the session: start-up again, which signs in (silo.init())
+                            # Jellyfin refused the session: start-up again, which signs in (jellyfin.init())
                             break
                         elif isinstance(closeOption, dict) and closeOption.get('switch_server'):
-                            # another Silo server picked: start-up again, on it
+                            # another Jellyfin server picked: start-up again, on it
                             previousServer = closeOption['switch_server']
                             break
                         elif isinstance(closeOption, dict):
@@ -416,9 +416,9 @@ def _main():
                                 # main()'s outer handler. Home restarts as the current user instead.
                                 try:
                                     plexapp.ACCOUNT.switchHomeUser(uid, silent=True)
-                                except SiloUnavailable:
-                                    util.LOG('Main: Fast user switch: no answer from the Silo server')
-                                    util.showNotification(T(35252, "Can't reach the Silo server. Check your "
+                                except JellyfinUnavailable:
+                                    util.LOG('Main: Fast user switch: no answer from the Jellyfin server')
+                                    util.showNotification(T(35319, "Can't reach the Jellyfin server. Check your "
                                                                    "connection and try again."))
                                 except Exception:
                                     util.ERROR('Fast user switch failed')
