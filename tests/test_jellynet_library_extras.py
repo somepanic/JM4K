@@ -356,6 +356,24 @@ class JellyfinCollectionsTest(KodiTestCase):
         self.assertEqual(len(list(fav_xml)), 1)
         self.assertEqual(tab_session.calls[3]['params']['isFavorite'], 'true')
 
+    def test_jellyfin_12_lists_a_librarys_own_collections(self):
+        # Jellyfin 12 answers a library's own BoxSets by parentId; both ways Uno asks for the Collections tab use it.
+        boxsets = items_page([boxset_dto('c1', 'Alien', 4)], total=1)
+        session = FakeSession(USER_VIEWS_WITH_BOXSETS, boxsets, boxsets)
+        srv = make_server(session, version='12.4.0')
+        movies = plexlibrary.Library(None, server=srv).sections()[0]
+
+        tab_colls = movies.all(0, 50, type_=18)
+        self.assertEqual([(c.type, c.title) for c in tab_colls], [('collection', 'Alien')])
+        coll_xml = srv.query('/library/sections/view-movies/collections', offset=0, limit=50)
+        self.assertEqual(len(list(coll_xml)), 1)
+
+        for call in session.calls[1:]:
+            self.assertEqual(call['params']['parentId'], 'view-movies')
+            self.assertEqual(call['params']['includeItemTypes'], 'BoxSet')
+            self.assertEqual(call['params']['recursive'], 'true')
+        self.assertEqual(len(session.calls), 3)  # the stored version is used: no /System/Info/Public probe
+
 
 class JellyfinPlayAllAndShuffleTest(KodiTestCase):
     def setUp(self):

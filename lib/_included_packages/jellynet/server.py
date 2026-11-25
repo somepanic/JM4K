@@ -30,6 +30,7 @@ from . import (
 from .client import log
 from .errors import JellyfinAuthError, JellyfinError
 from .items import buildImageUrl, container, ticks_to_ms
+from .server_info import _parse_version
 
 # Jellyfin subtitle route fallback: /Videos/<item>/<source>/Subtitles/<index>/Stream.<ext>
 SUBTITLE_ROUTE_PATH = re.compile(r'^/Videos/([^/]+)/([^/]+)/Subtitles/(\d+)/Stream\.[^/?]+$')
@@ -201,11 +202,11 @@ class JellyfinServer(SignalsMixin):
                     section_type=section_type,
                     collection_type=collection_type,
                 )
-            elif action == 'collections':
+            elif action == 'collections' or (action == 'all' and args.get('type') == library.COLLECTION_TYPE):
                 handler = functools.partial(
                     lists.collectionsGrid,
                     self.client,
-                    library_id=section_id if collection_type == 'boxsets' else None,
+                    library_id=section_id if collection_type == 'boxsets' or self._ownCollections() else None,
                     args=args,
                     offset=kwargs.get('offset'),
                     limit=kwargs.get('limit'),
@@ -390,6 +391,12 @@ class JellyfinServer(SignalsMixin):
         if isinstance(result, ElementTree.Element):
             self._cacheTypesFromXml(result)
         return result
+
+    def _ownCollections(self):
+        """Whether a library's Collections tab can list only its own collections: Jellyfin 12 answers a library's
+        BoxSets by parentId; 10.11 keeps them all in the Collections view, so its tab lists every one."""
+        version = _parse_version(self.rawVersion or '')
+        return version is not None and version[0] >= 12
 
     def _rememberPerson(self, person_id, name):
         """Cache a Jellyfin person's id <-> name mapping for /library/people/<id> lookups."""

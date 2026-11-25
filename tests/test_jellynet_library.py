@@ -101,9 +101,9 @@ def items_page(items, total=None, start=0):
     )
 
 
-def make_server(session):
+def make_server(session, version='10.11.5'):
     client = JellyfinClient('http://jellyfin.lan:8096', IDENTITY, token='TOK-1', username='alice', session=session)
-    return JellyfinServer(StoredServer('http://jellyfin.lan:8096', 'srv-1', 'Home Jellyfin'), client)
+    return JellyfinServer(StoredServer('http://jellyfin.lan:8096', 'srv-1', 'Home Jellyfin', version), client)
 
 
 def make_section(session, index=0):

@@ -15,8 +15,8 @@ FAVORITE_ITEM_TYPES = 'Movie,Series,Season,Episode'
 
 def collectionsGrid(client, library_id=None, args=None, offset=None, limit=None, member_type='movie', section_id=None):
     """List Jellyfin BoxSet collections as Plex <Directory type="collection"> elements.
-    Pass library_id when querying the dedicated Collections (boxsets) view; omit it for another
-    library's Collections tab because Jellyfin stores BoxSets under the global Collections view."""
+    Pass library_id for the dedicated Collections (boxsets) view, and for another library's Collections tab on
+    Jellyfin 12, which answers a library's own BoxSets; omit it on 10.11, which keeps them all in that view."""
     base_params = {
         'includeItemTypes': 'BoxSet',
         'recursive': 'true',
