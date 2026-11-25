@@ -33,7 +33,7 @@ class JellyfinServerManager(signalsmixin.SignalsMixin):
         return None
 
     def getWatchlistServer(self):
-        return self.selectedServer
+        return None
 
     def periodicReachabilityCheck(self, *args, **kwargs):
         pass

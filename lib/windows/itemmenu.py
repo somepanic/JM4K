@@ -57,7 +57,7 @@ def options(mli, watchlist=False):
     """The menu's rows for mli's item, (key, label); none for an item it has nothing for."""
     ds = mli.dataSource
     if ds.TYPE in VIDEO_TYPES:
-        if watchlist:
+        if watchlist and getattr(ds.getServer(), 'platform', None) != 'jellyfin':
             # we don't want mark watched for watchlist items
             return [('remove_from_watchlist', T(34011, "Remove from watchlist"))]
         rows = []

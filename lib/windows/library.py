@@ -3477,7 +3477,8 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
         pinned = set(nav['entries'])
         servers = dict((server.uuid, server) for server in self._pickerServers)
         multiServer = len(plexapp.SERVERMANAGER.getServers()) > 1
-        watchlistOn = util.getUserSetting("use_watchlist", True) and not plexapp.ACCOUNT.isOffline
+        watchlistOn = (sidebar_model.watchlistAvailable() and util.getUserSetting("use_watchlist", True)
+                       and not plexapp.ACCOUNT.isOffline)
 
         options = []
         for sid in order:

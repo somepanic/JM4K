@@ -327,7 +327,7 @@ class JellyfinAccountTest(KodiTestCase):
         self.assertIs(manager.getServer('srv-1'), srv)
         self.assertTrue(manager.serversKnown())
         self.assertIsNone(manager.getDiscoverServer())
-        self.assertIs(manager.getWatchlistServer(), srv)
+        self.assertIsNone(manager.getWatchlistServer())
         self.assertFalse(manager.retestServerNow())
 
     def test_user_select_start_adds_other_user_and_handles_refresh_failure(self):

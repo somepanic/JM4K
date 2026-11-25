@@ -131,8 +131,8 @@ TYPE_PLURAL = {
 
 
 def typePlural(section, itemType):
-    """What the grid lists, as its count and type picker name it: a Silo mixed library's films are "Movies & Shows"
-    (silonet lists it as a film library, mixed="1")."""
+    """What the grid lists, as its count and type picker name it: a mixed library's films are "Movies & Shows"
+    (mixed="1")."""
     key = itemType or section.TYPE
     if key == 'movie' and section.get('mixed').asBool():
         key = 'movies_shows'
@@ -985,6 +985,8 @@ class GridMixin(object):
                            'mediaHeight', 'mediaBitrate', 'random']
             if self.itemType == 'collection':
                 searchTypes = ['titleSort', 'addedAt', 'contentRating']
+            elif getattr(self.section.server, 'platform', None) == 'jellyfin':
+                searchTypes = [s for s in searchTypes if s != 'userRating']
 
             for stype in searchTypes:
                 option = SORT_KEYS['movie'].get(stype).copy()
@@ -1001,6 +1003,8 @@ class GridMixin(object):
                                'rating', 'audienceRating', 'userRating', 'mediaBitrate', 'random']
             elif self.itemType == 'collection':
                 searchTypes = ['titleSort', 'addedAt']
+            if getattr(self.section.server, 'platform', None) == 'jellyfin':
+                searchTypes = [s for s in searchTypes if s != 'userRating']
 
             for stype in searchTypes:
                 option = SORT_KEYS['show'].get(stype, SORT_KEYS['movie'].get(stype, {})).copy()
