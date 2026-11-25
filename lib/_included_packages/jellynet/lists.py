@@ -45,21 +45,6 @@ def collectionItems(client, collection_id, args=None, offset=None, limit=None):
     )
 
 
-def showLeaves(client, show_id, args=None, offset=None, limit=None):
-    """List every episode of a Jellyfin Series (for expanding shows inside a collection's Play All queue)."""
-    return library.itemsListing(
-        client,
-        {
-            'parentId': show_id,
-            'includeItemTypes': 'Episode',
-            'recursive': 'true',
-        },
-        args or {},
-        offset=offset,
-        limit=limit,
-    )
-
-
 def favorites(client, parent_id=None, args=None, offset=None, limit=None, include_item_types=None):
     """List the user's Jellyfin favorite items (GET /Items?isFavorite=true&recursive=true)."""
     base_params = {

@@ -55,26 +55,6 @@ def latestHubId(library_id):
     return f'jellyfin.home.{library_id}.latest'
 
 
-def _itemsAndTotal(answer):
-    if isinstance(answer, list):
-        return answer, len(answer)
-    if isinstance(answer, dict):
-        items = answer.get('Items') or []
-        total = answer.get('TotalRecordCount')
-        return items, int(total) if total is not None else len(items)
-    return [], 0
-
-
-def _fetchRow(client, path, params, row_name):
-    try:
-        return client.get(path, params=params)
-    except JellyfinAuthError:
-        raise
-    except JellyfinError as e:
-        log(f'home row {row_name} failed: {e.status}')
-        return None
-
-
 def sectionOrder(client):
     """Read the user's Jellyfin home section order from DisplayPreferences/usersettings?client=emby.
 
@@ -168,8 +148,8 @@ def _resumeHub(client, limit):
     }
     if limit:
         params['limit'] = int(limit)
-    answer = _fetchRow(client, '/UserItems/Resume', params, 'resume')
-    items, total = _itemsAndTotal(answer)
+    answer = library.fetchRow(client, '/UserItems/Resume', params, 'resume')
+    items, total = library.itemsAndTotal(answer)
     elements = itemElements(items)
     if not elements:
         return None
@@ -192,8 +172,8 @@ def _nextUpHub(client, limit):
     }
     if limit:
         params['limit'] = int(limit)
-    answer = _fetchRow(client, '/Shows/NextUp', params, 'nextup')
-    items, total = _itemsAndTotal(answer)
+    answer = library.fetchRow(client, '/Shows/NextUp', params, 'nextup')
+    items, total = library.itemsAndTotal(answer)
     elements = itemElements(items)
     if not elements:
         return None
@@ -219,8 +199,8 @@ def _latestHubs(client, limit):
         }
         if limit:
             params['limit'] = int(limit)
-        answer = _fetchRow(client, '/Items/Latest', params, f'latest:{library_id}')
-        items, _ = _itemsAndTotal(answer)
+        answer = library.fetchRow(client, '/Items/Latest', params, f'latest:{library_id}')
+        items, _ = library.itemsAndTotal(answer)
         elements = itemElements(items, section_id=library_id, section_title=library_name or None)
         if not elements:
             continue
@@ -282,7 +262,7 @@ def rowItems(client, row_spec, args=None, offset=None, limit=None):
         if size is not None:
             params['limit'] = size
         answer = client.get(endpoint, params=params) or {}
-        items, total = _itemsAndTotal(answer)
+        items, total = library.itemsAndTotal(answer)
         return container(itemElements(items), totalSize=total, offset=start)
 
     if row_kind == 'latest' and raw_target and '/' not in raw_target:
@@ -298,7 +278,7 @@ def rowItems(client, row_spec, args=None, offset=None, limit=None):
                 'limit': want,
             },
         )
-        items, _ = _itemsAndTotal(answer)
+        items, _ = library.itemsAndTotal(answer)
         elements = itemElements(items, section_id=library_id)
         page = [] if size == 0 else elements[start : None if size is None else start + size]
         return container(page, totalSize=len(elements), offset=start)

@@ -10,6 +10,7 @@ import time
 
 from jellynet import syncplay as jf_syncplay
 from jellynet.errors import JellyfinError
+from jellynet.items import seconds_to_ticks, ticks_to_seconds
 from kodi_six import xbmc
 
 from lib import util
@@ -104,7 +105,7 @@ class SyncPlayController:
         with self._lock:
             self.playlist = [{'ItemId': str(item_id), 'PlaylistItemId': ''} for item_id in item_ids]
             self.playing_item_index = int(playing_position) if self.playlist else -1
-            self.start_position_ticks = jf_syncplay.seconds_to_ticks(start_seconds)
+            self.start_position_ticks = seconds_to_ticks(start_seconds)
             self.is_playing = bool(self.playlist)
             self.state = 'Waiting' if self.playlist else 'Idle'
             self.queue_updated_at = None
@@ -132,7 +133,7 @@ class SyncPlayController:
             if not item_id:
                 return None
             playlist_item_id = str(item.get('PlaylistItemId') or '')
-            position = jf_syncplay.ticks_to_seconds(self.start_position_ticks)
+            position = ticks_to_seconds(self.start_position_ticks)
             if (
                 self.state == 'Playing'
                 and self.is_playing
@@ -308,7 +309,7 @@ class SyncPlayController:
             return
 
         raw_ticks = command.get('PositionTicks')
-        base = self._position() if raw_ticks is None else jf_syncplay.ticks_to_seconds(raw_ticks)
+        base = self._position() if raw_ticks is None else ticks_to_seconds(raw_ticks)
         execute_at = jf_syncplay.parse_iso(command.get('When'))
 
         def group_position():
@@ -395,19 +396,6 @@ class SyncPlayController:
         except JellyfinError as e:
             util.LOG('SyncPlay: Ready failed: {0}', e)
 
-    def report_buffering(self, playlist_item_id=None):
-        """Send POST /SyncPlay/Buffering for the currently playing item when its PlaylistItemId GUID is known."""
-        if self.client is None or self._over():
-            return
-        with self._lock:
-            pli = str(playlist_item_id or self.selected_playlist_item_id or '').strip()
-        if not pli:
-            return
-        try:
-            jf_syncplay.buffering(self.client, self._now_iso(), self._position(), not self.player.isPaused(), pli)
-        except JellyfinError as e:
-            util.LOG('SyncPlay: Buffering failed: {0}', e)
-
     # --- Local Kodi player callbacks ---
 
     def on_local_pause(self, paused):
@@ -433,10 +421,6 @@ class SyncPlayController:
         if self._over() or self._echo() or not self._group_item_playing() or self.client is None:
             return
         self.report_ready()
-
-    def on_local_stop(self):
-        if self._over() or self._echo() or not self._group_item_playing():
-            return
 
     def _end(self, reason, text):
         global CURRENT
@@ -508,10 +492,6 @@ class KodiPlayer(xbmc.Player):
     def onPlayBackSeek(self, time, seekOffset):
         if self.controller:
             self.controller.on_local_seek(time / 1000.0)
-
-    def onPlayBackStopped(self):
-        if self.controller:
-            self.controller.on_local_stop()
 
 
 class SyncPlaySession:

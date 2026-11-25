@@ -7,6 +7,7 @@ Jellyfin expresses durations and playback positions in 100-nanosecond ticks (10,
 route and never carry an auth token.
 """
 
+import math
 import re
 from datetime import datetime
 from urllib.parse import quote, urlencode
@@ -52,6 +53,24 @@ def ms_to_ticks(ms):
         return ms * TICKS_PER_MS if ms > 0 else 0
     value = float(ms)
     return round(value * TICKS_PER_MS) if value > 0 else 0
+
+
+def seconds_to_ticks(seconds):
+    """Convert seconds to Jellyfin ticks; negative, infinite or missing values give 0."""
+    if seconds is None:
+        return 0
+    value = float(seconds)
+    if not math.isfinite(value) or value <= 0.0:
+        return 0
+    return round(value * TICKS_PER_SECOND)
+
+
+def ticks_to_seconds(ticks):
+    """Convert Jellyfin ticks to seconds (float); missing or non-positive values give 0.0."""
+    if not ticks:
+        return 0.0
+    value = int(ticks)
+    return value / TICKS_PER_SECOND if value > 0 else 0.0
 
 
 def epoch(text):

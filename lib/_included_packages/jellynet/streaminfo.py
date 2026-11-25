@@ -16,12 +16,6 @@ PLAY_METHOD_DECISIONS = {
     'Transcode': 'transcode',
 }
 
-PLAY_METHOD_LABELS = {
-    'DirectPlay': 'Direct Play',
-    'DirectStream': 'Direct Stream',
-    'Transcode': 'Transcode',
-}
-
 _RFC1918_NETWORKS = (
     ipaddress.ip_network('10.0.0.0/8'),
     ipaddress.ip_network('172.16.0.0/12'),
@@ -43,11 +37,6 @@ _AUDIO_REASON_KEYS = frozenset(
         'secondaryaudionotsupported',
     )
 )
-
-
-def play_method_label(play_method):
-    """Format a Jellyfin PlayMethod enum value for display ('Direct Play', 'Direct Stream', 'Transcode')."""
-    return PLAY_METHOD_LABELS.get(str(play_method or ''), str(play_method or ''))
 
 
 def is_local_url(url):
@@ -90,11 +79,6 @@ def _raw_transcode_reasons(url):
                 seen.add(low)
                 reasons.append(token)
     return reasons
-
-
-def parse_transcode_reasons(url):
-    """Extract and human-format TranscodeReasons query parameters from a Jellyfin transcode stream URL."""
-    return [formatted for token in _raw_transcode_reasons(url) if (formatted := format_transcode_reason(token))]
 
 
 def _query_params(url):

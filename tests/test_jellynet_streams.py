@@ -19,7 +19,7 @@ from kodienv import ENV
 
 ENV.abort_requested = True
 
-from jellynet import detail, streaminfo, trackprefs
+from jellynet import detail, trackprefs
 from jellynet.client import ClientIdentity, JellyfinClient
 from jellynet.items import itemElement
 from jellynet.server import JellyfinServer
@@ -499,19 +499,11 @@ class JellyfinStreamInfoTest(KodiTestCase):
         return {name: line.value for name, line in info.attributes.items()}
 
     def test_transcode_reasons_line(self):
-        self.assertEqual(streaminfo.play_method_label('DirectPlay'), 'Direct Play')
-        self.assertEqual(streaminfo.play_method_label('DirectStream'), 'Direct Stream')
-        self.assertEqual(streaminfo.play_method_label('Transcode'), 'Transcode')
-
         transcode_url = (
             '/Videos/mov-1/master.m3u8?MediaSourceId=src-4k&PlaySessionId=ps-tc'
             '&VideoCodec=h264&AudioCodec=aac&VideoBitrate=3608000&AudioBitrate=384000'
             '&AudioChannels=2&MaxWidth=1280&MaxHeight=720'
             '&TranscodeReasons=VideoBitrateNotSupported,AudioCodecNotSupported'
-        )
-        self.assertEqual(
-            streaminfo.parse_transcode_reasons(transcode_url),
-            ['video bitrate not supported', 'audio codec not supported'],
         )
 
         # Direct Play panel
@@ -785,7 +777,7 @@ class JellyfinTrackPrefsTest(KodiTestCase):
         movie = make_tile(mov_srv, MOVIE_DETAIL).reload()
         mov_audios = [s for s in movie.media[0].parts[0].streams if s.streamType.asInt() == 2]
         movie.selectStream(mov_audios[1], _async=False)
-        self.assertEqual(mov_srv.trackPrefs.all_series(), {})
+        self.assertEqual(mov_srv.trackPrefs._by_series, {})
 
     def test_external_subtitle_remembered_as_external(self):
         ext_stream = plexstream.PlexStream(
