@@ -14,7 +14,7 @@ from xml.etree import ElementTree
 from . import library
 from .client import log
 from .errors import JellyfinError
-from .items import buildImageUrl, container, itemElement, ticks_to_ms
+from .items import buildImageUrl, container, itemArt, itemElement, itemThumb, ticks_to_ms
 
 DETAIL_FIELDS = (
     'Overview,Genres,People,Studios,MediaSources,MediaStreams,Chapters,Trickplay,ProviderIds,Taglines,DateCreated,Path'
@@ -524,6 +524,30 @@ def _mediaSourcesFor(item):
     return []
 
 
+def _clipBaseElement(item):
+    """Build a base Plex <Video type="clip"> for a non-trailer Jellyfin Video extra on detail reload."""
+    if item.get('Type') != 'Video' or not item.get('Id'):
+        return None
+    if str(item.get('ExtraType') or '').strip().lower() == 'trailer':
+        return None
+    item_id = str(item['Id'])
+    duration_ms = ticks_to_ms(item.get('RunTimeTicks'))
+    return element(
+        'Video',
+        {
+            'type': 'clip',
+            'ratingKey': item_id,
+            'key': f'/library/metadata/{item_id}',
+            'title': item.get('Name') or '',
+            'summary': item.get('Overview'),
+            'thumb': itemThumb(item),
+            'art': itemArt(item),
+            'duration': duration_ms or None,
+            'subtype': item.get('ExtraType'),
+        },
+    )
+
+
 def detailElement(item, on_item=None):
     """Build a full Plex detail element from one Jellyfin BaseItemDto, or None if unsupported."""
     if not isinstance(item, dict):
@@ -531,6 +555,8 @@ def detailElement(item, on_item=None):
     if on_item is not None:
         on_item(item)
     root = itemElement(item)
+    if root is None:
+        root = _clipBaseElement(item)
     if root is None:
         return None
 

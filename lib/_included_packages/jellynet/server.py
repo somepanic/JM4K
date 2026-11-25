@@ -6,12 +6,12 @@ keep working. Paths not mapped yet return an empty <MediaContainer size="0"/> an
 
 import functools
 import re
-from urllib.parse import parse_qsl, urlencode, urlsplit
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit
 from xml.etree import ElementTree
 
 from plexnet.signalsmixin import SignalsMixin
 
-from . import detail, library, lists, playback, shows
+from . import detail, library, lists, people, playback, related, shows
 from .client import log
 from .errors import JellyfinError
 from .items import buildImageUrl, container, ticks_to_ms
@@ -32,6 +32,13 @@ METADATA_CHILDREN_PATH = re.compile(r'^/library/metadata/([^/]+)/children$')
 COLLECTION_CHILDREN_PATH = re.compile(r'^/library/collections/([^/]+)/children$')
 # All episodes of a show (/library/metadata/<id>/allLeaves)
 ALL_LEAVES_PATH = re.compile(r'^/library/metadata/([^/]+)/allLeaves$')
+# Similar titles and related hub (/library/metadata/<id>/similar|related)
+SIMILAR_PATH = re.compile(r'^/library/metadata/([^/]+)/similar$')
+RELATED_PATH = re.compile(r'^/library/metadata/([^/]+)/related$')
+# Special features extras (/library/metadata/<id>/extras; NO trailers per J-D10)
+EXTRAS_PATH = re.compile(r'^/library/metadata/([^/]+)/extras$')
+# Person details and library filmography (/library/people/<id>[/media])
+PEOPLE_PATH = re.compile(r'^/library/people/([^/]+)(/media)?$')
 # Recommended rows for one library section
 SECTION_HUBS_PATH = re.compile(r'^/hubs/sections/([^/]+)$')
 
@@ -87,6 +94,7 @@ class JellyfinServer(SignalsMixin):
         self._itemMeta = {}
         self._trickplayMeta = {}
         self._personNames = {}
+        self._personIds = {}
         self.playback = playback.Playback(client)
 
     def __repr__(self):
@@ -188,6 +196,7 @@ class JellyfinServer(SignalsMixin):
                 metadata_match.group(1),
                 params=args,
                 on_item=self._rememberItem,
+                extras_fetcher=related.extrasElement,
             )
         metadata_children_match = METADATA_CHILDREN_PATH.match(route) if handler is None else None
         if metadata_children_match:
@@ -223,6 +232,51 @@ class JellyfinServer(SignalsMixin):
                 limit=kwargs.get('limit'),
                 on_item=self._rememberItem,
             )
+        similar_match = SIMILAR_PATH.match(route) if handler is None else None
+        if similar_match:
+            handler = functools.partial(
+                related.similar,
+                self.client,
+                similar_match.group(1),
+                count=args.get('count'),
+                offset=kwargs.get('offset'),
+                limit=kwargs.get('limit'),
+            )
+        related_match = RELATED_PATH.match(route) if handler is None else None
+        if related_match:
+            handler = functools.partial(
+                related.relatedHub,
+                self.client,
+                related_match.group(1),
+                count=args.get('count'),
+            )
+        extras_match = EXTRAS_PATH.match(route) if handler is None else None
+        if extras_match:
+            handler = functools.partial(
+                related.extras,
+                self.client,
+                extras_match.group(1),
+            )
+        people_match = PEOPLE_PATH.match(route) if handler is None else None
+        if people_match:
+            if people_match.group(2):
+                handler = functools.partial(
+                    people.media,
+                    self.client,
+                    people_match.group(1),
+                    args=args,
+                    offset=kwargs.get('offset'),
+                    limit=kwargs.get('limit'),
+                    person_ids=self._personIds,
+                )
+            else:
+                handler = functools.partial(
+                    people.person,
+                    self.client,
+                    people_match.group(1),
+                    person_names=self._personNames,
+                    person_ids=self._personIds,
+                )
         if handler is None:
             if route not in self._unmapped:
                 self._unmapped.add(route)
@@ -262,7 +316,9 @@ class JellyfinServer(SignalsMixin):
 
         for person in dto.get('People') or ():
             if isinstance(person, dict) and person.get('Id') and person.get('Name'):
-                self._personNames[str(person['Id'])] = str(person['Name'])
+                pid, pname = str(person['Id']), str(person['Name'])
+                self._personNames[pid] = pname
+                self._personIds[pname] = pid
 
         chapters = dto.get('Chapters')
         trickplay = dto.get('Trickplay')
@@ -433,7 +489,32 @@ class JellyfinServer(SignalsMixin):
         return None
 
     def themeUrl(self, item):
-        return None
+        """Return an authenticated Jellyfin theme song stream URL when theme_music is enabled (D15), else None."""
+        from plexnet import util as pnUtil
+
+        interface = getattr(pnUtil, 'INTERFACE', None)
+        if interface is None or not interface.getThemeMusicValue():
+            return None
+        item_id = str(getattr(item, 'ratingKey', '') or '')
+        if not item_id:
+            return None
+        try:
+            answer = (
+                self.client.get(
+                    f'/Items/{quote(item_id, safe="")}/ThemeMedia',
+                    params={'inheritFromParent': 'true'},
+                )
+                or {}
+            )
+        except JellyfinError as e:
+            log(f'theme of {item_id} failed: {e.status}')
+            return None
+        songs = ((answer if isinstance(answer, dict) else {}).get('ThemeSongsResult') or {}).get('Items') or []
+        theme_id = next((str(s['Id']) for s in songs if isinstance(s, dict) and s.get('Id')), None)
+        if not theme_id:
+            return None
+        stream_url = f'{self.client.base_url}/Audio/{quote(theme_id, safe="")}/stream?static=true'
+        return playback.attach_auth_header(stream_url, self.client.auth_header())
 
     def rememberStream(self, video, streamType, stream, streams):
         return None
