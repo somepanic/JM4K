@@ -23,14 +23,6 @@ class _OtherUser:
 OTHER_USER = _OtherUser()
 
 
-def askPassword(name):
-    """The password typed for name ('' when OK is pressed on nothing), or None for Back. Jellyfin 12 says every user
-    has a password, so a user without one is asked too and signs in with an empty one."""
-    keyboard = xbmc.Keyboard('', T(35320, 'Password for {name}').format(name=name), True)
-    keyboard.doModal()
-    return keyboard.getText() if keyboard.isConfirmed() else None
-
-
 class UserSelectWindow(kodigui.BaseWindow):
     xmlFile = 'script-plex-user_select.xml'
     path = util.ADDON.getAddonInfo('path')
@@ -70,11 +62,7 @@ class UserSelectWindow(kodigui.BaseWindow):
         if controlID == self.USER_LIST_ID:
             item = self.userList.getSelectedItem()
             if getattr(item.dataSource, 'isOtherUser', False):
-                username = xbmcgui.Dialog().input(T(35301, 'Username'))
-                if username:
-                    password = askPassword(username)
-                    if password is not None:
-                        self.userSelected(item, password, username=username)
+                self.signInOnCard('')
 
             # refresh clicked
             elif not item.dataSource:
@@ -93,9 +81,7 @@ class UserSelectWindow(kodigui.BaseWindow):
                 item.dataSource.isProtected
                 and not getattr(plexapp.ACCOUNT, 'hasSession', lambda _uid: False)(item.dataSource.id)
             ):
-                password = askPassword(item.dataSource.title)
-                if password is not None:
-                    self.userSelected(item, password)
+                self.signInOnCard(item.dataSource.title)
             else:
                 self.userSelected(item)
         elif controlID == self.SHUTDOWN_BUTTON_ID:
@@ -173,19 +159,23 @@ class UserSelectWindow(kodigui.BaseWindow):
         elif choice['key'] == 'reboot':
             xbmc.executebuiltin('Reset()')
 
+    def signInOnCard(self, username):
+        """A user not signed in on this Kodi yet signs in on the sign-in card, their name filled in (Manual Login: none);
+        Back on the card comes back here."""
+        from lib import jellyfin
+
+        if jellyfin.signInUser(plexapp.ACCOUNT, username):
+            self.selected = True
+            self.doClose()
+
     @busy.dialog()
-    def userSelected(self, item, pin=None, username=None):
+    def userSelected(self, item):
         user = item.dataSource
         # xbmc.sleep(500)
         util.DEBUG_LOG('Home user selected: {0}', user)
 
         try:
-            switched = (
-                plexapp.ACCOUNT.switchHomeUser(user.id, pin, username=username)
-                if username is not None
-                else plexapp.ACCOUNT.switchHomeUser(user.id, pin)
-            )
-            if not switched:
+            if not plexapp.ACCOUNT.switchHomeUser(user.id):
                 util.messageDialog(T(32427, 'Failed'), T(35303, 'Wrong username or password.'))
                 return
         except (JellyfinUnavailable, JellyfinError):

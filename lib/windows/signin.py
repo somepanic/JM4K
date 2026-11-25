@@ -47,13 +47,15 @@ class PinLoginWindow(kodigui.BaseWindow):
     abort = submitted = change = False
     username = password = ''
 
-    def setOptions(self, options, address, username):
-        """The server's name and subtitle (silonet.server_info.LoginOptions), its address and the last username."""
+    def setOptions(self, options, address, username, allow_change=True):
+        """The server's name and subtitle (silonet.server_info.LoginOptions), its address and the last username;
+        allow_change=False hides the server row (another user signing in on the same server)."""
         self._address = address
         self.username = username
         self.setProperty('server.name', options.name or util.T(32460, 'Sign In'))
         self.setProperty('subtitle', options.subtitle)
         self.setProperty('address', address)
+        self.setProperty('change.enabled', '1' if allow_change else '')
         self.setProperty('username', username)
         self.setProperty('password.enabled', '1' if options.password else '')
         self.setProperty('quickconnect.enabled', '1' if getattr(options, 'quick_connect', False) else '')

@@ -7,11 +7,9 @@ Regression tests for JM4K review pass 1:
 - Cold person UUID lookup via /Items/{id} and uncached person-name filmography via ?person=
 - UserData Played=False with PlayCount>0 stays unwatched
 - Search resolveCollections preserves Jellyfin collections, and single-library section_ids sets parentId
-- UserSelectWindow keeps 'Other user' tile label on failed sign-in
 """
 
 import copy
-from unittest import mock
 
 from kodienv import ENV
 
@@ -23,7 +21,6 @@ from jellynet.errors import JellyfinAuthError, JellyfinError
 from plexnet import plexlibrary, plexobjects, video  # noqa: F401
 
 from lib.windows import search as search_win
-from lib.windows import userselect
 
 from .base import KodiTestCase, ensure_plex_interface
 from .jellynet_fakes import FakeResponse, FakeSession, problem
@@ -215,22 +212,3 @@ class ReviewPassOneTest(KodiTestCase):
         resolved = search_win.resolveCollections(coll_hubs)
         self.assertEqual(len(resolved), 1)
         self.assertEqual([c.title for c in resolved[0].items], ['Alien Collection'])
-
-    def test_userselect_other_user_keeps_label_on_wrong_password(self):
-        win = userselect.UserSelectWindow.__new__(userselect.UserSelectWindow)
-        win.selected = False
-        props = {'pin': 'Other user'}
-        item = mock.Mock(
-            dataSource=userselect.OTHER_USER,
-            getLabel=lambda: 'Other user',
-            setProperty=lambda k, v: props.__setitem__(k, v),
-        )
-        account = mock.Mock(switchHomeUser=mock.Mock(return_value=False))
-        with (
-            mock.patch.object(userselect.plexapp, 'ACCOUNT', account),
-            mock.patch.object(userselect.util, 'messageDialog'),
-            mock.patch.object(userselect.busy.BusyWindow, 'create', return_value=mock.Mock()),
-        ):
-            win.userSelected(item, pin='wrong', username='hidden')
-
-        self.assertEqual(props['pin'], 'Other user')

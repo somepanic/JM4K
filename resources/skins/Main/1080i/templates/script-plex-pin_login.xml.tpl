@@ -195,6 +195,7 @@
         </control>
 </control>
 <control type="label">
+    <visible>!String.IsEmpty(Window.Property(change.enabled))</visible>
     <posx>360</posx>
     <posy>{{ vscale(920) }}</posy>
     <width>1000</width>
@@ -205,6 +206,7 @@
     <label>$INFO[Window.Property(label.server)]  [COLOR FFFFFFFF]$INFO[Window.Property(address)][/COLOR]</label>
 </control>
 <control type="button" id="204">
+    <visible>!String.IsEmpty(Window.Property(change.enabled))</visible>
     <posx>1380</posx>
     <posy>{{ vscale(920) }}</posy>
     <width>180</width>

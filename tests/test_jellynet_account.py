@@ -4,11 +4,10 @@ multi-user sessions on one Kodi (each user with their own token and DeviceId), s
 and new users (password prompt vs passwordless vs hidden user), Refresh Users, 401 session end, and sign-out.
 """
 
-from collections import deque
 from unittest import mock
 
 import requests
-from jellynet import errors
+from jellynet import auth, errors
 from jellynet.account import JellyfinAccount, JellyfinUser
 from jellynet.client import ClientIdentity, JellyfinClient, device_id_for
 from jellynet.servermanager import JellyfinServerManager
@@ -18,6 +17,7 @@ ENV.abort_requested = True
 from plexnet import plexapp
 from plexnet import util as pnUtil
 
+from lib import jellyfin
 from lib.windows import userselect
 
 from .base import KodiTestCase
@@ -89,29 +89,6 @@ class FakeListItem:
         return self.props.get(key, '')
 
 
-def keyboard(*answers):
-    """Patch xbmc.Keyboard so each prompt is answered in turn by (text, confirmed); confirmed False is Back.
-    Returns the patch and the list of (heading, hidden) of every prompt shown."""
-    queue = deque(answers)
-    prompts = []
-
-    class Keyboard:
-        def __init__(self, line='', heading='', hidden=False):
-            prompts.append((heading, hidden))
-            self.text, self.confirmed = queue.popleft()
-
-        def doModal(self, autoclose=0):
-            pass
-
-        def isConfirmed(self):
-            return self.confirmed
-
-        def getText(self):
-            return self.text
-
-    return mock.patch.object(userselect.xbmc, 'Keyboard', Keyboard), prompts
-
-
 def click_user_tile(account, data_source):
     window = userselect.UserSelectWindow.__new__(userselect.UserSelectWindow)
     window.selected = None
@@ -178,54 +155,24 @@ class JellyfinAccountTest(KodiTestCase):
         self.assertIn('Token="TOK-ALICE"', auth_header)
         self.assertIn(f'DeviceId="{device_id_for(IDENTITY, "alice")}"', auth_header)
 
-    def test_switch_to_new_user_asks_password(self):
-        session = FakeSession(
-            PUBLIC_USERS,
-            FakeResponse(401, raw='Invalid username or password.'),
-            auth_ok('TOK-BOB', 'u2', 'bob'),
-        )
-        acct = make_account(session)
+    def test_a_user_without_a_session_signs_in_on_the_card(self):
+        # A tile for a user not signed in on this Kodi yet (Jellyfin 12 says every user has a password) opens the
+        # sign-in card with their name filled in: User and Password fields, or Quick Connect. No keyboard pop-ups.
+        acct = make_account(FakeSession(PUBLIC_USERS))
         acct.updateHomeUsers()
         bob = acct.getHomeUser('u2')
 
-        # Wrong password keeps current user active, never ends active session, and tells the user.
-        typed, _ = keyboard(('wrong-pw', True))
-        with typed, mock.patch.object(pnUtil, 'APP') as app:
+        with mock.patch.object(jellyfin, 'signInUser', return_value=False) as card:
             window, dialog = click_user_tile(acct, bob)
-        self.assertIsNone(window.selected)
-        self.assertEqual(acct.ID, 'u1')
-        dialog.assert_called_once()
-        self.assertIn('Wrong username or password', dialog.call_args[0][1])
-        app.trigger.assert_not_called()
+        card.assert_called_once_with(acct, 'bob')
+        self.assertIsNone(window.selected)  # Back on the card: still choosing
 
-        # Correct password uses hidden keyboard input and signs Bob in.
-        typed, prompts = keyboard(('good-pw', True))
-        with typed:
+        with mock.patch.object(jellyfin, 'signInUser', return_value=True):
             window, dialog = click_user_tile(acct, bob)
         self.assertTrue(window.selected)
-        self.assertEqual((acct.ID, acct.authToken), ('u2', 'TOK-BOB'))
+        self.assertTrue(window.closed)
         dialog.assert_not_called()
-        self.assertEqual(prompts, [('Password for bob', True)])
-
-    def test_empty_password_signs_in_a_user_jellyfin_12_calls_protected(self):
-        # Jellyfin 12 says HasPassword=true for every user, so a user without a password is asked too:
-        # OK on an empty password signs them in with an empty one.
-        session = FakeSession(
-            FakeResponse(200, [user_dto('u3', 'kids', has_password=True)]),
-            auth_ok('TOK-KIDS', 'u3', 'kids'),
-        )
-        acct = make_account(session)
-        acct.updateHomeUsers()
-
-        typed, prompts = keyboard(('', True))
-        with typed:
-            window, dialog = click_user_tile(acct, acct.getHomeUser('u3'))
-
-        self.assertTrue(window.selected)
-        dialog.assert_not_called()
-        self.assertEqual(prompts, [('Password for kids', True)])
-        self.assertEqual(session.calls[1]['json'], {'Username': 'kids', 'Pw': ''})
-        self.assertEqual((acct.ID, acct.authToken), ('u3', 'TOK-KIDS'))
+        self.assertFalse([c for c in ENV.dialog_calls if c[0] == 'input'])
 
     def test_number_keys_on_a_tile_never_sign_in(self):
         # Jellyfin has no PINs: Uno's four-digit PIN entry sent the digits as a password, and a failed sign-in counts
@@ -253,21 +200,6 @@ class JellyfinAccountTest(KodiTestCase):
         self.assertIsNone(window.selected)
         window.setFocusId.assert_not_called()
 
-    def test_back_on_the_password_prompt_signs_nobody_in(self):
-        # Back is not an empty password: no sign-in attempt (Jellyfin counts failed ones towards a lockout).
-        session = FakeSession(PUBLIC_USERS)
-        acct = make_account(session)
-        acct.updateHomeUsers()
-
-        typed, _ = keyboard(('half-typed', False))
-        with typed:
-            window, dialog = click_user_tile(acct, acct.getHomeUser('u2'))
-
-        self.assertIsNone(window.selected)
-        dialog.assert_not_called()
-        self.assertEqual(len(session.calls), 1)
-        self.assertEqual(acct.ID, 'u1')
-
     def test_user_without_password_switches_directly(self):
         session = FakeSession(PUBLIC_USERS, auth_ok('TOK-KIDS', 'u3', 'kids'))
         acct = make_account(session)
@@ -283,30 +215,27 @@ class JellyfinAccountTest(KodiTestCase):
         self.assertEqual(session.calls[1]['json'], {'Username': 'kids', 'Pw': ''})
         self.assertEqual((acct.ID, acct.authToken), ('u3', 'TOK-KIDS'))
 
-    def test_hidden_user_can_type_a_name(self):
-        # A user hidden from /Users/Public can sign in via Other user and remains visible in homeUsers afterward.
-        session = FakeSession(
-            PUBLIC_USERS,
-            auth_ok('TOK-HIDDEN', 'u9', 'ghost', is_admin=False),
-            PUBLIC_USERS,
-        )
+    def test_manual_login_opens_the_card_with_no_name(self):
+        acct = make_account(FakeSession(PUBLIC_USERS))
+        acct.updateHomeUsers()
+
+        with mock.patch.object(jellyfin, 'signInUser', return_value=True) as card:
+            window, _ = click_user_tile(acct, userselect.OTHER_USER)
+
+        card.assert_called_once_with(acct, '')
+        self.assertTrue(window.selected)
+        self.assertFalse([c for c in ENV.dialog_calls if c[0] == 'input'])
+
+    def test_a_user_signed_in_on_the_card_stays_listed(self):
+        # A user hidden from /Users/Public who signed in on the card keeps their tile, and Alice keeps her token.
+        session = FakeSession(PUBLIC_USERS, PUBLIC_USERS)
         acct = make_account(session)
         acct.updateHomeUsers()
-        ENV.dialog_answers = deque(['ghost'])
 
-        typed, prompts = keyboard(('ghost-pw', True))
-        with typed:
-            window, dialog = click_user_tile(acct, userselect.OTHER_USER)
-        self.assertEqual(prompts, [('Password for ghost', True)])
+        acct.recordAuth(auth.AuthResult('TOK-HIDDEN', 'u9', 'ghost', False, 'srv-1'))
 
-        self.assertTrue(window.selected)
-        dialog.assert_not_called()
         self.assertEqual((acct.ID, acct.username, acct.authToken), ('u9', 'ghost', 'TOK-HIDDEN'))
-        self.assertEqual(session.calls[1]['json'], {'Username': 'ghost', 'Pw': 'ghost-pw'})
-        self.assertIn('u9', [u.id for u in acct.homeUsers])
         self.assertEqual(acct.sessions['u1']['access_token'], 'TOK-ALICE')
-
-        # Refreshing /Users/Public still keeps the signed-in hidden user in homeUsers.
         acct.updateHomeUsers()
         self.assertIn('u9', [u.id for u in acct.homeUsers])
 

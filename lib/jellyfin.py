@@ -201,16 +201,24 @@ def loadSessions(serverId):
     return dict(entry.get('users') or {}), entry.get('active_user_id')
 
 
-def signIn(client, address, reachable=True, server_name=None):
+def signIn(client, address, reachable=True, server_name=None, username=None, allow_change=True):
     """Run the sign-in card until someone signs in (Quick Connect or password), asks to change the
-    server (CHANGE), or cancels (None). When reachable=False, shows the error and focuses Change."""
+    server (CHANGE), or cancels (None). When reachable=False, shows the error and focuses Change.
+    username fills in the User field (else the last one signed in with) and puts the password next."""
     window = signin.PinLoginWindow.create()
     options = (
         loginOptions(client, name=server_name)
         if reachable
         else LoginOptions(False, '', name=server_name, password=False)
     )
-    window.setOptions(options, address, util.getSetting(USERNAME_SETTING, ''))
+    window.setOptions(
+        options,
+        address,
+        util.getSetting(USERNAME_SETTING, '') if username is None else username,
+        allow_change=allow_change,
+    )
+    if username and options.password:
+        window.setFocusId(window.PASSWORD_ID)
     password_result = []
 
     def signInWithPassword():
@@ -261,6 +269,24 @@ def signIn(client, address, reachable=True, server_name=None):
     if window.change:
         return CHANGE
     return qc_result
+
+
+def signInUser(account, username=''):
+    """One more user on this Kodi (a user tile without a stored session, or Manual Login) signs in on the sign-in card:
+    User and Password fields, or Quick Connect, with no server Change. Their token is kept beside the others' (Jellyfin
+    ends only the same user's sessions on a device). True once signed in, False for Back."""
+    server = getattr(plexapp.SERVERMANAGER, 'selectedServer', None)
+    result = signIn(
+        account.client,
+        account.client.base_url,
+        server_name=getattr(server, 'name', None),
+        username=username,
+        allow_change=False,
+    )
+    if result is None or result == CHANGE:
+        return False
+    account.recordAuth(result)
+    return True
 
 
 def chooseUser(account):
