@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="script.silomod"
-       name="SiloMod (SM4K)"
+<addon id="script.jellymod"
+       name="JellyMod (JM4K)"
        version="0.1.0"
        provider-name="pannal, FilHarr, samtheruby">
     <requires>
@@ -18,21 +18,16 @@
     <extension point="xbmc.ui.screensaver" library="screensaver.py"/>
     <extension point="xbmc.service" library="service.py" />
     <extension point="xbmc.addon.metadata">
-        <summary lang="en_GB">SiloMod for Kodi: browse and play your Silo server</summary>
-        <description lang="en_GB">Unofficial Silo client for Kodi, built on Plex Uno (a reworked fork of PlexMod for Kodi)</description>
-        <disclaimer lang="en">This add-on is not made or supported by the Silo project or by Plex</disclaimer>
+        <summary lang="en_GB">JellyMod for Kodi: browse and play your Jellyfin server</summary>
+        <description lang="en_GB">Unofficial Jellyfin client for Kodi, built on Plex Uno (a reworked fork of PlexMod for Kodi)</description>
+        <disclaimer lang="en">This add-on is not made or supported by the Jellyfin project or by Plex</disclaimer>
 
         <license>GPL-2.0-only</license>
-        <website>https://siloserver.org</website>
-        <source>https://github.com/samtheruby/SM4K</source>
+        <website>https://jellyfin.org</website>
         <platform>all</platform>
         <news>
-0.1.0 - the first SiloMod test build
-- Sign in to a Silo server with a username and password or a phone code (with a QR code), and find servers on your network
-- Home, libraries, collections, shows, search, people, watchlist and favorites from Silo
-- Plays from Silo: the original file, or Silo's remux or transcode, with skip markers, seek-bar previews, theme music and Stream Info
-- Play All and Shuffle, path mapping to your own shares, and switching between Silo servers
-- Watch together: watch parties with Silo
+0.1.0 - early development
+- JellyMod (JM4K) is being adapted from SM4K and Plex Uno to connect to Jellyfin servers
         </news>
         <assets>
             <icon>icon2.png</icon>

@@ -9,7 +9,7 @@ from lib import util
 from . import kodigui
 
 
-QR_PREFIX = 'silomod_qr_'
+QR_PREFIX = 'jellymod_qr_'
 
 
 def qrImage(text):
