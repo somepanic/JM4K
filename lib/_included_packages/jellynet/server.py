@@ -11,7 +11,7 @@ from xml.etree import ElementTree
 
 from plexnet.signalsmixin import SignalsMixin
 
-from . import library, lists, playback
+from . import home, library, lists, playback
 from .client import log
 from .errors import JellyfinError
 from .items import buildImageUrl, container
@@ -66,6 +66,7 @@ class JellyfinServer(SignalsMixin):
         self.session = client.session
         self._unmapped = set()
         self._routes = {'/library/sections': self._sections}
+        self._homeCapabilities = None
         self._libraryTypes = {}
         self._collectionTypes = {}
         self._jumpBarCache = {}
@@ -141,6 +142,16 @@ class JellyfinServer(SignalsMixin):
                     section_type=section_type,
                     collection_type=collection_type,
                 )
+        if handler is None and route.startswith(home.ROW_PATH):
+            row_spec = route[len(home.ROW_PATH) :]
+            handler = functools.partial(
+                home.rowItems,
+                self.client,
+                row_spec,
+                args=args,
+                offset=kwargs.get('offset'),
+                limit=kwargs.get('limit'),
+            )
         if handler is None and route.startswith(library.LIBRARY_ROW_PATH):
             row_section_id, _, row_kind = route[len(library.LIBRARY_ROW_PATH) :].partition('/')
             handler = functools.partial(
@@ -368,20 +379,35 @@ class JellyfinServer(SignalsMixin):
         return container(rows)
 
     def hubs(self, section=None, count=None, search_query=None, section_ids=None, continue_watching_count=None):
-        if not section:
+        if search_query:
             return []
         from plexnet import plexlibrary, plexobjects, video  # noqa: F401
 
         try:
-            root = self._sectionHubsContainer(str(section), count=count)
+            if section:
+                root = self._sectionHubsContainer(str(section), count=count)
+            else:
+                rows = home.homeRows(
+                    self.client,
+                    count=count,
+                    continue_watching_count=continue_watching_count,
+                )
+                root = container(rows)
         except JellyfinError as e:
-            log(f'library rows failed: {e.status}')
+            log(f'{"library" if section else "home"} rows failed: {e.status}')
             return []
         hubs_container = plexobjects.PlexContainer(root, initpath='/hubs', server=self, address='/hubs')
         return [plexlibrary.Hub(elem, server=self, container=hubs_container) for elem in root]
 
     def homeCapabilities(self):
-        return {}
+        """Home row capabilities supported on Jellyfin (read-only layout from DisplayPreferences and UserViews)."""
+        if self._homeCapabilities is None:
+            self._homeCapabilities = {
+                'state': 'available',
+                'editable': False,
+                'sections': list(home.DEFAULT_SECTIONS),
+            }
+        return dict(self._homeCapabilities)
 
     def playlists(self):
         return []
