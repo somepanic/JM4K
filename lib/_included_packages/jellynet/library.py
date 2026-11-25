@@ -11,7 +11,7 @@ Library browsing against Jellyfin's /Items, /Items/Filters2, /Items/Filters, /Us
 from xml.etree import ElementTree
 
 from .client import log
-from .errors import JellyfinError
+from .errors import JellyfinAuthError, JellyfinError
 from .items import container, hubElement, itemElements
 
 # Plex SEARCHTYPES values relevant to library listings
@@ -178,8 +178,8 @@ def filterChoices(client, library_id, filter_key, args=None, section_type='', co
 
     values = []
     if filter_key in ('genre', 'label', 'tag'):
-        params['recursive'] = 'true'
-        answer = client.get('/Items/Filters2', params=params) or {}
+        f2_params = dict(params, recursive='true')
+        answer = client.get('/Items/Filters2', params=f2_params) or {}
         if filter_key == 'genre':
             for entry in answer.get('Genres') or ():
                 name = entry.get('Name') if isinstance(entry, dict) else entry
@@ -187,6 +187,10 @@ def filterChoices(client, library_id, filter_key, args=None, section_type='', co
                     values.append(str(name))
         else:
             values = [str(tag) for tag in (answer.get('Tags') or ()) if tag]
+            if not values:
+                # Jellyfin 10.11 /Items/Filters2 returns empty Tags on many libraries; /Items/Filters returns them
+                legacy = client.get('/Items/Filters', params=params) or {}
+                values = [str(tag) for tag in (legacy.get('Tags') or ()) if tag]
     elif filter_key == 'contentRating':
         answer = client.get('/Items/Filters', params=params) or {}
         values = [str(r) for r in (answer.get('OfficialRatings') or ()) if r]
@@ -360,6 +364,8 @@ def jumpBar(client, library_id, args, section_type='', collection_type='', cache
 def _fetchRow(client, path, params, row_name):
     try:
         return client.get(path, params=params)
+    except JellyfinAuthError:
+        raise
     except JellyfinError as e:
         log(f'library row {row_name} failed: {e.status}')
         return None

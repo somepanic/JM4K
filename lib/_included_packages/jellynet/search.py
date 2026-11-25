@@ -68,18 +68,19 @@ def _parseCount(count):
 
 
 def _resolveScope(section_ids, library_types=None, collection_types=None):
-    """Map section_ids / type filter tokens to (jellyfin_item_types, include_people)."""
+    """Map section_ids / type filter tokens to (jellyfin_item_types, include_people, parent_id)."""
     if section_ids is None:
-        return DEFAULT_ITEM_TYPES, True
+        return DEFAULT_ITEM_TYPES, True, None
     raw_tokens = [section_ids] if isinstance(section_ids, str) else list(section_ids)
     tokens = [str(token).strip() for token in raw_tokens if token is not None and str(token).strip()]
     if not tokens:
-        return DEFAULT_ITEM_TYPES, True
+        return DEFAULT_ITEM_TYPES, True, None
 
     library_types = library_types or {}
     collection_types = collection_types or {}
     item_types = []
     include_people = False
+    matched_sections = []
 
     def add_types(types):
         for jf_type in types:
@@ -88,6 +89,7 @@ def _resolveScope(section_ids, library_types=None, collection_types=None):
 
     for token in tokens:
         if token in collection_types or token in library_types:
+            matched_sections.append(token)
             coll_type = collection_types.get(token, '')
             lib_type = library_types.get(token, '')
             if coll_type == 'boxsets':
@@ -103,7 +105,8 @@ def _resolveScope(section_ids, library_types=None, collection_types=None):
             add_types(mapped[0])
             include_people = include_people or mapped[1]
 
-    return tuple(item_types), include_people
+    parent_id = matched_sections[0] if len(tokens) == 1 and len(matched_sections) == 1 else None
+    return tuple(item_types), include_people, parent_id
 
 
 def _ask(client, path, params):
@@ -151,7 +154,7 @@ def searchHubs(
         return []
 
     limit = _parseCount(count)
-    item_types, include_people = _resolveScope(
+    item_types, include_people, scoped_parent_id = _resolveScope(
         section_ids,
         library_types=library_types,
         collection_types=collection_types,
@@ -169,8 +172,9 @@ def searchHubs(
             'enableUserData': 'true',
             'limit': items_limit,
         }
-        if section:
-            params['parentId'] = str(section)
+        effective_section = section or scoped_parent_id
+        if effective_section:
+            params['parentId'] = str(effective_section)
 
         grouped = {}
         for item in _ask(client, '/Items', params):

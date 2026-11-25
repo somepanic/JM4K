@@ -28,7 +28,7 @@ from . import (
     watchstate,
 )
 from .client import log
-from .errors import JellyfinError
+from .errors import JellyfinAuthError, JellyfinError
 from .items import buildImageUrl, container, ticks_to_ms
 
 # Jellyfin subtitle route fallback: /Videos/<item>/<source>/Subtitles/<index>/Stream.<ext>
@@ -44,6 +44,10 @@ SECTION_TYPES = {'movies': 'movie', 'tvshows': 'show', 'boxsets': 'movie'}
 LIBRARY_PATH = re.compile(
     r'^/library/sections/([^/]+)/(all|sorts|firstCharacter|filters|collections|genre|year|contentRating|label|tag)$'
 )
+# Admin library scan (/library/sections/<id>/refresh, /library/sections/all/refresh) and metadata refresh
+SCAN_ALL_PATH = '/library/sections/all/refresh'
+SCAN_SECTION_PATH = re.compile(r'^/library/sections/([^/]+)/refresh$')
+REFRESH_METADATA_PATH = re.compile(r'^/library/metadata/([^/]+)/refresh$')
 # Item detail (/library/metadata/<id> or comma-separated batch /library/metadata/<id1>,<id2>)
 METADATA_PATH = re.compile(r'^/library/metadata/([^/]+)$')
 # Metadata children: Series -> seasons, Season -> episodes, BoxSet -> collection items
@@ -247,6 +251,14 @@ class JellyfinServer(SignalsMixin):
                 hub_section_id,
                 hub_count,
             )
+        if handler is None and route == SCAN_ALL_PATH:
+            handler = self._refreshAll
+        scan_match = SCAN_SECTION_PATH.match(route) if handler is None else None
+        if scan_match:
+            handler = functools.partial(self._refreshItem, scan_match.group(1))
+        refresh_match = REFRESH_METADATA_PATH.match(route) if handler is None else None
+        if refresh_match:
+            handler = functools.partial(self._refreshItem, refresh_match.group(1))
         metadata_match = METADATA_PATH.match(route) if handler is None else None
         if metadata_match:
             handler = functools.partial(
@@ -434,6 +446,22 @@ class JellyfinServer(SignalsMixin):
                     self._itemTypes.setdefault(parent_key, 'Season')
                     if gp_key:
                         self._seasonSeries.setdefault(parent_key, gp_key)
+
+    def _refreshAll(self):
+        self.client.post('/Library/Refresh')
+        return container()
+
+    def _refreshItem(self, item_id):
+        self.client.post(
+            f'/Items/{quote(str(item_id), safe="")}/Refresh',
+            params={
+                'metadataRefreshMode': 'Default',
+                'imageRefreshMode': 'Default',
+                'replaceAllMetadata': 'false',
+                'replaceAllImages': 'false',
+            },
+        )
+        return container()
 
     def _sections(self):
         data = self.client.get('/UserViews') or {}
@@ -645,19 +673,22 @@ class JellyfinServer(SignalsMixin):
         meta = self._itemMeta.get(item_id)
         duration_ms = (meta.get('duration_ms') if meta else 0) or _item_duration_ms(item)
 
-        segments = (
-            watch.fetchSegments(self.client, item_id) if self._shouldFetchSegments(item_id, fileId, session) else []
-        )
-        marker_els = watch.markerElements(segments, duration_ms=duration_ms)
+        try:
+            segments = (
+                watch.fetchSegments(self.client, item_id) if self._shouldFetchSegments(item_id, fileId, session) else []
+            )
+            marker_els = watch.markerElements(segments, duration_ms=duration_ms)
 
-        chapter_els = []
-        if meta is not None:
-            chapter_els = watch.chapterElements(item_id, meta.get('chapters'), duration_ms=duration_ms)
-        elif session is None and not getattr(item, 'chapters', None):
-            dto, raw_chapters, fetched_duration = watch.fetchItemChapters(self.client, item_id)
-            if dto is not None:
-                self._rememberItem(dto)
-            chapter_els = watch.chapterElements(item_id, raw_chapters, duration_ms=fetched_duration or duration_ms)
+            chapter_els = []
+            if meta is not None:
+                chapter_els = watch.chapterElements(item_id, meta.get('chapters'), duration_ms=duration_ms)
+            elif session is None and not getattr(item, 'chapters', None):
+                dto, raw_chapters, fetched_duration = watch.fetchItemChapters(self.client, item_id)
+                if dto is not None:
+                    self._rememberItem(dto)
+                chapter_els = watch.chapterElements(item_id, raw_chapters, duration_ms=fetched_duration or duration_ms)
+        except JellyfinAuthError:
+            marker_els, chapter_els = [], []
 
         root = container(marker_els + chapter_els)
         markers = plexobjects.PlexItemList(root, media.Marker, media.Marker.TYPE, server=self)

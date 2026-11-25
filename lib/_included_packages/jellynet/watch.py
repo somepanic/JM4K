@@ -13,7 +13,7 @@ from urllib.parse import quote
 from . import detail
 from .client import log
 from .detail import element
-from .errors import JellyfinError
+from .errors import JellyfinAuthError, JellyfinError
 from .items import ticks_to_ms
 
 SEGMENT_TYPES = {
@@ -83,6 +83,8 @@ def fetchSegments(client, item_id):
     item_id = str(item_id)
     try:
         answer = client.get(f'/MediaSegments/{quote(item_id, safe="")}') or {}
+    except JellyfinAuthError:
+        raise
     except JellyfinError as e:
         log(f'media segments of {item_id} failed: {e.status}')
         return []
@@ -103,6 +105,8 @@ def fetchItemChapters(client, item_id):
     item_id = str(item_id)
     try:
         dto = client.get(f'/Items/{quote(item_id, safe="")}', params={'fields': 'Chapters'}) or {}
+    except JellyfinAuthError:
+        raise
     except JellyfinError as e:
         log(f'chapters of {item_id} failed: {e.status}')
         return None, [], 0

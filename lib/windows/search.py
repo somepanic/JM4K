@@ -951,6 +951,8 @@ def resolveCollections(rows):
     groups = {}
     for tag in hub.items:
         server = getattr(tag, 'server', None)
+        if getattr(server, 'platform', None) == 'jellyfin':
+            continue
         library = u'{0}'.format(tag.get('librarySectionID') or '')
         groups.setdefault((getattr(server, 'uuid', None), library), (server, library, []))[2].append(tag)
     found = {}
@@ -980,7 +982,11 @@ def resolveCollections(rows):
     items = []
     with lock:
         for tag in hub.items:
-            key = (getattr(getattr(tag, 'server', None), 'uuid', None),
+            server = getattr(tag, 'server', None)
+            if getattr(server, 'platform', None) == 'jellyfin':
+                items.append(tag)
+                continue
+            key = (getattr(server, 'uuid', None),
                    u'{0}'.format(tag.get('librarySectionID') or ''), u'{0}'.format(tag.get('id')))
             collection = found.get(key)
             if collection is None:

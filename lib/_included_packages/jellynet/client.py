@@ -140,7 +140,10 @@ class JellyfinClient:
         if status < 400:
             if status == 204 or not response.content:
                 return None
-            return response.json()
+            try:
+                return response.json()
+            except ValueError:
+                raise JellyfinError(status, 'Invalid JSON response')
 
         log(f'{method} {path} answered {status}')
         message = _error_message(response)

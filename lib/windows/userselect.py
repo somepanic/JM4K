@@ -248,7 +248,7 @@ class UserSelectWindow(kodigui.BaseWindow):
                 else plexapp.ACCOUNT.switchHomeUser(user.id, pin)
             )
             if not switched:
-                item.setProperty('pin', item.dataSource.title)
+                item.setProperty('pin', item.dataSource.title or item.getLabel())
                 item.setProperty('editing.pin', '')
                 util.messageDialog(T(32427, 'Failed'), T(35303, 'Wrong username or password.'))
                 return
