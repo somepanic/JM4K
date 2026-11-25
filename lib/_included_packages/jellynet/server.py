@@ -11,7 +11,7 @@ from xml.etree import ElementTree
 
 from plexnet.signalsmixin import SignalsMixin
 
-from . import detail, home, library, lists, people, playback, related, shows
+from . import detail, home, library, lists, people, playback, related, shows, trickplay, watch
 from .client import log
 from .errors import JellyfinError
 from .items import buildImageUrl, container, ticks_to_ms
@@ -479,19 +479,106 @@ class JellyfinServer(SignalsMixin):
         )
         return plexobjects.buildItem(self, data[0], key, container=root_container)
 
+    def _shouldFetchSegments(self, item_id, file_id, session):
+        if session is not None:
+            media_source = session.media_source if isinstance(session.media_source, dict) else {}
+            if 'HasSegments' in media_source:
+                return bool(media_source.get('HasSegments'))
+            cached_flag = self._cachedHasSegments(item_id, file_id)
+            return bool(cached_flag) if cached_flag is not None else False
+        cached_flag = self._cachedHasSegments(item_id, file_id)
+        return cached_flag is not False
+
+    def _cachedHasSegments(self, item_id, file_id):
+        meta = self._itemMeta.get(item_id)
+        if not meta:
+            return None
+        sources = meta.get('media_sources') or ()
+        wanted = str(file_id) if file_id is not None else None
+        matched = next(
+            (s for s in sources if isinstance(s, dict) and wanted and str(s.get('Id') or '') == wanted),
+            None,
+        )
+        if matched is None:
+            matched = next((s for s in sources if isinstance(s, dict)), None)
+        if matched is not None and 'HasSegments' in matched:
+            return bool(matched.get('HasSegments'))
+        return None
+
     def watchInfo(self, item, fileId):
+        """Return (markers, chapters) PlexItemLists for playback from /MediaSegments/{itemId} and Chapters."""
         from plexnet import media, plexobjects
 
-        root = container()
+        item_id = str(getattr(item, 'ratingKey', '') or '')
+        if not item_id:
+            root = container()
+            return (
+                plexobjects.PlexItemList(root, media.Marker, media.Marker.TYPE, server=self),
+                plexobjects.PlexItemList(root, media.Chapter, media.Chapter.TYPE, server=self),
+            )
+
+        session = self.playback.find_session(rating_key=item_id)
+        meta = self._itemMeta.get(item_id)
+        duration_ms = (meta.get('duration_ms') if meta else 0) or _item_duration_ms(item)
+
+        segments = (
+            watch.fetchSegments(self.client, item_id) if self._shouldFetchSegments(item_id, fileId, session) else []
+        )
+        marker_els = watch.markerElements(segments, duration_ms=duration_ms)
+
+        chapter_els = []
+        if meta is not None:
+            chapter_els = watch.chapterElements(item_id, meta.get('chapters'), duration_ms=duration_ms)
+        elif session is None and not getattr(item, 'chapters', None):
+            dto, raw_chapters, fetched_duration = watch.fetchItemChapters(self.client, item_id)
+            if dto is not None:
+                self._rememberItem(dto)
+            chapter_els = watch.chapterElements(item_id, raw_chapters, duration_ms=fetched_duration or duration_ms)
+
+        root = container(marker_els + chapter_els)
         markers = plexobjects.PlexItemList(root, media.Marker, media.Marker.TYPE, server=self)
         chapters = plexobjects.PlexItemList(root, media.Chapter, media.Chapter.TYPE, server=self)
         return markers, chapters
 
     def hasPreviews(self, fileId):
-        return False
+        """Whether fileId has valid cached Jellyfin trickplay metadata and Pillow is available."""
+        if not fileId or not trickplay.available():
+            return False
+        entry = self._trickplayMeta.get(str(fileId))
+        if not entry:
+            return False
+        return trickplay.select_resolution(entry.get('trickplay')) is not None
 
     def trickplayIndex(self, fileId):
-        return None
+        """Return a SheetIndex for fileId's chosen trickplay resolution, or None when unavailable."""
+        if not fileId or not trickplay.available():
+            return None
+        entry = self._trickplayMeta.get(str(fileId))
+        if not entry:
+            return None
+        chosen = trickplay.select_resolution(entry.get('trickplay'))
+        if chosen is None:
+            return None
+        _, info = chosen
+
+        def fetch(url):
+            response = self.client.session.request(
+                'GET',
+                url,
+                headers={'Authorization': self.client.auth_header()},
+                timeout=self.client.timeout,
+            )
+            if response.status_code >= 400:
+                raise JellyfinError(response.status_code, f'HTTP {response.status_code}')
+            return response.content
+
+        return trickplay.SheetIndex(
+            info,
+            self.client.base_url,
+            entry['item_id'],
+            entry['media_source_id'],
+            fetch,
+        )
 
     def isFavorite(self, item):
         return None
@@ -611,6 +698,21 @@ class JellyfinServer(SignalsMixin):
         from plexnet import plexlibrary
 
         return plexlibrary.Library(self.query('/library/'), server=self)
+
+
+def _item_duration_ms(item):
+    raw = getattr(item, 'duration', None)
+    if raw is None:
+        return 0
+    if hasattr(raw, 'asInt'):
+        try:
+            return raw.asInt()
+        except (TypeError, ValueError):
+            return 0
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _part(video):

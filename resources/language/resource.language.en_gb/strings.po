@@ -4216,3 +4216,11 @@ msgstr ""
 msgctxt "#35321"
 msgid "Other user"
 msgstr ""
+
+msgctxt "#35322"
+msgid "Skip commercial"
+msgstr ""
+
+msgctxt "#35323"
+msgid "Skipping commercial"
+msgstr ""
