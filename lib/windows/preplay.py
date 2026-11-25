@@ -7,6 +7,7 @@ from kodi_six import xbmcgui
 from plexnet import plexplayer, media, plexobjects, util as pnUtil, plexapp, plexlibrary, playlist, playqueue
 
 from lib import metadata
+from lib import syncplay
 from lib import util
 from lib.util import T
 from lib.language_util import getNativeLanguages
@@ -551,6 +552,9 @@ class PrePlayWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutils
         if self.video.type in ('episode', 'movie'):
             options.append(('to_section', T(32324, u'Go to {0}').format(self.video.getLibrarySectionTitle())))
 
+        if getattr(self.video.server, 'platform', None) == 'jellyfin':
+            options.append(('watch_together', T(35330, 'Watch together')))
+
         if plexapp.ACCOUNT.isAdmin and self.video.server.owned:
             options.append(('refresh', T(33719, 'Refresh metadata')))
 
@@ -584,6 +588,8 @@ class PrePlayWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutils
             self.processCommand(opener.sectionClicked(section, context=self,
                                                       came_from=self.video.ratingKey)
                                 )
+        elif key == 'watch_together':
+            syncplay.start_with_item(self.video, syncplay.player_for(self))
         elif key == 'delete':
             self.delete(confirmed=True)
         elif key == 'refresh':

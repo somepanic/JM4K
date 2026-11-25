@@ -13,6 +13,7 @@ from plexnet import plexapp, playlist, plexplayer, util as pnUtil, plexobjects
 from lib import backgroundthread
 from lib import metadata
 from lib import player
+from lib import syncplay
 from lib import util
 from lib.util import T
 from lib.language_util import getNativeLanguages
@@ -2200,6 +2201,9 @@ class EpisodesWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutil
 
         options.append(('to_show', T(32323, 'Go To Show')))
 
+        if not isSeasonCard and getattr(mli.dataSource.server, 'platform', None) == 'jellyfin':
+            options.append(('watch_together', T(35330, 'Watch together')))
+
         if 'items' in util.getSetting('cache_requests'):
             options.append(('cache_reset', T(33728, "Clear cache for item")))
 
@@ -2222,6 +2226,8 @@ class EpisodesWindow(kodigui.ControlledWindow, windowutils.UtilMixin, windowutil
             self.toggleWatched(item=self.season, state=False, heading=T(32320, 'Mark Season Unplayed'), confirmed=True)
         elif key == 'to_show':
             self._goToShow()
+        elif key == 'watch_together':
+            syncplay.start_with_item(mli.dataSource, syncplay.player_for(self))
         elif key == 'delete':
             # rebuilt only once deleted (not on a No), and season card and all (_rebuildEpisodeList()),
             # on the episode _delete() left selected in its place
