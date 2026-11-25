@@ -20,9 +20,10 @@ ENV.abort_requested = True
 from jellynet import detail, items, library, people, related, watch
 from jellynet.client import ClientIdentity, JellyfinClient
 from jellynet.errors import JellyfinAuthError, JellyfinError
+from plexnet import plexlibrary, plexobjects, video  # noqa: F401
+
 from lib.windows import search as search_win
 from lib.windows import userselect
-from plexnet import plexlibrary, plexobjects, video  # noqa: F401
 
 from .base import KodiTestCase, ensure_plex_interface
 from .jellynet_fakes import FakeResponse, FakeSession, problem

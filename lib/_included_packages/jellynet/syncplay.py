@@ -310,8 +310,6 @@ class SyncPlaySocket:
         return sock
 
     def _listen(self, sock):
-        if self._sync_time:
-            self.sync_clock()
         conn_done = threading.Event()
         keepalive = threading.Thread(
             target=self._keepalive_loop,
@@ -341,6 +339,8 @@ class SyncPlaySocket:
             sock.close()
 
     def _keepalive_loop(self, sock, conn_done):
+        if self._sync_time and not conn_done.is_set() and not self._stopped.is_set():
+            self.sync_clock()
         while not conn_done.is_set() and not self._stopped.is_set():
             self._keepalive_wake.clear()
             woken = self._keepalive_wake.wait(self.keepalive_interval)

@@ -14,9 +14,10 @@ ENV.abort_requested = True
 from jellynet.client import ClientIdentity, JellyfinClient
 from jellynet.errors import JellyfinError
 from jellynet.server import JellyfinServer
+from plexnet import plexobjects, plexplayer, serverdecision, util, video
+
 from lib import player as kodi_player
 from lib.jellyfin import StoredServer
-from plexnet import plexobjects, plexplayer, serverdecision, util, video
 
 from .base import KodiTestCase, ensure_plex_interface
 from .jellynet_fakes import FakeResponse, FakeSession, problem
