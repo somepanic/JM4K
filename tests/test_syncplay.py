@@ -629,3 +629,117 @@ class SyncPlaySessionAndMenusTest(KodiTestCase):
         self.assertIn(('syncplay', 'Watch together'), shown_options)
         open_sp.assert_called_once()
         self.assertIs(open_sp.call_args[0][0], srv)
+
+    def test_join_opens_websocket_before_posting_join_and_cleans_up_on_error(self):
+        from .jellynet_fakes import problem
+
+        groups = [
+            {
+                'GroupId': 'grp-7',
+                'GroupName': 'Friday Film',
+                'State': 'Playing',
+                'Participants': ['alice'],
+            }
+        ]
+        order = []
+
+        class RecordingSession(FakeSession):
+            def request(self, method, url, params=None, json=None, headers=None, timeout=None):
+                order.append(('http', method, url.replace(BASE, '')))
+                return super().request(method, url, params=params, json=json, headers=headers, timeout=timeout)
+
+        session = RecordingSession(ok(groups), ok(None, 204))
+        srv = make_server(session)
+
+        def fake_begin(server, group):
+            order.append(('begin', group['GroupId']))
+            fake_sess = mock.Mock(server=server, active=True)
+            fake_sess.wait_connected = lambda timeout=2.0: order.append(('wait_connected',)) or True
+            fake_sess.controller = syncplay.SyncPlayController(group, FakePlayer(), client=server.client)
+            syncplay.CURRENT = fake_sess
+            return fake_sess
+
+        with (
+            mock.patch.object(syncplay, '_begin', side_effect=fake_begin),
+            mock.patch.object(syncplay, 'run_group'),
+        ):
+            syncplay.open_syncplay(srv, lambda vid, sec: None, pick_group=lambda h, opts: 'join:grp-7')
+
+        self.assertEqual(
+            order,
+            [
+                ('http', 'GET', '/SyncPlay/List'),
+                ('begin', 'grp-7'),
+                ('wait_connected',),
+                ('http', 'POST', '/SyncPlay/Join'),
+            ],
+        )
+
+        # If POST /SyncPlay/Join fails after opening the socket, the session is cleaned up via leave()
+        fail_session = FakeSession(ok(groups), problem(404, 'Not Found'))
+        fail_srv = make_server(fail_session)
+        left = []
+
+        def fake_begin_fail(server, group):
+            fake_sess = mock.Mock(server=server, active=True)
+            fake_sess.wait_connected = lambda timeout=2.0: True
+            fake_sess.leave = lambda: left.append(True)
+            fake_sess.controller = syncplay.SyncPlayController(group, FakePlayer(), client=server.client)
+            return fake_sess
+
+        with (
+            mock.patch.object(syncplay, '_begin', side_effect=fake_begin_fail),
+            mock.patch.object(syncplay, 'run_group') as run_g,
+        ):
+            syncplay.open_syncplay(fail_srv, lambda vid, sec: None, pick_group=lambda h, opts: 'join:grp-7')
+
+        self.assertEqual(left, [True])
+        run_g.assert_not_called()
+
+    def test_ready_defers_empty_playlist_item_id_until_play_queue_arrives(self):
+        http_session = FakeSession(ok(None, 204))
+        player = FakePlayer('mov-1', position=5.0, paused=False)
+        ctrl, _ = make_controller(player=player, session=http_session)
+        ctrl.adopt_queue(['mov-1'], playing_position=0, start_seconds=0.0)
+
+        # onAVStarted fires before server PlayQueue delivers PlaylistItemId -> must NOT POST empty GUID
+        ctrl.on_local_start()
+        ctrl.report_buffering()
+        self.assertEqual(http_session.calls, [])
+
+        # Once PlayQueue delivers the real PlaylistItemId GUID, deferred Ready fires automatically
+        ctrl.on_group_update(
+            {
+                'GroupId': 'grp-1',
+                'Type': 'PlayQueue',
+                'Data': {
+                    'Reason': 'NewPlaylist',
+                    'Playlist': [{'ItemId': 'mov-1', 'PlaylistItemId': '11111111-2222-3333-4444-555555555555'}],
+                    'PlayingItemIndex': 0,
+                    'StartPositionTicks': 0,
+                    'IsPlaying': True,
+                },
+            }
+        )
+        self.assertEqual(len(http_session.calls), 1)
+        self.assertEqual(http_session.calls[0]['url'], BASE + '/SyncPlay/Ready')
+        self.assertEqual(http_session.calls[0]['json']['PlaylistItemId'], '11111111-2222-3333-4444-555555555555')
+
+    def test_terminal_group_update_stops_socket_and_detaches_session(self):
+        player = FakePlayer('mov-1', position=55.0, paused=False)
+        link = FakeLink()
+        ctrl, _ = make_controller(
+            player=player,
+            link=link,
+            playlist=[{'ItemId': 'mov-1', 'PlaylistItemId': 'pli-1'}],
+            state='Playing',
+        )
+        player.controller = ctrl
+        sess = mock.Mock(controller=ctrl, link=link, player=player)
+        syncplay.CURRENT = sess
+
+        ctrl.on_group_update({'GroupId': 'grp-1', 'Type': 'GroupDoesNotExist', 'Data': ''})
+
+        self.assertTrue(link.stopped)
+        self.assertIsNone(player.controller)
+        self.assertIsNone(syncplay.CURRENT)

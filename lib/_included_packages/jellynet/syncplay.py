@@ -14,6 +14,7 @@ from urllib.parse import quote
 
 from . import ws
 from .client import log
+from .errors import JellyfinError
 
 TICKS_PER_SECOND = 10_000_000
 TERMINAL_STATUSES = (401, 403)
@@ -170,6 +171,12 @@ def ping(client, ping_ms):
     client.post('/SyncPlay/Ping', json={'Ping': max(0, int(ping_ms))})
 
 
+def get_utc_time(client):
+    """GET /GetUtcTime -> UtcTimeResponse dict with RequestReceptionTime and ResponseTransmissionTime."""
+    data = client.get('/GetUtcTime')
+    return data if isinstance(data, dict) else {}
+
+
 def next_item(client, playlist_item_id):
     """POST /SyncPlay/NextItem with NextItemRequestDto."""
     client.post('/SyncPlay/NextItem', json={'PlaylistItemId': str(playlist_item_id)})
@@ -203,12 +210,16 @@ class SyncPlaySocket:
     Stops permanently on HTTP 401/403 or stop(); reconnects with exponential backoff on drops.
     """
 
-    def __init__(self, client, on_command=None, on_group_update=None, socket_factory=ws.WebSocket, wait=None):
+    def __init__(
+        self, client, on_command=None, on_group_update=None, socket_factory=ws.WebSocket, wait=None, sync_time=False
+    ):
         self.client = client
         self.on_command = on_command
         self.on_group_update = on_group_update
         self.socket_factory = socket_factory
+        self._sync_time = bool(sync_time)
         self._stopped = threading.Event()
+        self._connected_event = threading.Event()
         self.wait = wait or self._stopped.wait
         self.ended = None
         self.keepalive_interval = DEFAULT_KEEPALIVE
@@ -225,13 +236,20 @@ class SyncPlaySocket:
 
     @property
     def connected(self):
-        return self._sock is not None
+        with self._lock:
+            return self._sock is not None
 
     @property
     def rtt_ms(self):
-        if not self._samples:
-            return 0.0
-        return max(0.0, min(self._samples)[0] * 1000.0)
+        with self._lock:
+            if not self._samples:
+                return 0.0
+            return max(0.0, min(self._samples)[0] * 1000.0)
+
+    def wait_connected(self, timeout=2.0):
+        """Wait up to timeout seconds for the socket to open (or stop/refuse); return whether connected."""
+        self._connected_event.wait(timeout)
+        return self.connected
 
     def start(self):
         self._thread = threading.Thread(target=self.run, name='jellynet.syncplay', daemon=True)
@@ -240,6 +258,7 @@ class SyncPlaySocket:
     def stop(self):
         self._stopped.set()
         self._keepalive_wake.set()
+        self._connected_event.set()
         with self._lock:
             sock = self._sock
         if sock is not None:
@@ -280,15 +299,19 @@ class SyncPlaySocket:
             log(f'syncplay socket refused: {e.status}')
             if e.status in TERMINAL_STATUSES:
                 self.ended = 'refused'
+                self._connected_event.set()
             return None
         except OSError as e:
             log(f'syncplay socket unreachable: {type(e).__name__}')
             return None
         with self._lock:
             self._sock = sock
+        self._connected_event.set()
         return sock
 
     def _listen(self, sock):
+        if self._sync_time:
+            self.sync_clock()
         conn_done = threading.Event()
         keepalive = threading.Thread(
             target=self._keepalive_loop,
@@ -313,6 +336,8 @@ class SyncPlaySocket:
             self._keepalive_wake.set()
             with self._lock:
                 self._sock = None
+            if not self._stopped.is_set() and self.ended is None:
+                self._connected_event.clear()
             sock.close()
 
     def _keepalive_loop(self, sock, conn_done):
@@ -327,6 +352,8 @@ class SyncPlaySocket:
                 if self._sock is not sock:
                     break
             self.send({'MessageType': 'KeepAlive'})
+            if self._sync_time:
+                self.sync_clock()
 
     def _handle(self, message):
         kind = message.get('MessageType')
@@ -347,15 +374,37 @@ class SyncPlaySocket:
         elif kind == 'SyncPlayGroupUpdate' and isinstance(data, dict) and self.on_group_update is not None:
             self.on_group_update(data)
 
+    def sync_clock(self, clock=time.time):
+        """Measure clock offset and RTT via GET /GetUtcTime and report RTT via POST /SyncPlay/Ping."""
+        try:
+            client_sent = float(clock())
+            answer = get_utc_time(self.client)
+            client_received = float(clock())
+        except JellyfinError:
+            return False
+        server_received = parse_iso(answer.get('RequestReceptionTime'))
+        server_sent = parse_iso(answer.get('ResponseTransmissionTime'))
+        if server_received is None or server_sent is None:
+            return False
+        self.clock_sample(client_sent, server_received, server_sent, client_received)
+        try:
+            ping(self.client, round(self.rtt_ms))
+        except JellyfinError:
+            pass
+        return True
+
     def clock_sample(self, client_sent, server_received, server_sent, client_received):
         """Record an NTP-style round-trip clock sample (all float epoch seconds)."""
         if None in (client_sent, server_received, server_sent, client_received):
             return
         rtt = max(0.0, (client_received - client_sent) - (server_sent - server_received))
         offset = ((server_received - client_sent) + (server_sent - client_received)) / 2.0
-        self._samples = (self._samples + [(rtt, offset)])[-CLOCK_SAMPLES:]
+        with self._lock:
+            self._samples = (self._samples + [(rtt, offset)])[-CLOCK_SAMPLES:]
 
     def server_time(self, now=None):
         """Estimate the server's clock now (epoch seconds) using the lowest-RTT sample."""
         now = time.time() if now is None else float(now)
-        return now + (min(self._samples)[1] if self._samples else 0.0)
+        with self._lock:
+            offset = min(self._samples)[1] if self._samples else 0.0
+        return now + offset

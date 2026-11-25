@@ -340,3 +340,34 @@ class SyncPlaySocketTest(KodiTestCase):
         link.clock_sample(100.0, 105.2, 105.3, 100.5)
         self.assertAlmostEqual(link.server_time(200.0), 205.0, places=3)
         self.assertAlmostEqual(link.rtt_ms, 400.0, places=1)
+
+    def test_sync_clock_fetches_utc_time_and_posts_ping(self):
+        utc_body = {
+            'RequestReceptionTime': '1970-01-01T00:01:45.2000000Z',
+            'ResponseTransmissionTime': '1970-01-01T00:01:45.3000000Z',
+        }
+        session = FakeSession(ok(utc_body), ok(None, 204))
+        client = make_client(session)
+        link = syncplay.SyncPlaySocket(client)
+
+        ticks = iter([100.0, 100.5])
+        self.assertTrue(link.sync_clock(clock=lambda: next(ticks)))
+        self.assertAlmostEqual(link.server_time(200.0), 205.0, places=3)
+        self.assertAlmostEqual(link.rtt_ms, 400.0, places=1)
+        self.assertEqual(
+            [(c['method'], c['url'].replace(BASE, ''), c['json']) for c in session.calls],
+            [
+                ('GET', '/GetUtcTime', None),
+                ('POST', '/SyncPlay/Ping', {'Ping': 400}),
+            ],
+        )
+
+    def test_wait_connected_wakes_on_open_and_on_refusal(self):
+        client = make_client(FakeSession())
+        refused = syncplay.SyncPlaySocket(
+            client,
+            socket_factory=make_factory(ws.HandshakeError('upgrade refused: 401', status=401)),
+            wait=lambda seconds: None,
+        )
+        refused.run()
+        self.assertFalse(refused.wait_connected(timeout=0.05))
