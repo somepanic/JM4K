@@ -248,7 +248,7 @@ class DPAttributesDiffer(DPAttribute):
         formatted_val1, formatted_val2 = self.valueFormatter(obj, val1, val2)
 
         if formatted_val2 and formatted_val1 in (None, ""):
-            # an original that doesn't say (a Silo file without per-track bitrates): the session's alone
+            # an original that doesn't say (a file without per-track bitrates): the session's alone
             return (self.formatFalse % {"val1": formatted_val2, "val2": formatted_val2}) if self.formatFalse else formatted_val2
         if formatted_val2 and formatted_val1 != formatted_val2:
             return self.formatTrue % {"val1": formatted_val1, "val2": formatted_val2}
@@ -348,7 +348,7 @@ class ModePPI(ComputedPPIValue):
     name = "Mode"
     dataPoints = [
         DPAttributeSession("partDecision"),
-        DPAttributeSession("partDecisionReason"),  # a Silo server's (silonet.streaminfo)
+        DPAttributeSession("partDecisionReason"),  # Jellyfin's TranscodeReasons (jellynet.streaminfo)
         DPAttributeEqualsValue("local", "1",
                                DPAttribute("server_is_local", source="details"),
                                DPAttribute("server_is_local", source="details"),

@@ -43,6 +43,10 @@ class PlexSubtitleDownloadMixin(object):
         @param video:
         @return: False if user backed out, None if no subtitles found, or the downloaded subtitle stream
         """
+        if getattr(getattr(video, 'server', None), 'platform', None) == 'jellyfin' \
+                and not video.server.supportsFeature('subtitleSearch'):
+            return None
+
         language, lang_code_parse, lang_code = PlexSubtitleDownloadMixin.get_subtitle_language_tuple()
 
 
@@ -88,7 +92,7 @@ class PlexSubtitleDownloadMixin(object):
                     try:
                         downloaded = video.downloadSubtitles(sk_to_k[choice])
                         if hasattr(video.server, 'downloadSubtitle'):
-                            # Silo's download comes back as the selected stream (SiloServer.downloadSubtitle()):
+                            # Jellyfin's download comes back as the selected stream (JellyfinServer.downloadSubtitle()):
                             # nothing to wait for or reload
                             return downloaded or None
                         tries = 0

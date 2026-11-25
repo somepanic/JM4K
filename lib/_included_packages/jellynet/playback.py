@@ -6,8 +6,8 @@ url|Authorization=... pipe header syntax using Jellyfin's MediaBrowser Authoriza
 """
 
 from urllib.parse import quote, urlencode
-from xml.etree import ElementTree
 
+from . import detail, streaminfo, trackprefs
 from .client import log
 from .errors import JellyfinError
 
@@ -215,6 +215,9 @@ class PlaybackSession:
         audio_stream_index=None,
         subtitle_stream_index=None,
         start_seconds=0.0,
+        video_stream_id=None,
+        audio_stream_id=None,
+        subtitle_stream_id=None,
     ):
         self.client = client
         self.item_id = str(item_id)
@@ -227,6 +230,9 @@ class PlaybackSession:
         self.container = container
         self.audio_stream_index = audio_stream_index
         self.subtitle_stream_index = subtitle_stream_index
+        self.video_stream_id = str(video_stream_id) if video_stream_id else None
+        self.audio_stream_id = str(audio_stream_id) if audio_stream_id else None
+        self.subtitle_stream_id = str(subtitle_stream_id) if subtitle_stream_id else None
         self.start_seconds = max(0.0, float(start_seconds or 0.0))
         self.position_ticks = seconds_to_ticks(self.start_seconds)
         self.is_paused = False
@@ -235,6 +241,20 @@ class PlaybackSession:
 
     def __repr__(self):
         return f'<PlaybackSession item={self.item_id} method={self.play_method}>'
+
+    def external_subtitle_url(self, stream_index):
+        """Return the server-supplied DeliveryUrl for an external subtitle stream on this session, or None."""
+        try:
+            wanted = int(stream_index)
+        except (TypeError, ValueError):
+            return None
+        source = self.media_source if isinstance(self.media_source, dict) else {}
+        for stream in source.get('MediaStreams') or ():
+            if not isinstance(stream, dict) or stream.get('Type') != 'Subtitle':
+                continue
+            if stream.get('Index') == wanted and stream.get('DeliveryUrl'):
+                return _join_url(self.client.base_url, detail.cleanDeliveryUrl(stream['DeliveryUrl']))
+        return None
 
     @property
     def is_direct_play(self):
@@ -311,21 +331,7 @@ class PlaybackSession:
 
 def session_element(session):
     """Build a Plex /status/sessions-shaped <Video> element for an active PlaybackSession."""
-    decision = PLAY_METHOD_DECISIONS.get(session.play_method, 'directplay')
-    video_elem = ElementTree.Element(
-        'Video',
-        {
-            'type': 'movie',
-            'ratingKey': str(session.item_id),
-            'sessionKey': str(session.play_session_id),
-        },
-    )
-    media_elem = ElementTree.SubElement(video_elem, 'Media', {'id': str(session.media_source_id)})
-    part_attrs = {'id': str(session.media_source_id), 'decision': decision}
-    if session.container:
-        part_attrs['container'] = str(session.container)
-    ElementTree.SubElement(media_elem, 'Part', part_attrs)
-    return video_elem
+    return streaminfo.sessionElement(session)
 
 
 class Playback:
@@ -345,6 +351,10 @@ class Playback:
         bandwidth_cap_kbps=None,
         hdr=True,
         user_id=None,
+        video_stream_id=None,
+        audio_stream_id=None,
+        subtitle_stream_id=None,
+        fallback_tracks=None,
     ):
         """Negotiate playback via POST /Items/{itemId}/PlaybackInfo and return a PlaybackSession."""
         key = str(item_id)
@@ -417,8 +427,24 @@ class Playback:
             self.client.auth_header(),
             extra_headers=source.get('RequiredHttpHeaders'),
         )
-        effective_audio = int(audio_index) if audio_index is not None else source.get('DefaultAudioStreamIndex')
-        effective_sub = int(subtitle_index) if subtitle_index is not None else None
+        fallback_audio, fallback_sub = (None, None)
+        if fallback_tracks:
+            fallback_audio, fallback_sub = trackprefs.select_media_source_indices(source, *fallback_tracks)
+
+        if audio_index is not None:
+            effective_audio = int(audio_index)
+        elif source.get('DefaultAudioStreamIndex') is not None:
+            effective_audio = int(source['DefaultAudioStreamIndex'])
+        else:
+            effective_audio = fallback_audio
+
+        raw_default_sub = source.get('DefaultSubtitleStreamIndex')
+        if subtitle_index is not None:
+            effective_sub = int(subtitle_index)
+        elif raw_default_sub is not None:
+            effective_sub = int(raw_default_sub) if int(raw_default_sub) >= 0 else None
+        else:
+            effective_sub = fallback_sub
 
         session = PlaybackSession(
             client=self.client,
@@ -433,6 +459,9 @@ class Playback:
             audio_stream_index=effective_audio,
             subtitle_stream_index=effective_sub,
             start_seconds=seconds,
+            video_stream_id=video_stream_id,
+            audio_stream_id=audio_stream_id,
+            subtitle_stream_id=subtitle_stream_id,
         )
         previous = self.sessions.pop(key, None)
         if previous is not None and previous.started and not previous.ended:

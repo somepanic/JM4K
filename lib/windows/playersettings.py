@@ -313,6 +313,9 @@ class VideoSettingsDialog(kodigui.BaseDialog, util.CronReceiver, PlexSubtitleDow
             player = self.viaOSD and self.parent or None
             if player:
                 download = player.downloadSubtitles
+            elif getattr(self.video.server, 'platform', None) == 'jellyfin' \
+                    and not self.video.server.supportsFeature('subtitleSearch'):
+                download = None
             choice = showSubtitlesDialog(self.video, non_playback=self.nonPlayback, session_id=self.sessionID,
                                          download=download, player=player)
             if choice is SUBTITLE_DELAY:
@@ -440,6 +443,13 @@ def subtitleOptions(video, with_download=False, player=None):
             idx = i + 1
         options.append((s, s.getTitle(metadata.apiTranslate)))
 
+    server = getattr(video, 'server', None)
+    server_only_dl = player is None or (
+        util.getSetting('subtitle_download_from') == 'plex' and not util.getSetting('subtitle_download_fallback')
+    )
+    if with_download and server_only_dl and getattr(server, 'platform', None) == 'jellyfin' \
+            and not server.supportsFeature('subtitleSearch'):
+        with_download = False
     if with_download:
         options.append((DOWNLOAD_SUBTITLES, T(33703, "Download subtitles")))
 
