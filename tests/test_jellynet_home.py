@@ -344,9 +344,6 @@ class JellyfinHomeRowsTest(KodiTestCase):
         )
         self.assertEqual(make_server(unsupported_only).hubs(None, count=20), [])
 
-        # search_query does not return home rows
-        self.assertEqual(make_server(FakeSession()).hubs(search_query='dune'), [])
-
         # 401 auth error stops immediately without issuing further row calls
         auth_session = FakeSession(problem(401, 'Unauthorized'))
         self.assertEqual(make_server(auth_session).hubs(None, count=20), [])

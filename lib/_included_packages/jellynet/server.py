@@ -11,7 +11,21 @@ from xml.etree import ElementTree
 
 from plexnet.signalsmixin import SignalsMixin
 
-from . import detail, home, library, lists, people, playback, related, shows, streaminfo, trackprefs, trickplay, watch
+from . import (
+    detail,
+    home,
+    library,
+    lists,
+    people,
+    playback,
+    related,
+    search,
+    shows,
+    streaminfo,
+    trackprefs,
+    trickplay,
+    watch,
+)
 from .client import log
 from .errors import JellyfinError
 from .items import buildImageUrl, container, ticks_to_ms
@@ -197,6 +211,15 @@ class JellyfinServer(SignalsMixin):
                 offset=kwargs.get('offset'),
                 limit=kwargs.get('limit'),
             )
+        if handler is None and route == '/hubs/search':
+            raw_limit = args.get('limit') or args.get('count')
+            search_limit = int(raw_limit) if raw_limit and str(raw_limit).isdigit() else None
+            handler = functools.partial(
+                self._searchContainer,
+                args.get('query', ''),
+                count=search_limit,
+                section=args.get('contentDirectoryID') or None,
+            )
         section_hubs_match = SECTION_HUBS_PATH.match(route) if handler is None else None
         if section_hubs_match and section_hubs_match.group(1) != 'home':
             hub_section_id = section_hubs_match.group(1)
@@ -312,6 +335,13 @@ class JellyfinServer(SignalsMixin):
         if isinstance(result, ElementTree.Element):
             self._cacheTypesFromXml(result)
         return result
+
+    def _rememberPerson(self, person_id, name):
+        """Cache a Jellyfin person's id <-> name mapping for /library/people/<id> lookups."""
+        if person_id and name:
+            pid, pname = str(person_id), str(name)
+            self._personNames[pid] = pname
+            self._personIds[pname] = pid
 
     def _rememberItem(self, dto):
         """Cache item type, season->series linkage, chapters, trickplay metadata, and person names from a BaseItemDto."""
@@ -836,10 +866,34 @@ class JellyfinServer(SignalsMixin):
         )
         return container(rows)
 
+    def _searchRows(self, query, count=None, section=None, section_ids=None):
+        return search.searchHubs(
+            self.client,
+            query,
+            count=count,
+            section=section,
+            section_ids=section_ids,
+            library_types=self._libraryTypes,
+            collection_types=self._collectionTypes,
+            on_person=self._rememberPerson,
+        )
+
+    def _searchContainer(self, query, count=None, section=None, section_ids=None):
+        return container(self._searchRows(query, count=count, section=section, section_ids=section_ids))
+
     def hubs(self, section=None, count=None, search_query=None, section_ids=None, continue_watching_count=None):
-        if search_query:
-            return []
         from plexnet import plexlibrary, plexobjects, video  # noqa: F401
+
+        if search_query is not None:
+            rows = self._searchRows(search_query, count=count, section=section, section_ids=section_ids)
+            if not rows:
+                return []
+            root = container(rows)
+            self._cacheTypesFromXml(root)
+            hubs_container = plexobjects.PlexContainer(
+                root, initpath='/hubs/search', server=self, address='/hubs/search'
+            )
+            return [plexlibrary.Hub(elem, server=self, container=hubs_container) for elem in root]
 
         try:
             if section:
