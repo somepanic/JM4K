@@ -22,6 +22,7 @@ from six.moves import range
 
 from lib import backgroundthread
 from lib import player
+from lib import syncplay
 from lib import update_restart
 from lib import util
 from lib.util import T
@@ -1666,6 +1667,13 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
             else:
                 options.append(('refresh_users', T(32980, 'Refresh Users')))
             if getattr(plexapp.SERVERMANAGER.selectedServer, 'platform', None) == 'jellyfin':
+                active = syncplay.current(plexapp.SERVERMANAGER.selectedServer)
+                label = (
+                    active.controller.group_name
+                    if active and active.controller.group_name
+                    else T(35330, 'Watch together')
+                )
+                options.append(('syncplay', label))
                 options.append(('server', T(35311, 'Switch server')))
         options.append(('settings', T(32343, 'Settings')))
         if plexapp.ACCOUNT.isSignedIn:
@@ -1691,6 +1699,8 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
         just closed that nested instance, revealing the library grid underneath instead of
         exiting (live-confirmed regression, fixed here).
         """
+        if option != 'recompile':
+            syncplay.leaveCurrent()
         target = windowutils.HOME
         if shutting_down:
             target._shuttingDown = True
@@ -1795,6 +1805,9 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
                 # the users as they were
                 util.showNotification(T(35319, "Can't reach the Jellyfin server. Check your connection and try again."))
             return True
+        elif option == 'syncplay':
+            syncplay.open_syncplay(plexapp.SERVERMANAGER.selectedServer, syncplay.player_for(self))
+            return
         elif option == 'server':
             from lib import jellyfin
             previous = jellyfin.pickServer(jellyfin.deviceIdentity(), dialog_props=getattr(self, 'carriedProps', None))

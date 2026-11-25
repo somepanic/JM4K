@@ -4224,3 +4224,111 @@ msgstr ""
 msgctxt "#35323"
 msgid "Skipping commercial"
 msgstr ""
+
+msgctxt "#35330"
+msgid "Watch together"
+msgstr ""
+
+msgctxt "#35331"
+msgid "Create group"
+msgstr ""
+
+msgctxt "#35332"
+msgid "Group name"
+msgstr ""
+
+msgctxt "#35333"
+msgid "Leave group"
+msgstr ""
+
+msgctxt "#35334"
+msgid "Stop for everyone"
+msgstr ""
+
+msgctxt "#35335"
+msgid "Keep watching"
+msgstr ""
+
+msgctxt "#35336"
+msgid "Pause"
+msgstr ""
+
+msgctxt "#35337"
+msgid "Play"
+msgstr ""
+
+msgctxt "#35338"
+msgid "Next"
+msgstr ""
+
+msgctxt "#35339"
+msgid "Previous"
+msgstr ""
+
+msgctxt "#35340"
+msgid "Participants"
+msgstr ""
+
+msgctxt "#35341"
+msgid "Nothing playing yet"
+msgstr ""
+
+msgctxt "#35342"
+msgid "Pick something with Watch together on its screen"
+msgstr ""
+
+msgctxt "#35343"
+msgid "Playing: {0}"
+msgstr ""
+
+msgctxt "#35344"
+msgid "Paused: {0}"
+msgstr ""
+
+msgctxt "#35345"
+msgid "Waiting: {0}"
+msgstr ""
+
+msgctxt "#35346"
+msgid "1 participant"
+msgstr ""
+
+msgctxt "#35347"
+msgid "{0} participants"
+msgstr ""
+
+msgctxt "#35348"
+msgid "You stopped watching."
+msgstr ""
+
+msgctxt "#35349"
+msgid "Couldn't start Watch together"
+msgstr ""
+
+msgctxt "#35350"
+msgid "Couldn't join the group"
+msgstr ""
+
+msgctxt "#35351"
+msgid "Couldn't load SyncPlay groups"
+msgstr ""
+
+msgctxt "#35352"
+msgid "Left the Watch together group"
+msgstr ""
+
+msgctxt "#35353"
+msgid "The Watch together group ended"
+msgstr ""
+
+msgctxt "#35354"
+msgid "You don't have access to this library"
+msgstr ""
+
+msgctxt "#35355"
+msgid "Watch together · {0}"
+msgstr ""
+
+msgctxt "#35356"
+msgid "{0}'s group"
+msgstr ""
