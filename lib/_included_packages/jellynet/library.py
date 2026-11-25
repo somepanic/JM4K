@@ -42,7 +42,7 @@ SORTS = (
     ('addedAt', 'DateCreated', 'desc', 'Date Added'),
     ('originallyAvailableAt', 'PremiereDate', 'desc', 'Release Date'),
     ('year', 'ProductionYear', 'desc', 'Year'),
-    ('rating', 'CommunityRating', 'desc', 'Critic Rating'),
+    ('rating', 'CriticRating', 'desc', 'Critic Rating'),
     ('audienceRating', 'CommunityRating', 'desc', 'Audience Rating'),
     ('contentRating', 'OfficialRating', 'asc', 'Content Rating'),
     ('duration', 'Runtime', 'desc', 'Duration'),

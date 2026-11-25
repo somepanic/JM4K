@@ -128,6 +128,8 @@ class JellyfinServer(SignalsMixin):
         self._personNames = {}
         self._personIds = {}
         self._virtualFolders = None
+        self._foldersRefused = False
+        self._subtitlePolicy = None
         self._subtitleResults = {}
         self.trackPrefs = trackprefs.TrackPrefsStore()
         self.playback = playback.Playback(client)
@@ -605,6 +607,7 @@ class JellyfinServer(SignalsMixin):
             except JellyfinError as e:
                 if e.status == 403:
                     self._virtualFolders = []
+                    self._foldersRefused = True
                     return self._virtualFolders
                 log(f'virtual folders failed: {e.status}')
                 return None
@@ -679,6 +682,9 @@ class JellyfinServer(SignalsMixin):
     def supportsFeature(self, feature):
         if feature == 'subtitleSearch':
             folders = self._loadVirtualFolders()
+            if self._foldersRefused:
+                # only administrators may read the libraries' subtitle providers; searching needs only the policy
+                return self._canManageSubtitles()
             if not folders:
                 return False
             for folder in folders:
@@ -691,6 +697,20 @@ class JellyfinServer(SignalsMixin):
                     return True
             return False
         return False
+
+    def _canManageSubtitles(self):
+        """Whether the signed-in user may search and download subtitles (Jellyfin's SubtitleManagement policy),
+        asked once per signed-in user."""
+        token = self.client.token
+        if self._subtitlePolicy is None or self._subtitlePolicy[0] != token:
+            try:
+                me = self.client.get('/Users/Me') or {}
+            except JellyfinError as e:
+                log(f'user policy failed: {e.status}')
+                return False
+            policy = me.get('Policy') if isinstance(me, dict) else None
+            self._subtitlePolicy = (token, isinstance(policy, dict) and bool(policy.get('EnableSubtitleManagement')))
+        return self._subtitlePolicy[1]
 
     def startPlayback(
         self, item, part, seconds=0.0, audioIndex=None, subtitleIndex=None, quality='auto', bandwidthCap=None, hdr=True

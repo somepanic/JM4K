@@ -173,7 +173,16 @@ class JellyfinItemsMappingTest(KodiTestCase):
         self.assertEqual(movie_el.get('originallyAvailableAt'), '2001-06-15')
         self.assertEqual(movie_el.get('summary'), 'Plot of Film 1.')
         self.assertEqual(movie_el.get('contentRating'), 'PG-13')
-        self.assertEqual(movie_el.get('rating'), '7.8')
+        # Plex's rating is the critic score, its audienceRating the audience one: Jellyfin's CommunityRating
+        self.assertEqual(movie_el.get('audienceRating'), '7.8')
+        self.assertEqual(movie_el.get('audienceRatingImage'), 'themoviedb://image.rating')
+        self.assertIsNone(movie_el.get('rating'))  # no CriticRating
+        critic_el = jf_items.itemElement(dict(movie_dto(1), CriticRating=75))
+        self.assertEqual(
+            (critic_el.get('rating'), critic_el.get('ratingImage')), ('7.5', 'rottentomatoes://image.rating.ripe')
+        )
+        rotten_el = jf_items.itemElement(dict(movie_dto(1), CriticRating=40))
+        self.assertEqual(rotten_el.get('ratingImage'), 'rottentomatoes://image.rating.rotten')
         self.assertEqual(movie_el.get('duration'), '7200000')
         self.assertEqual(movie_el.get('viewOffset'), '1234500')
         self.assertEqual(movie_el.get('viewCount'), '2')
@@ -339,7 +348,7 @@ class JellyfinLibraryGridTest(KodiTestCase):
             (('titleSort', 'desc'), ('SortName', 'Descending')),
             (('addedAt', 'desc'), ('DateCreated', 'Descending')),
             (('originallyAvailableAt', 'desc'), ('PremiereDate', 'Descending')),
-            (('rating', 'desc'), ('CommunityRating', 'Descending')),
+            (('rating', 'desc'), ('CriticRating', 'Descending')),
             (('audienceRating', 'desc'), ('CommunityRating', 'Descending')),
             (('contentRating', 'asc'), ('OfficialRating', 'Ascending')),
             (('duration', 'desc'), ('Runtime', 'Descending')),
