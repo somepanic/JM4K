@@ -3,6 +3,14 @@ Collections (Jellyfin BoxSets) and personal list listings (Favorites) backed by 
 """
 
 from . import library
+from .client import log
+from .errors import JellyfinAuthError, JellyfinError
+from .items import hubElement, itemElements
+
+FAVORITES_HUB_ID = 'jellyfin.home.favorites'
+FAVORITES_PATH = '/jellyfin/favorites'
+FAVORITES_ROW_KEY = '/jellyfin/home/favorites'
+FAVORITE_ITEM_TYPES = 'Movie,Series,Season,Episode'
 
 
 def collectionsGrid(client, library_id=None, args=None, offset=None, limit=None, member_type='movie', section_id=None):
@@ -68,4 +76,46 @@ def favorites(client, parent_id=None, args=None, offset=None, limit=None, includ
         args or {},
         offset=offset,
         limit=limit,
+    )
+
+
+def favoritesRow(client, count=None, title='Favorites', on_item=None):
+    """Home's Favorites row (decision D19): favorite movies/shows/seasons/episodes from /Items?isFavorite=true.
+    Returns None when empty or on non-auth JellyfinError; re-raises JellyfinAuthError."""
+    params = {
+        'isFavorite': 'true',
+        'recursive': 'true',
+        'includeItemTypes': FAVORITE_ITEM_TYPES,
+        'fields': library.GRID_FIELDS,
+        'enableUserData': 'true',
+        'enableTotalRecordCount': 'true',
+        'limit': int(count) if count else 20,
+    }
+    try:
+        answer = client.get('/Items', params=params) or {}
+    except JellyfinAuthError:
+        raise
+    except JellyfinError as e:
+        log(f'favorites row failed: {e.status}')
+        return None
+    if not isinstance(answer, dict):
+        return None
+    items = answer.get('Items') or []
+    if on_item is not None:
+        for dto in items:
+            if isinstance(dto, dict):
+                on_item(dto)
+    elements = itemElements(items)
+    if not elements:
+        return None
+    raw_total = answer.get('TotalRecordCount')
+    total = int(raw_total) if raw_total is not None else len(elements)
+    has_more = total > len(items)
+    return hubElement(
+        FAVORITES_HUB_ID,
+        title or 'Favorites',
+        elements,
+        FAVORITES_ROW_KEY,
+        total=max(total, len(elements)) if has_more else len(elements),
+        more=has_more,
     )

@@ -64,7 +64,7 @@ class RatingsMixin(object):
             clear_keys += ['rating{0}'.format(i), 'rating{0}.image'.format(i)]
         getattr(ref, "setProperties")(clear_keys, '')
 
-        if video.userRating:
+        if video.userRating and getattr(getattr(video, 'server', None), 'platform', None) != 'jellyfin':
             stars = str(int(round((video.userRating.asFloat() / 10) * 5)))
             setProperty('rating.stars', stars)
 

@@ -25,6 +25,7 @@ from . import (
     trackprefs,
     trickplay,
     watch,
+    watchstate,
 )
 from .client import log
 from .errors import JellyfinError
@@ -113,6 +114,7 @@ class JellyfinServer(SignalsMixin):
         self._seasonSeries = {}
         self._itemMeta = {}
         self._trickplayMeta = {}
+        self._favorites = {}
         self._personNames = {}
         self._personIds = {}
         self._virtualFolders = None
@@ -139,6 +141,21 @@ class JellyfinServer(SignalsMixin):
                 if value is not None:
                     args[str(key)] = str(value)
         handler = self._routes.get(route)
+        if handler is None and route in watchstate.ROUTES:
+            ws_args = dict(args)
+            for key in ('key', 'ratingKey', 'time', 'state'):
+                if kwargs.get(key) is not None and key not in ws_args:
+                    ws_args[key] = str(kwargs[key])
+            handler = functools.partial(watchstate.change, self.client, route, ws_args)
+        if handler is None and route in (lists.FAVORITES_PATH, lists.FAVORITES_ROW_KEY):
+            handler = functools.partial(
+                lists.favorites,
+                self.client,
+                args=args,
+                offset=kwargs.get('offset'),
+                limit=kwargs.get('limit'),
+                include_item_types=lists.FAVORITE_ITEM_TYPES,
+            )
         library_match = LIBRARY_PATH.match(route) if handler is None else None
         if library_match:
             section_id, action = library_match.group(1), library_match.group(2)
@@ -354,6 +371,9 @@ class JellyfinServer(SignalsMixin):
         kind = dto.get('Type')
         if kind:
             self._itemTypes[item_id] = str(kind)
+        user_data = dto.get('UserData')
+        if isinstance(user_data, dict) and 'IsFavorite' in user_data:
+            self._favorites[item_id] = bool(user_data['IsFavorite'])
         if kind == 'Season' and dto.get('SeriesId'):
             self._seasonSeries[item_id] = str(dto['SeriesId'])
         elif kind == 'Episode':
@@ -685,10 +705,41 @@ class JellyfinServer(SignalsMixin):
         )
 
     def isFavorite(self, item):
-        return None
+        """Whether item is in the user's Jellyfin favorites (D19), cached from DTOs or GET /UserItems/{id}/UserData."""
+        item_id = str(getattr(item, 'ratingKey', '') or '')
+        if not item_id:
+            return None
+        if item_id in self._favorites:
+            return self._favorites[item_id]
+        try:
+            answer = self.client.get(f'/UserItems/{quote(item_id, safe="")}/UserData') or {}
+        except JellyfinError as e:
+            log(f'favorite state of {item_id} failed: {e.status}')
+            return None
+        if not isinstance(answer, dict):
+            return None
+        state = bool(answer.get('IsFavorite'))
+        self._favorites[item_id] = state
+        return state
 
     def setFavorite(self, item, add):
-        return None
+        """Add or remove item from Jellyfin favorites via POST/DELETE /UserFavoriteItems/{id}, updating cache."""
+        item_id = str(getattr(item, 'ratingKey', '') or '')
+        if not item_id:
+            return None
+        quoted = quote(item_id, safe='')
+        try:
+            answer = (
+                self.client.post(f'/UserFavoriteItems/{quoted}')
+                if add
+                else self.client.delete(f'/UserFavoriteItems/{quoted}')
+            )
+        except JellyfinError as e:
+            log(f'set favorite of {item_id} failed: {e.status}')
+            return None
+        state = bool(answer['IsFavorite']) if isinstance(answer, dict) and 'IsFavorite' in answer else bool(add)
+        self._favorites[item_id] = state
+        return state
 
     def themeUrl(self, item):
         """Return an authenticated Jellyfin theme song stream URL when theme_music is enabled (D15), else None."""
@@ -895,6 +946,8 @@ class JellyfinServer(SignalsMixin):
             )
             return [plexlibrary.Hub(elem, server=self, container=hubs_container) for elem in root]
 
+        from lib.i18n import T
+
         try:
             if section:
                 root = self._sectionHubsContainer(str(section), count=count)
@@ -904,10 +957,19 @@ class JellyfinServer(SignalsMixin):
                     count=count,
                     continue_watching_count=continue_watching_count,
                 )
+                favorites = lists.favoritesRow(
+                    self.client,
+                    count=count,
+                    title=T(35259, 'Favorites'),
+                    on_item=self._rememberItem,
+                )
+                if favorites is not None:
+                    rows.append(favorites)
                 root = container(rows)
         except JellyfinError as e:
             log(f'{"library" if section else "home"} rows failed: {e.status}')
             return []
+        self._cacheTypesFromXml(root)
         hubs_container = plexobjects.PlexContainer(root, initpath='/hubs', server=self, address='/hubs')
         return [plexlibrary.Hub(elem, server=self, container=hubs_container) for elem in root]
 

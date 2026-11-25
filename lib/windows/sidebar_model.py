@@ -84,13 +84,24 @@ def libraryMeta(section):
 ONBOARDING = 'onboarding'
 
 
+def watchlistAvailable():
+    """Whether the active server manager supports a Watchlist (Jellyfin has none, decision D6)."""
+    manager = plexapp.SERVERMANAGER
+    if manager is None:
+        return False
+    if hasattr(manager, 'getWatchlistServer'):
+        return manager.getWatchlistServer() is not None
+    return manager.getDiscoverServer() is not None
+
+
 def loadNavSettings():
     """The sidebar's stored list (see this module's docstring), moved over from the older show/hide
     dict the first time; a new account's (onboarding), the first time there is none."""
     section_ids.migrate()
     nav = section_ids.loadJson(section_ids.sidebarKey())
     if not nav and not section_ids.hasLegacySettings():
-        nav = {'version': SIDEBAR_VERSION, 'entries': [WATCHLIST_ID], 'libraries': {}, ONBOARDING: True}
+        entries = [WATCHLIST_ID] if watchlistAvailable() else []
+        nav = {'version': SIDEBAR_VERSION, 'entries': entries, 'libraries': {}, ONBOARDING: True}
         util.LOG('Sidebar: a new account - no libraries until some are picked')
         saveNavSettings(nav)
         return nav
@@ -106,7 +117,8 @@ def loadNavSettings():
     if migrated is None:
         # the server didn't list its libraries: try again next time, keep nothing now
         util.LOG('Sidebar: the old settings\' server did not list its libraries, sidebar setting not moved yet')
-        return {'version': SIDEBAR_VERSION, 'entries': [WATCHLIST_ID, PLAYLISTS_ID], 'libraries': {},
+        entries = [WATCHLIST_ID, PLAYLISTS_ID] if watchlistAvailable() else [PLAYLISTS_ID]
+        return {'version': SIDEBAR_VERSION, 'entries': entries, 'libraries': {},
                 'unsaved': True}
     saveNavSettings(migrated)
     return migrated
@@ -234,8 +246,11 @@ def pickerOrder(nav, listed, servers, playlists=None):
     order = _order(nav)
     pinned = set(nav.get('entries', ()))
     onAccount = set(server.uuid for server in servers)
+    hasWatchlist = watchlistAvailable()
     keep = []
     for sid in order:
+        if sid == WATCHLIST_ID and not hasWatchlist:
+            continue
         uuid, sep, key = sid.partition(':')
         if sep and sid not in pinned:
             if uuid not in onAccount:
@@ -248,7 +263,7 @@ def pickerOrder(nav, listed, servers, playlists=None):
                 if sections is not None and key not in [str(s.key) for s in sections]:
                     continue
         keep.append(sid)
-    if WATCHLIST_ID not in keep:
+    if hasWatchlist and WATCHLIST_ID not in keep:
         keep.insert(0, WATCHLIST_ID)
     for server in servers:
         for section in listed.get(server.uuid) or ():
@@ -423,10 +438,14 @@ def refreshWatchlistSection():
     sidebar (the user, 2026-10-05), not whether it has anything in it or plex.tv answered just
     then."""
     if plexapp.ACCOUNT.isOffline or not util.getUserSetting("use_watchlist", True):
+        home.watchlist_section = None
         return
     manager = plexapp.SERVERMANAGER
-    # a Silo server's own watchlist (decision D18), else plex.tv's Discover
-    server = manager.getWatchlistServer() if hasattr(manager, 'getWatchlistServer') else manager.getDiscoverServer()
+    server = (None if manager is None else
+              manager.getWatchlistServer() if hasattr(manager, 'getWatchlistServer') else manager.getDiscoverServer())
+    if server is None:
+        home.watchlist_section = None
+        return
     section = plexlibrary.WatchlistSection(None, server=server)
     section.title = T(34000, 'Watchlist')
     home.watchlist_section = section
@@ -590,8 +609,8 @@ def sections(nav, onChange=None):
         ids.append(_temporary)
     for sid in ids:
         if sid == WATCHLIST_ID:
-            if (not plexapp.ACCOUNT.isOffline and util.getUserSetting("use_watchlist", True)
-                    and home.watchlist_section):
+            if (watchlistAvailable() and not plexapp.ACCOUNT.isOffline
+                    and util.getUserSetting("use_watchlist", True) and home.watchlist_section):
                 entries.append(home.watchlist_section)
         elif section_ids.isPlaylistsId(sid):
             # a server's Playlists (the old single entry: the old settings' server's), when it has any

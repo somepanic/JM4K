@@ -3,7 +3,7 @@
 The menu key's item menu on the library grids (GridMixin.itemOptions()) and the Collection screen's grid
 (BoundedGridWindow.itemMenu()), in the option picker headed by the item:
 - a film, show, season or episode: Mark Played/Unplayed - or Remove from watchlist on the Watchlist's grid -,
-  Go To Show for a season or episode, and Add to or Remove from Favorites on a Silo server;
+  Go To Show for a season or episode, and Add to or Remove from Favorites on a Jellyfin server;
 - a collection, artist, album or playlist: Play and Shuffle, and Go to Artist for an album;
 - a track: Go to Album, Go to Artist.
 Anything else (a photo, a folder, an empty collection) has none, and the key does nothing there. The screens run
@@ -57,7 +57,7 @@ def options(mli, watchlist=False):
     """The menu's rows for mli's item, (key, label); none for an item it has nothing for."""
     ds = mli.dataSource
     if ds.TYPE in VIDEO_TYPES:
-        if watchlist:
+        if watchlist and getattr(ds.getServer(), 'platform', None) != 'jellyfin':
             # we don't want mark watched for watchlist items
             return [('remove_from_watchlist', T(34011, "Remove from watchlist"))]
         rows = []
@@ -84,8 +84,8 @@ def options(mli, watchlist=False):
 
 
 def favoriteRow(ds):
-    """Add to or Remove from Favorites for an item on a Silo server (decision D19), as it stands; None elsewhere, or
-    when Silo can't say."""
+    """Add to or Remove from Favorites for an item on a Jellyfin server (decision D19), as it stands; None elsewhere,
+    or when the server can't say."""
     server = ds.getServer()
     if not hasattr(server, 'isFavorite'):
         return None

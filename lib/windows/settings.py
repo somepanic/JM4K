@@ -107,7 +107,8 @@ class Setting(object):
 
 def plexOnly():
     """show_cb for a setting only a Plex server reads (its transcoder, subtitle auto-sync, cinema trailers and pre-rolls,
-    its request cache): it keeps its default, which code still reads, but Silo has nothing for it to change."""
+    its request cache, Plex watchlist): it keeps its default, which code still reads, but Jellyfin has nothing for it
+    to change."""
     return False
 
 
@@ -688,13 +689,15 @@ class Settings(object):
                              "item. Items without a logo keep their written title.")
                 ),
                 BoolUserSetting(
-                    'use_watchlist', T(34007, 'Use Watchlist'), True
+                    'use_watchlist', T(34007, 'Use Watchlist'), True,
+                    show_cb=plexOnly
                 ).description(
-                    T(34008, "Activates the current user's Silo watchlist as a section item. Adds watchlist "
+                    T(34008, "Activates the current user's Plex watchlist as a section item. Adds watchlist "
                              "functionality to certain media screens. Per-user setting. Default: On")
                 ),
                 BoolUserSetting(
-                    'watchlist_auto_remove', T(34009, 'Watchlist auto-remove'), True
+                    'watchlist_auto_remove', T(34009, 'Watchlist auto-remove'), True,
+                    show_cb=plexOnly
                 ).description(
                     T(34010, "Automatically remove fully watched items from watchlist. Default: On")
                 ),
