@@ -6,6 +6,7 @@ url|Authorization=... pipe header syntax using Jellyfin's MediaBrowser Authoriza
 """
 
 from urllib.parse import quote, urlencode
+from xml.etree import ElementTree
 
 from .client import log
 from .errors import JellyfinError
@@ -13,6 +14,12 @@ from .errors import JellyfinError
 TICKS_PER_SECOND = 10_000_000
 TICKS_PER_MILLISECOND = 10_000
 DEFAULT_MAX_BITRATE = 1_000_000_000
+
+PLAY_METHOD_DECISIONS = {
+    'DirectPlay': 'directplay',
+    'DirectStream': 'remux',
+    'Transcode': 'transcode',
+}
 
 DIRECT_PLAY_CONTAINERS = 'mkv,mp4,mov,m4v,avi,ts,m2ts,webm,asf,wmv,flv,mpegts,mpeg,ogg'
 VIDEO_CODECS = 'h264,hevc,av1,vp9,vp8,mpeg2video,mpeg1video,mpeg4,vc1,wmv3,h263,msmpeg4v3,theora'
@@ -237,6 +244,89 @@ class PlaybackSession:
     def is_transcoded(self):
         return self.play_method != 'DirectPlay'
 
+    def _playing_payload(self):
+        payload = {
+            'ItemId': self.item_id,
+            'MediaSourceId': self.media_source_id,
+            'PlaySessionId': self.play_session_id,
+            'PositionTicks': self.position_ticks,
+            'IsPaused': self.is_paused,
+            'PlayMethod': self.play_method,
+            'CanSeek': True,
+        }
+        if self.audio_stream_index is not None:
+            payload['AudioStreamIndex'] = self.audio_stream_index
+        if self.subtitle_stream_index is not None:
+            payload['SubtitleStreamIndex'] = self.subtitle_stream_index
+        return payload
+
+    def _post_safe(self, path, *, params=None, json=None):
+        try:
+            self.client.post(path, params=params, json=json)
+        except JellyfinError as e:
+            log(f'{path} for {self.item_id} failed: {e.status}')
+
+    def report_start(self, position_ms=None, paused=False):
+        """Report playback start via POST /Sessions/Playing; errors are logged and swallowed."""
+        if self.ended:
+            return
+        if position_ms is not None:
+            self.position_ticks = ms_to_ticks(position_ms)
+        self.is_paused = bool(paused)
+        self.started = True
+        self._post_safe('/Sessions/Playing', json=self._playing_payload())
+
+    def report_progress(self, position_ms=None, paused=False):
+        """Report playback progress via POST /Sessions/Playing/Progress, pinging active transcodes."""
+        if self.ended:
+            return
+        if position_ms is not None:
+            self.position_ticks = ms_to_ticks(position_ms)
+        self.is_paused = bool(paused)
+        self._post_safe('/Sessions/Playing/Progress', json=self._playing_payload())
+        if self.play_method == 'Transcode' and self.play_session_id:
+            self.ping()
+
+    def ping(self):
+        """Keep an active transcoding session alive via POST /Sessions/Playing/Ping."""
+        if self.ended or not self.play_session_id:
+            return
+        self._post_safe('/Sessions/Playing/Ping', params={'playSessionId': self.play_session_id})
+
+    def report_stopped(self, position_ms=None):
+        """Report playback stop once via POST /Sessions/Playing/Stopped; errors are logged and swallowed."""
+        if self.ended:
+            return
+        self.ended = True
+        if position_ms is not None:
+            self.position_ticks = ms_to_ticks(position_ms)
+        payload = {
+            'ItemId': self.item_id,
+            'MediaSourceId': self.media_source_id,
+            'PlaySessionId': self.play_session_id,
+            'PositionTicks': self.position_ticks,
+        }
+        self._post_safe('/Sessions/Playing/Stopped', json=payload)
+
+
+def session_element(session):
+    """Build a Plex /status/sessions-shaped <Video> element for an active PlaybackSession."""
+    decision = PLAY_METHOD_DECISIONS.get(session.play_method, 'directplay')
+    video_elem = ElementTree.Element(
+        'Video',
+        {
+            'type': 'movie',
+            'ratingKey': str(session.item_id),
+            'sessionKey': str(session.play_session_id),
+        },
+    )
+    media_elem = ElementTree.SubElement(video_elem, 'Media', {'id': str(session.media_source_id)})
+    part_attrs = {'id': str(session.media_source_id), 'decision': decision}
+    if session.container:
+        part_attrs['container'] = str(session.container)
+    ElementTree.SubElement(media_elem, 'Part', part_attrs)
+    return video_elem
+
 
 class Playback:
     """Manages Jellyfin playback negotiation and active playback sessions by item id."""
@@ -344,6 +434,44 @@ class Playback:
             subtitle_stream_index=effective_sub,
             start_seconds=seconds,
         )
+        previous = self.sessions.pop(key, None)
+        if previous is not None and previous.started and not previous.ended:
+            previous.report_stopped()
         self.sessions[key] = session
         log(f'playing {key} via {play_method}')
         return session
+
+    def find_session(self, session_id=None, rating_key=None):
+        """Return the active PlaybackSession matching rating_key or play_session_id, else None."""
+        if rating_key is not None:
+            session = self.sessions.get(str(rating_key))
+            if session is not None and not session.ended:
+                return session
+        if session_id is not None:
+            wanted = str(session_id)
+            for session in self.sessions.values():
+                if not session.ended and session.play_session_id == wanted:
+                    return session
+        return None
+
+    def session_for(self, media_source_id):
+        """Return the latest active PlaybackSession for media_source_id, or None."""
+        wanted = str(media_source_id)
+        for session in reversed(list(self.sessions.values())):
+            if not session.ended and session.media_source_id == wanted:
+                return session
+        return None
+
+    def timeline(self, rating_key, state, milliseconds):
+        """Translate a Plex timeline update into Jellyfin Playing / Progress (+Ping) / Stopped calls."""
+        key = str(rating_key)
+        session = self.sessions.get(key)
+        if session is None:
+            return
+        if state == 'stopped':
+            self.sessions.pop(key, None)
+            session.report_stopped(milliseconds)
+        elif not session.started:
+            session.report_start(milliseconds, paused=state == 'paused')
+        else:
+            session.report_progress(milliseconds, paused=state == 'paused')

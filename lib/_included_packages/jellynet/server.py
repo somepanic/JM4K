@@ -238,12 +238,22 @@ class JellyfinServer(SignalsMixin):
         return None
 
     def findVideoSession(self, sessionId, ratingKey):
-        from plexnet import exceptions
+        """Return the active playback session in Plex /status/sessions shape, or raise NotFound."""
+        from plexnet import exceptions, plexobjects, video  # noqa: F401
 
-        raise exceptions.NotFound
+        session = self.playback.find_session(session_id=sessionId, rating_key=ratingKey)
+        if session is None:
+            raise exceptions.NotFound
+        return plexobjects.buildItem(self, playback.session_element(session), '/status/sessions')
 
     def reportTimeline(self, params):
-        return None
+        """Translate a NowPlayingManager timeline update into Jellyfin session reporting."""
+        if not isinstance(params, dict):
+            return
+        rating_key = params.get('ratingKey')
+        if rating_key is None:
+            return
+        self.playback.timeline(str(rating_key), params.get('state'), params.get('time'))
 
     def updateReachability(self, force=True, allowFallback=False):
         pass
