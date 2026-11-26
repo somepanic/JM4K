@@ -1,7 +1,8 @@
 # Files and directories this fork removed from Plex Uno (upstream), one per line, with the reason after "#".
 # A directory ends in "/". Paths are relative to the top of the repository and read literally.
 # After merging Plex Uno: python3 tools/upstream_removed.py resolve. To verify: python3 tools/upstream_removed.py check.
-.github/  # Plex Uno's issue and pull request templates, written for its own develop-branch workflow
+.github/ISSUE_TEMPLATE.md  # Plex Uno's issue template, written for its own develop-branch workflow
+.github/PULL_REQUEST_TEMPLATE.md  # Plex Uno's pull request template, written for its own develop-branch workflow
 TESTING_SQUAD.md  # Plex Uno's list of testers
 changelog.txt  # Plex Uno's release history; this add-on keeps its own
 docs/settings-audit.md  # a one-off audit of Plex Uno's settings at 60ed0301, cited by nothing here
