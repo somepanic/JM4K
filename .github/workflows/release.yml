@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    tags: ['v*']
+    tags: ['jellymod-v*']  # PlexMod's own v* tags come along with the shared history
 
 permissions:
   contents: write
@@ -18,7 +18,7 @@ jobs:
       - name: Check the tag against addon.xml
         run: |
           version=$(python3 -c "import xml.etree.ElementTree as E; print(E.parse('addon.xml').getroot().get('version'))")
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+          if [ "jellymod-v$version" != "$GITHUB_REF_NAME" ]; then
             echo "::error::tag $GITHUB_REF_NAME, but addon.xml says $version"
             exit 1
           fi
