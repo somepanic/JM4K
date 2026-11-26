@@ -24,6 +24,7 @@
 
         <license>GPL-2.0-only</license>
         <website>https://jellyfin.org</website>
+        <source>https://github.com/somepanic/JM4K</source>
         <platform>all</platform>
         <news>
 0.1.0 - the first JellyMod test build

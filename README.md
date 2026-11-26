@@ -20,7 +20,7 @@ rough edges. Music, photos and playlists are not included yet.
 
 ## Where it comes from
 
-JellyMod builds on [SiloMod for Kodi](https://github.com/samtheruby/SM4K) (SM4K) and
+JellyMod builds on [SiloMod for Kodi](https://github.com/somepanic/SM4K) (SM4K) and
 [Plex Uno](https://github.com/FilHarr/plex-for-kodi) by FilHarr, which is a reworked fork of
 [PlexMod for Kodi](https://github.com/pannal/plex-for-kodi) (PM4K) by pannal, which grew out of Plex's own Kodi
 add-on. JellyMod keeps those screens and replaces the server layer with one that talks to Jellyfin.
