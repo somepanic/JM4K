@@ -27,8 +27,14 @@ add-on. JellyMod keeps those screens and replaces the server layer with one that
 
 ## Installing
 
-Not in a Kodi repository yet. To try a test build, install its zip file from Kodi's Add-ons screen (Install from zip
-file). Releases will come through a Kodi repository later, and this page will say how to add it.
+Install it from the somepanic Kodi repository, which keeps it up to date on Kodi 21 and 22:
+
+1. In Kodi, open **Settings → System → Add-ons** and turn on **Unknown sources**.
+2. Open **Settings → File manager → Add source**, enter `https://somepanic.github.io/` and name it **somepanic**.
+3. Open **Add-ons → Install from zip file → somepanic** and choose the repository zip.
+4. Open **Add-ons → Install from repository → somepanic** and choose **JellyMod (JM4K)**.
+
+Releases and their zips are also on this repository's [Releases](../../releases) page.
 
 ## Licence
 
