@@ -630,6 +630,22 @@ class SyncPlaySessionAndMenusTest(KodiTestCase):
         open_sp.assert_called_once()
         self.assertIs(open_sp.call_args[0][0], srv)
 
+    def test_library_user_menu_keeps_its_order_and_words_in_a_group(self):
+        srv = make_server(FakeSession())
+        menu = ['Refresh Users', 'Watch together', 'Switch server', 'Settings', 'Sign Out', 'Minimize', 'Exit']
+        in_group = mock.Mock(active=True)
+        in_group.controller.group_name = 'Friday Film'
+        for current in (None, in_group):
+            with (
+                self.subTest(in_group=current is not None),
+                mock.patch.object(library.plexapp, 'ACCOUNT', mock.Mock(isSignedIn=True, homeUsers=['u1'])),
+                mock.patch.object(library.plexapp, 'SERVERMANAGER', mock.Mock(selectedServer=srv)),
+                mock.patch.object(library, 'showOptionsDialog', return_value=None) as dialog,
+                mock.patch.object(library.syncplay, 'current', return_value=current),
+            ):
+                library.LibraryWindow.__new__(library.LibraryWindow).showUserMenu()
+                self.assertEqual([label for _key, label in dialog.call_args[0][1]], menu)
+
     def test_join_opens_websocket_before_posting_join_and_cleans_up_on_error(self):
         from .jellynet_fakes import problem
 

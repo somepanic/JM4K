@@ -1667,13 +1667,7 @@ class LibraryWindow(GridMixin, HubsMixin, PlaybackBtnMixin, kodigui.MultiWindow,
             else:
                 options.append(('refresh_users', T(32980, 'Refresh Users')))
             if getattr(plexapp.SERVERMANAGER.selectedServer, 'platform', None) == 'jellyfin':
-                active = syncplay.current(plexapp.SERVERMANAGER.selectedServer)
-                label = (
-                    active.controller.group_name
-                    if active and active.controller.group_name
-                    else T(35330, 'Watch together')
-                )
-                options.append(('syncplay', label))
+                options.append(('syncplay', T(35330, 'Watch together')))
                 options.append(('server', T(35311, 'Switch server')))
         options.append(('settings', T(32343, 'Settings')))
         if plexapp.ACCOUNT.isSignedIn:
