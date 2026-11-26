@@ -33,8 +33,7 @@ class AddonIdentityTest(KodiTestCase):
         self.assertEqual(root.get('version'), '0.1.0')
         self.assertEqual(meta.findtext('license'), 'GPL-2.0-only')
         self.assertEqual(meta.findtext('website'), 'https://jellyfin.org')
-        # Local-only for now (J-D11): no remote source URL yet
-        self.assertIsNone(meta.find('source'))
+        self.assertEqual(meta.findtext('source'), 'https://github.com/somepanic/JM4K')
         self.assertIn(
             'not made or supported by the Jellyfin project or by Plex', meta.findtext("disclaimer[@lang='en']")
         )
