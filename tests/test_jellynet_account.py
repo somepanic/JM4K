@@ -4,6 +4,8 @@ multi-user sessions on one Kodi (each user with their own token and DeviceId), s
 and new users (password prompt vs passwordless vs hidden user), Refresh Users, 401 session end, and sign-out.
 """
 
+import contextlib
+from collections import deque
 from unittest import mock
 
 import requests
@@ -89,19 +91,74 @@ class FakeListItem:
         return self.props.get(key, '')
 
 
-def click_user_tile(account, data_source):
+class RunNow:
+    """threading.Thread that runs its target at start(): Quick Connect's poll runs inside the click."""
+
+    def __init__(self, target=None, args=(), **_kwargs):
+        self.target, self.args = target, args
+
+    def start(self):
+        self.target(*self.args)
+
+
+class FakeQuickConnect:
+    """Quick Connect as the server answers it: a code to show, then the person approves it (result) or not (None);
+    error: the server has Quick Connect off."""
+
+    result = None
+    error = None
+
+    def __init__(self, client, poll_interval=None):
+        self.client = client
+
+    def poll(self, show_code, wait):
+        if FakeQuickConnect.error is not None:
+            raise FakeQuickConnect.error
+        show_code(auth.QuickConnectCode('482910', 'QC-SECRET'))
+        return FakeQuickConnect.result
+
+
+def picker_window(data_source=None):
+    """UserSelectWindow as Kodi runs it: its properties in window.props, its focus in window.focused."""
     window = userselect.UserSelectWindow.__new__(userselect.UserSelectWindow)
     window.selected = None
     window.closed = False
+    window._closing = False
+    window._qc = 0
+    window.username = window.password = ''
+    window.props = {}
+    window.setProperty = window.props.__setitem__
+    window.getProperty = lambda key: window.props.get(key, '')
+    window.focused = None
+    window.setFocusId = lambda control_id: setattr(window, 'focused', control_id)
     window.userList = mock.Mock()
     window.userList.getSelectedItem.return_value = FakeListItem(data_source)
+    window.userList.__len__ = lambda self: 1
     window.doClose = lambda: setattr(window, 'closed', True)
+    return window
+
+
+@contextlib.contextmanager
+def running(account, server=None):
+    FakeQuickConnect.result = FakeQuickConnect.error = None
+    manager = mock.Mock()
+    manager.selectedServer = server or mock.Mock(url='http://jellyfin.lan:8096', uuid='srv-1')
+    manager.selectedServer.name = 'TheRubys'
     with (
         mock.patch.object(plexapp, 'ACCOUNT', account),
+        mock.patch.object(plexapp, 'SERVERMANAGER', manager),
         mock.patch.object(userselect.busy.BusyWindow, 'create', side_effect=RuntimeError),
         mock.patch.object(userselect.busy.update_restart, 'filesReplaced', return_value=True),
+        mock.patch.object(userselect.threading, 'Thread', RunNow),
+        mock.patch.object(userselect.auth, 'QuickConnect', FakeQuickConnect),
         mock.patch.object(userselect.util, 'messageDialog') as dialog,
     ):
+        yield dialog
+
+
+def click_user_tile(account, data_source):
+    window = picker_window(data_source)
+    with running(account) as dialog:
         window.onClick(window.USER_LIST_ID)
     return window, dialog
 
@@ -155,24 +212,49 @@ class JellyfinAccountTest(KodiTestCase):
         self.assertIn('Token="TOK-ALICE"', auth_header)
         self.assertIn(f'DeviceId="{device_id_for(IDENTITY, "alice")}"', auth_header)
 
-    def test_a_user_without_a_session_signs_in_on_the_card(self):
-        # A tile for a user not signed in on this Kodi yet (Jellyfin 12 says every user has a password) opens the
-        # sign-in card with their name filled in: User and Password fields, or Quick Connect. No keyboard pop-ups.
+    def test_a_user_without_a_session_gets_the_sign_in_form(self):
+        # Jellyfin 12 says every user has a password: a tile without a stored session swaps the tiles for the form,
+        # their name in User and the password next, a Quick Connect code and QR below it. No keyboard pop-ups yet.
         acct = make_account(FakeSession(PUBLIC_USERS))
         acct.updateHomeUsers()
-        bob = acct.getHomeUser('u2')
 
-        with mock.patch.object(jellyfin, 'signInUser', return_value=False) as card:
-            window, dialog = click_user_tile(acct, bob)
-        card.assert_called_once_with(acct, 'bob')
-        self.assertIsNone(window.selected)  # Back on the card: still choosing
+        window, dialog = click_user_tile(acct, acct.getHomeUser('u2'))
 
-        with mock.patch.object(jellyfin, 'signInUser', return_value=True):
-            window, dialog = click_user_tile(acct, bob)
+        self.assertEqual(window.props.get('mode'), 'form')
+        self.assertEqual(window.props.get('username'), 'bob')
+        self.assertEqual(window.focused, window.PASSWORD_ID)
+        self.assertEqual(window.props.get('pin'), '482910')
+        self.assertTrue(window.props.get('qr'))
+        self.assertTrue(window.props.get('qc.ready'))
+        self.assertFalse(window.closed)
+        self.assertFalse([c for c in ENV.dialog_calls if c[0] == 'input'])
+        dialog.assert_not_called()
+
+    def test_sign_in_on_the_form(self):
+        session = FakeSession(
+            PUBLIC_USERS, FakeResponse(401, raw='Invalid username or password.'), auth_ok('TOK-BOB', 'u2', 'bob')
+        )
+        acct = make_account(session)
+        acct.updateHomeUsers()
+        window = picker_window(acct.getHomeUser('u2'))
+        ENV.dialog_answers = deque(['wrong-pw', 'bob-pw'])
+
+        with running(acct):
+            window.onClick(window.USER_LIST_ID)
+            window.onClick(window.PASSWORD_ID)
+            window.onClick(window.SIGN_IN_ID)
+            # wrong password: says so, keeps the name, clears the password, stays on the form
+            self.assertEqual(window.props.get('error'), 'Wrong username or password.')
+            self.assertEqual((window.props.get('username'), window.props.get('password')), ('bob', ''))
+            self.assertFalse(window.closed)
+            window.onClick(window.PASSWORD_ID)
+            window.onClick(window.SIGN_IN_ID)
+
         self.assertTrue(window.selected)
         self.assertTrue(window.closed)
-        dialog.assert_not_called()
-        self.assertFalse([c for c in ENV.dialog_calls if c[0] == 'input'])
+        self.assertEqual(session.calls[2]['json'], {'Username': 'bob', 'Pw': 'bob-pw'})
+        self.assertEqual((acct.ID, acct.authToken), ('u2', 'TOK-BOB'))
+        self.assertEqual(acct.sessions['u1']['access_token'], 'TOK-ALICE')
 
     def test_number_keys_on_a_tile_never_sign_in(self):
         # Jellyfin has no PINs: Uno's four-digit PIN entry sent the digits as a password, and a failed sign-in counts
@@ -215,16 +297,81 @@ class JellyfinAccountTest(KodiTestCase):
         self.assertEqual(session.calls[1]['json'], {'Username': 'kids', 'Pw': ''})
         self.assertEqual((acct.ID, acct.authToken), ('u3', 'TOK-KIDS'))
 
-    def test_manual_login_opens_the_card_with_no_name(self):
+    def test_manual_login_opens_an_empty_form(self):
         acct = make_account(FakeSession(PUBLIC_USERS))
         acct.updateHomeUsers()
+        window = picker_window()
 
-        with mock.patch.object(jellyfin, 'signInUser', return_value=True) as card:
-            window, _ = click_user_tile(acct, userselect.OTHER_USER)
+        with running(acct):
+            window.onClick(window.MANUAL_LOGIN_ID)
 
-        card.assert_called_once_with(acct, '')
+        self.assertEqual((window.props.get('mode'), window.props.get('username')), ('form', ''))
+        self.assertEqual(window.focused, window.USERNAME_ID)
+        self.assertEqual(window.props.get('pin'), '482910')
+
+    def test_use_quick_connect_signs_in_whoever_approves(self):
+        acct = make_account(FakeSession(PUBLIC_USERS))
+        acct.updateHomeUsers()
+        window = picker_window()
+
+        with running(acct):
+            FakeQuickConnect.result = auth.AuthResult('TOK-KIDS', 'u3', 'kids', False, 'srv-1')
+            window.onClick(window.QUICK_CONNECT_ID)
+
+        self.assertEqual(window.props.get('mode'), 'quickconnect')
+        self.assertEqual(window.props.get('pin'), '482910')
         self.assertTrue(window.selected)
-        self.assertFalse([c for c in ENV.dialog_calls if c[0] == 'input'])
+        self.assertTrue(window.closed)
+        self.assertEqual((acct.ID, acct.authToken), ('u3', 'TOK-KIDS'))
+        self.assertTrue(acct.isAuthenticated)
+
+    def test_quick_connect_off_on_the_server(self):
+        acct = make_account(FakeSession(PUBLIC_USERS))
+        acct.updateHomeUsers()
+        window = picker_window()
+
+        with running(acct):
+            FakeQuickConnect.error = errors.JellyfinError(401, 'Quick connect is not enabled on this server')
+            window.onClick(window.QUICK_CONNECT_ID)
+
+        self.assertFalse(window.props.get('qc.ready'))
+        self.assertEqual(window.props.get('qc.error'), 'Quick Connect is off on this server.')
+        self.assertFalse(window.closed)
+
+    def test_cancel_and_back_return_to_the_users(self):
+        acct = make_account(FakeSession(PUBLIC_USERS))
+        acct.updateHomeUsers()
+        window = picker_window()
+        back = mock.Mock(getId=mock.Mock(return_value=userselect.xbmcgui.ACTION_NAV_BACK))
+
+        with running(acct), mock.patch.object(userselect.kodigui.BaseWindow, 'onAction'):
+            window.onClick(window.MANUAL_LOGIN_ID)
+            window.onClick(window.FORM_CANCEL_ID)
+            self.assertEqual((window.props.get('mode'), window.focused), ('', window.USER_LIST_ID))
+            window.onClick(window.QUICK_CONNECT_ID)
+            window.onAction(back)
+            self.assertEqual(window.props.get('mode'), '')
+            self.assertFalse(window.closed)
+            window.onAction(back)  # Back on the users: leave the screen
+
+        self.assertEqual(window.selected, 'cancel')
+        self.assertTrue(window.closed)
+
+    def test_switch_server_opens_connect_to_server(self):
+        acct = make_account(FakeSession(PUBLIC_USERS))
+        acct.updateHomeUsers()
+        window = picker_window()
+        other = jellyfin.StoredServer('http://b.lan:8096', 'srv-2', 'Jellyfin B')
+
+        with running(acct), mock.patch.object(jellyfin, 'connectToServer', return_value=None) as connect:
+            window.onClick(window.SWITCH_SERVER_ID)
+        self.assertEqual(connect.call_args.kwargs['address'], 'http://jellyfin.lan:8096')
+        self.assertFalse(window.closed)  # Cancel on Connect to Server: still here
+
+        with running(acct), mock.patch.object(jellyfin, 'connectToServer', return_value=other):
+            window.onClick(window.SWITCH_SERVER_ID)
+        self.assertEqual(window.selected, jellyfin.SWITCH_SERVER)
+        self.assertTrue(window.closed)
 
     def test_a_user_signed_in_on_the_card_stays_listed(self):
         # A user hidden from /Users/Public who signed in on the card keeps their tile, and Alice keeps her token.
@@ -246,20 +393,11 @@ class JellyfinAccountTest(KodiTestCase):
         acct.updateHomeUsers()
         self.assertEqual([u.id for u in acct.homeUsers], ['u1'])
 
-        window = userselect.UserSelectWindow.__new__(userselect.UserSelectWindow)
-        window.userList = mock.Mock()
-        window.userList.getSelectedItem.return_value = FakeListItem(userselect.kodigui.EmptyDataSource())
-        window.setProperty = mock.Mock()
-        window.propertyContext = mock.MagicMock()
-        window.start = mock.Mock()
-
-        with mock.patch.object(plexapp, 'ACCOUNT', acct):
-            window.onClick(window.USER_LIST_ID)
+        acct.updateHomeUsers(refreshSubscription=True)  # the user menu's Refresh Users
 
         self.assertEqual(len(session.calls), 2)
         self.assertEqual(session.calls[1]['url'], 'http://jellyfin.lan:8096/Users/Public')
         self.assertEqual([u.id for u in acct.homeUsers], ['u1', 'u2', 'u3'])
-        window.start.assert_called_once_with(with_busy=False)
 
     def test_401_ends_the_session(self):
         # Review Focus 4: a 401 mid-use drops only the revoked token and triggers account:session_ended ONCE.
@@ -347,32 +485,27 @@ class JellyfinAccountTest(KodiTestCase):
         self.assertIsNone(manager.getWatchlistServer())
         self.assertFalse(manager.retestServerNow())
 
-    def test_user_select_start_adds_other_user_and_handles_refresh_failure(self):
-        session = FakeSession(PUBLIC_USERS, requests.ConnectionError('down'))
-        acct = make_account(session)
+    def test_sign_in_screen_lists_the_users_and_its_buttons(self):
+        acct = make_account(FakeSession(PUBLIC_USERS))
         acct.updateHomeUsers()
+        window = picker_window()
 
-        window = userselect.UserSelectWindow.__new__(userselect.UserSelectWindow)
-        window.userList = mock.Mock()
-        window.setProperty = mock.Mock()
-        window.setFocusId = mock.Mock()
-        with mock.patch.object(plexapp, 'ACCOUNT', acct):
+        with running(acct):
             window.start(with_busy=False)
 
         items = window.userList.addItems.call_args[0][0]
-        self.assertEqual([i.dataSource.id for i in items[:3]], ['u1', 'u2', 'u3'])
-        self.assertIs(items[3].dataSource, userselect.OTHER_USER)
-        self.assertFalse(items[4].dataSource)  # refresh button
-
-        # Failed refresh keeps existing users and shows notification
-        window.userList.getSelectedItem.return_value = FakeListItem(userselect.kodigui.EmptyDataSource())
-        window.propertyContext = mock.MagicMock()
-        window.start = mock.Mock()
-        with (
-            mock.patch.object(plexapp, 'ACCOUNT', acct),
-            mock.patch.object(userselect.util, 'showNotification') as notice,
-        ):
-            window.onClick(window.USER_LIST_ID)
-        self.assertEqual([u.id for u in acct.homeUsers], ['u1', 'u2', 'u3'])
-        notice.assert_called_once()
-        window.start.assert_called_once_with(with_busy=False)
+        self.assertEqual([i.dataSource.id for i in items], ['u1', 'u2', 'u3'])  # the users, nothing else
+        labels = {
+            k: window.props.get(k) for k in ('label.heading', 'label.quickconnect', 'label.manual', 'label.switch')
+        }
+        self.assertEqual(
+            labels,
+            {
+                'label.heading': 'Sign in to continue',
+                'label.quickconnect': 'Use Quick Connect',
+                'label.manual': 'Manual Login',
+                'label.switch': 'Switch server',
+            },
+        )
+        self.assertEqual(window.props.get('server.name'), 'TheRubys')
+        self.assertEqual(window.props.get('mode'), '')

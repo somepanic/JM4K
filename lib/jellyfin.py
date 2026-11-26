@@ -6,31 +6,28 @@ never /System/Info/Public's LocalAddress (which can be an unreachable Docker bri
 """
 
 import json
+import threading
 
-from jellynet import auth, discovery
+from jellynet import discovery
 from jellynet.account import JellyfinAccount
 from jellynet.client import ClientIdentity, JellyfinClient
 from jellynet.errors import JellyfinAuthError, JellyfinError, JellyfinIncompatible, JellyfinUnavailable
 from jellynet.server import JellyfinServer
-from jellynet.server_info import LoginOptions, loginOptions, probe
+from jellynet.server_info import probe
 from jellynet.servermanager import JellyfinServerManager
-from kodi_six import xbmc, xbmcgui
+from kodi_six import xbmc
 from plexnet import plexapp
 from plexnet import util as pnUtil
 
 from . import util
 from .util import T
-from .windows import optionsdialog, signin
+from .windows import signin, userselect
 from .windows.dialog import showOptionsDialog
 
 SERVERS_SETTING = 'jellyfin_servers_json'
 SESSIONS_SETTING = 'jellyfin_sessions_json'
-USERNAME_SETTING = 'jellyfin_username'  # last username signed in with; never the password
-CHANGE = 'change'  # signIn(): user asked for another server address
 ADD_SERVER = 'add'  # pickServer()'s Add server row
-ENTER_ADDRESS = 'enter'  # addServerDialog()'s Enter address row
-
-WAIT_STEP = 0.1  # how often signIn() checks for Back/submit while polling Quick Connect
+SWITCH_SERVER = 'switch_server'  # the sign-in screen's Switch server connected to another server
 
 
 class StoredServer:
@@ -118,48 +115,38 @@ def pickServer(identity=None, session=None, dialog_props=None):
     if choice != ADD_SERVER:
         useServer(choice)
         return current
-    added = addServerDialog(identity, session=session, dialog_props=dialog_props)
+    added = connectToServer(identity, session=session)
     return current if added is not None and added.serverId != current else None
 
 
-def addServerDialog(identity=None, session=None, address='', dialog_props=None):
-    """Ask for a Jellyfin server until one answers or the user gives up: returns StoredServer or None.
-    Without an initial address, servers found via UDP discovery are listed first with an Enter address row."""
-    found = [] if address else discovery.discover()
-    while True:
-        picked = None
-        if found:
-            options = [(f.url, f'{f.name} ({f.url})') for f in found]
-            choice = showOptionsDialog(
-                T(35315, 'Jellyfin servers on your network'),
-                options + [(ENTER_ADDRESS, T(35307, 'Enter address'))],
-                non_playback=True,
-                dialog_props=dialog_props,
-            )
-            if choice is None:
-                return None
-            picked = None if choice == ENTER_ADDRESS else choice
-            found = []
-        address = picked or xbmcgui.Dialog().input(
-            T(35316, 'Jellyfin server address, for example http://192.168.1.10:8096'), address
-        )
-        if not address:
-            return None
+def connectToServer(identity=None, session=None, address='', error=''):
+    """Connect to Server until a Jellyfin server answers at the Host typed (its StoredServer, stored as the one start-up
+    opens) or Cancel (None). Without an address, a server found on the network fills in the Host."""
+
+    def connect(host):
+        host = (host or '').strip()
+        if not host:
+            return None, T(35362, 'Enter the address of your Jellyfin server.')
         try:
-            return addServer(address, identity, session=session)
+            return addServer(host, identity, session=session), ''
         except JellyfinUnavailable:
-            message = T(35317, 'Could not reach a Jellyfin server at {address}.')
+            return None, T(35317, 'Could not reach a Jellyfin server at {address}.').format(address=host)
         except JellyfinIncompatible:
-            message = T(35318, '{address} is not a Jellyfin server JellyMod can use.')
-        retry = optionsdialog.show(
-            T(32427, 'Failed'),
-            message.format(address=address),
-            T(35032, 'Try again'),
-            T(32337, 'Cancel'),
-            dialog_props=dialog_props,
-        )
-        if retry != 0:
-            return None
+            return None, T(35318, '{address} is not a Jellyfin server JellyMod can use.').format(address=host)
+
+    window = signin.PinLoginWindow.create(show=False)
+    window.connector = connect
+    window.setHost(address, error)
+    if not address:
+        threading.Thread(target=_fillInFoundServer, args=(window,), name='jellyfin.discovery', daemon=True).start()
+    window.modal()
+    stored = window.stored
+    del window
+    return stored
+
+
+def _fillInFoundServer(window):
+    window.setFound(next(iter(discovery.discover()), None))
 
 
 def deviceIdentity():
@@ -201,92 +188,11 @@ def loadSessions(serverId):
     return dict(entry.get('users') or {}), entry.get('active_user_id')
 
 
-def signIn(client, address, reachable=True, server_name=None, username=None, allow_change=True):
-    """Run the sign-in card until someone signs in (Quick Connect or password), asks to change the
-    server (CHANGE), or cancels (None). When reachable=False, shows the error and focuses Change.
-    username fills in the User field (else the last one signed in with) and puts the password next."""
-    window = signin.PinLoginWindow.create()
-    options = (
-        loginOptions(client, name=server_name)
-        if reachable
-        else LoginOptions(False, '', name=server_name, password=False)
-    )
-    window.setOptions(
-        options,
-        address,
-        util.getSetting(USERNAME_SETTING, '') if username is None else username,
-        allow_change=allow_change,
-    )
-    if username and options.password:
-        window.setFocusId(window.PASSWORD_ID)
-    password_result = []
-
-    def signInWithPassword():
-        window.submitted = False
-        try:
-            password_result.append(auth.passwordLogin(client, window.username, window.password))
-        except JellyfinAuthError:
-            window.showError(T(35303, 'Wrong username or password.'))
-        except JellyfinError:
-            window.showError(T(35319, "Can't reach the Jellyfin server. Check your connection and try again."))
-        else:
-            util.setSetting(USERNAME_SETTING, window.username)
-        return bool(password_result)
-
-    def wait(seconds):
-        steps = max(1, int(seconds / WAIT_STEP))
-        for _ in range(steps):
-            if window.submitted and signInWithPassword():
-                return False
-            if window.abort or window.change or util.MONITOR.waitForAbort(WAIT_STEP):
-                return False
-        return not (window.abort or window.change)
-
-    qc_result = None
-    try:
-        if not reachable:
-            window.showError(T(35317, 'Could not reach a Jellyfin server at {address}.').format(address=address))
-            window.setFocusId(window.CHANGE_ID)
-            while wait(1):
-                pass
-        elif options.quick_connect:
-            try:
-                qc_result = auth.QuickConnect(client, poll_interval=auth.POLL_INTERVAL).poll(
-                    lambda code: window.setCode(code, address), wait
-                )
-            except JellyfinError:
-                window.setProperty('quickconnect.enabled', '')
-                while wait(1):
-                    pass
-        else:
-            while wait(1):
-                pass
-    finally:
-        window.doClose()
-
-    if password_result:
-        return password_result[0]
-    if window.change:
-        return CHANGE
-    return qc_result
-
-
-def signInUser(account, username=''):
-    """One more user on this Kodi (a user tile without a stored session, or Manual Login) signs in on the sign-in card:
-    User and Password fields, or Quick Connect, with no server Change. Their token is kept beside the others' (Jellyfin
-    ends only the same user's sessions on a device). True once signed in, False for Back."""
-    server = getattr(plexapp.SERVERMANAGER, 'selectedServer', None)
-    result = signIn(
-        account.client,
-        account.client.base_url,
-        server_name=getattr(server, 'name', None),
-        username=username,
-        allow_change=False,
-    )
-    if result is None or result == CHANGE:
-        return False
-    account.recordAuth(result)
-    return True
+def signInScreen():
+    """Sign in to continue: the server's users as tiles, Use Quick Connect, Manual Login and Switch server
+    (UserSelectWindow). True once someone signed in, SWITCH_SERVER after Switch server, else None (Back)."""
+    result = userselect.start(None)
+    return result if result in (True, SWITCH_SERVER) else None
 
 
 def chooseUser(account):
@@ -299,12 +205,6 @@ def chooseUser(account):
     account.isAuthenticated = bool(util.getSetting('auto_signin', False) or len(account.homeUsers) <= 1)
 
 
-def changeAddress(stored, identity=None, session=None):
-    """Change on the sign-in card: pre-fill the stored address, then restart start-up."""
-    addServerDialog(identity, session=session, address=stored.baseUrl)
-    return init(session)
-
-
 def initAfterSwitch(previousId, session=None):
     """Start-up on the server just picked; if the user backs out, return to previousId."""
     if init(session):
@@ -314,11 +214,11 @@ def initAfterSwitch(previousId, session=None):
 
 
 def init(session=None):
-    """Prepare JM4K to open Home: ensure a server and signed-in Jellyfin session, load home users,
-    and install JellyfinAccount and JellyfinServerManager on plexapp."""
+    """Prepare JM4K to open Home: a server (Connect to Server), a signed-in user (Sign in to continue), the server's
+    users, and JellyfinAccount and JellyfinServerManager on plexapp."""
     identity = deviceIdentity()
     servers = storedServers()
-    stored = servers[-1] if servers else addServerDialog(identity, session=session)
+    stored = servers[-1] if servers else connectToServer(identity, session=session)
     if stored is None:
         return False
 
@@ -333,15 +233,7 @@ def init(session=None):
 
     while True:
         try:
-            if not account.isSignedIn:
-                result = signIn(client, stored.baseUrl, server_name=stored.name)
-                if result == CHANGE:
-                    return changeAddress(stored, identity, session)
-                if result is None:
-                    return False
-                account.recordAuth(result)
-                account.isAuthenticated = True
-            else:
+            if account.isSignedIn:
                 account.verifyCurrentUser()
             account.updateHomeUsers()
             break
@@ -356,9 +248,10 @@ def init(session=None):
         except JellyfinUnavailable:
             if relocate(stored, identity, session=session):
                 return init(session)
-            if signIn(client, stored.baseUrl, reachable=False, server_name=stored.name) == CHANGE:
-                return changeAddress(stored, identity, session)
-            return False
+            error = T(35317, 'Could not reach a Jellyfin server at {address}.').format(address=stored.baseUrl)
+            if connectToServer(identity, session=session, address=stored.baseUrl, error=error) is None:
+                return False
+            return init(session)
         except JellyfinError:
             util.messageDialog(
                 T(32427, 'Failed'),
@@ -366,7 +259,13 @@ def init(session=None):
             )
             return False
 
-    chooseUser(account)
     plexapp.ACCOUNT = pnUtil.ACCOUNT = account
     plexapp.SERVERMANAGER = pnUtil.SERVERMANAGER = JellyfinServerManager([JellyfinServer(stored, client)])
+    if not account.isSignedIn:
+        result = signInScreen()
+        if result == SWITCH_SERVER:
+            return init(session)
+        if result is not True:
+            return False
+    chooseUser(account)
     return True

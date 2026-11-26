@@ -126,3 +126,4 @@ resources/skins/Main/media/script.plex/user_select/item-background-top.png  # th
 resources/skins/Main/media/script.plex/user_select/item-background.png  # the user picker's Plex tile; Jellyfin's tiles are rounded slate squares
 resources/skins/Main/media/script.plex/user_select/protected-back.png  # the user picker's lock badge; Jellyfin's sign-in shows none
 resources/skins/Main/media/script.plex/user_select/protected-icon.png  # the user picker's lock badge; Jellyfin's sign-in shows none
+resources/skins/Main/media/script.plex/user_select/refresh.png  # Plex Uno's Refresh Users tile; JellyMod's sign-in screen lists the server's users without one

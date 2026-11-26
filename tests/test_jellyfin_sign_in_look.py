@@ -1,25 +1,19 @@
 """
-The sign-in card and the user picker in Jellyfin's look (its Modern login page, 12.x): a slate backdrop under a top bar
-with Jellyfin's logo, "Sign in to continue", one panel; the card's password form with Quick Connect's code and QR beside
-it at once; user tiles without locks or PIN pad, and a Manual Login tile. Jellyfin's logo is credited in LICENSE.txt.
+JellyMod's two sign-in screens in Jellyfin's look (its Modern pages, 12.x), each using the whole screen with no panel:
+Connect to Server (Host, Connect, Cancel) before a server is known, then Sign in to continue: the server's users as
+tiles above Use Quick Connect, Manual Login and Switch server, stacked; User and Password with a Quick Connect code and
+QR below them; the code and QR on their own. Jellyfin's logo is credited in LICENSE.txt.
 """
 
 import os
 import xml.etree.ElementTree as ET
-from unittest import mock
-
-from jellynet.server_info import LoginOptions
-from plexnet import plexapp
-
-from lib.windows import signin, userselect
 
 from . import REPO_ROOT
 from .base import KodiTestCase, make_engine
-from .jellynet_fakes import FakeSession
-from .test_jellynet_account import PUBLIC_USERS, make_account
 
 LOGO = 'script.plex/jellyfin/logo.png'
 SILHOUETTE = 'script.plex/jellyfin/avatar.png'
+PANEL = 'FF1B2433'  # the old card's and picker's panel colour
 
 
 class SignInLookTest(KodiTestCase):
@@ -31,64 +25,65 @@ class SignInLookTest(KodiTestCase):
 
     @staticmethod
     def textures(root):
-        return [t.text or '' for t in root.iter() if t.tag.startswith('texture')]
+        return [t for t in root.iter() if t.tag.startswith('texture')]
 
-    def test_card_reads_like_jellyfins_sign_in(self):
-        props = {}
-        window = signin.PinLoginWindow.__new__(signin.PinLoginWindow)
-        window.setProperty = props.__setitem__
-        window.setFocusId = mock.Mock()
-        window.setOptions(LoginOptions(True, name='TheRubys'), 'http://jf.lan:8096', 'alice')
+    @staticmethod
+    def by_id(root):
+        return {c.get('id'): c for c in root.iter('control') if c.get('id')}
 
-        self.assertEqual(props['label.heading'], 'Sign in to continue')
-        self.assertEqual(props['label.phone'], 'Quick Connect')
-        card = self.rendered('pin_login')
-        self.assertIn(LOGO, self.textures(card))
-        labels = [c.findtext('label') or '' for c in card.iter('control')]
-        self.assertTrue(any('Window.Property(label.heading)' in label for label in labels))
-        self.assertTrue(any('Window.Property(server.name)' in label for label in labels))
+    @staticmethod
+    def group_showing(root, mode_condition):
+        return next(
+            g for g in root.iter('control') if g.get('type') == 'group' and g.findtext('visible') == mode_condition
+        )
 
-    def test_quick_connect_shows_beside_the_form_at_once(self):
-        card = self.rendered('pin_login')
-        controls = {c.get('id'): c for c in card.iter('control') if c.get('id')}
-        self.assertTrue({'201', '202', '203', '204'} <= set(controls))  # username, password, Sign In, Change
-        qr = [c for c in card.iter('control') if (c.findtext('texture') or '') == '$INFO[Window.Property(qr)]']
-        self.assertEqual(len(qr), 1)
-        groups = [g for g in card.iter('control') if g.get('type') == 'group' and qr[0] in list(g.iter('control'))]
-        conditions = {g.findtext('visible') for g in groups} - {None}
-        # shown whenever Jellyfin offers Quick Connect: no button to press first
-        self.assertEqual(conditions, {'!String.IsEmpty(Window.Property(quickconnect.enabled))'})
+    def test_connect_to_server_fills_the_screen(self):
+        screen = self.rendered('pin_login')
+        labels = [c.findtext('label') or '' for c in screen.iter('control')]
+        for prop in ('label.title', 'label.host', 'label.hint', 'found', 'error'):
+            self.assertTrue(any(f'Window.Property({prop})' in label for label in labels), prop)
+        controls = self.by_id(screen)
+        self.assertTrue({'201', '203', '204'} <= set(controls))  # Host, Connect, Cancel
+        connect, cancel = controls['203'], controls['204']
+        self.assertEqual(connect.find('texturenofocus').get('colordiffuse'), 'FF3D36B2')  # Jellyfin's indigo
+        self.assertEqual(connect.findtext('posx'), cancel.findtext('posx'))
+        self.assertEqual(connect.findtext('width'), '1600')
+        self.assertIn(LOGO, [t.text for t in self.textures(screen)])
+        self.assertNotIn(PANEL, [t.get('colordiffuse') for t in self.textures(screen)])
 
-    def test_card_for_another_user_has_no_server_change(self):
-        card = self.rendered('pin_login')
-        change = [c for c in card.iter('control') if c.get('id') == '204']
-        server_row = [c for c in card.iter('control') if 'Window.Property(label.server)' in (c.findtext('label') or '')]
-        for control in change + server_row:
-            self.assertEqual(control.findtext('visible'), '!String.IsEmpty(Window.Property(change.enabled))')
-        self.assertEqual((len(change), len(server_row)), (1, 1))
-
-    def test_user_picker_reads_like_jellyfins(self):
-        acct = make_account(FakeSession(PUBLIC_USERS))
-        acct.updateHomeUsers()
-        window = userselect.UserSelectWindow.__new__(userselect.UserSelectWindow)
-        window.userList = mock.Mock()
-        window.setProperty = mock.Mock()
-        window.setFocusId = mock.Mock()
-        with mock.patch.object(plexapp, 'ACCOUNT', acct):
-            window.start(with_busy=False)
-        items = window.userList.addItems.call_args[0][0]
-        self.assertEqual(items[3].getLabel(), 'Manual Login')
-
-        picker = self.rendered('user_select')
-        textures = self.textures(picker)
+    def test_sign_in_to_continue_shows_users_above_three_stacked_buttons(self):
+        screen = self.rendered('user_select')
+        users = self.group_showing(screen, 'String.IsEmpty(Window.Property(mode))')
+        ids = [c.get('id') for c in users.iter('control') if c.get('id')]
+        self.assertEqual(ids, ['101', '401', '402', '403'])
+        buttons = [self.by_id(users)[i] for i in ('401', '402', '403')]
+        self.assertEqual({b.findtext('posx') for b in buttons}, {'160'})
+        self.assertEqual({b.findtext('width') for b in buttons}, {'1600'})
+        tops = [b.findtext('posy') for b in buttons]
+        self.assertEqual(len(set(tops)), 3)  # stacked, one under the other
+        self.assertEqual(self.by_id(users)['101'].findtext('width'), '1920')  # the row spans the screen
+        textures = [t.text or '' for t in self.textures(screen)]
         self.assertIn(LOGO, textures)
         self.assertIn(SILHOUETTE, textures)
-        self.assertFalse([t for t in textures if 'protected' in t or 'admin' in t])  # no locks or admin badges
-        ids = {c.get('id') for c in picker.iter('control')}
-        self.assertIn('101', ids)
-        self.assertFalse(ids & {str(n) for n in range(201, 212)})  # no PIN pad
-        labels = [c.findtext('label') or '' for c in picker.iter('control')]
-        self.assertTrue(any('35309]' in label for label in labels))  # "Sign in to continue"
+        self.assertFalse([t for t in textures if 'protected' in t or 'admin' in t])
+        self.assertNotIn(PANEL, [t.get('colordiffuse') for t in self.textures(screen)])
+
+    def test_the_form_has_a_quick_connect_code_and_qr_below_it(self):
+        screen = self.rendered('user_select')
+        form = self.group_showing(screen, 'String.IsEqual(Window.Property(mode),form)')
+        self.assertTrue({'201', '202', '203', '205'} <= set(self.by_id(form)))  # User, Password, Sign In, Cancel
+        qr = [c for c in form.iter('control') if c.findtext('texture') == '$INFO[Window.Property(qr)]']
+        code = [c for c in form.iter('control') if c.findtext('label') == '$INFO[Window.Property(pin)]']
+        self.assertEqual((len(qr), len(code)), (1, 1))
+        sign_in_top = self.by_id(form)['203'].findtext('posy')
+        self.assertGreater(float(qr[0].findtext('posy')), float(sign_in_top))  # below the form
+
+    def test_use_quick_connect_shows_the_code_and_qr(self):
+        screen = self.rendered('user_select')
+        view = self.group_showing(screen, 'String.IsEqual(Window.Property(mode),quickconnect)')
+        self.assertIn('206', self.by_id(view))  # Cancel
+        self.assertTrue([c for c in view.iter('control') if c.findtext('texture') == '$INFO[Window.Property(qr)]'])
+        self.assertTrue([c for c in view.iter('control') if c.findtext('label') == '$INFO[Window.Property(pin)]'])
 
     def test_license_credits_jellyfins_logo(self):
         with open(os.path.join(REPO_ROOT, 'LICENSE.txt'), encoding='utf-8') as fp:

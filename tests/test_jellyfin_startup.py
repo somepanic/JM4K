@@ -4,13 +4,10 @@ Switch server menu, and session-end handling.
 """
 
 import json
-import os
-from collections import deque
 from unittest import mock
 
 import requests
 from jellynet import auth
-from jellynet.account import JellyfinAccount
 from jellynet.client import ClientIdentity, JellyfinClient
 from jellynet.discovery import Found
 from jellynet.server import JellyfinServer
@@ -22,7 +19,7 @@ from plexnet import plexapp, plexlibrary
 from plexnet import util as pnUtil
 
 from lib import jellyfin
-from lib.windows import library, signin
+from lib.windows import library
 
 from .base import KodiTestCase, fixture
 from .jellynet_fakes import FakeResponse, FakeSession, problem
@@ -89,22 +86,6 @@ def auth_result(token='TOK-1', uid='u1', name='alice', is_admin=True, server_id=
 def make_server(session, base_url='http://jellyfin.lan:8096', token='TOK-1'):
     client = JellyfinClient(base_url, IDENTITY, token=token, username='alice', session=session)
     return JellyfinServer(jellyfin.StoredServer(base_url, 'srv-1', 'Home Jellyfin'), client)
-
-
-def pin_window():
-    window = signin.PinLoginWindow.__new__(signin.PinLoginWindow)
-    window._closing = False
-    window._winID = None
-    window.windowId = 13001
-    window.abort = False
-    window.submitted = False
-    window.change = False
-    window.username = ''
-    window.password = ''
-    window.closed = False
-    window.setFocusId = lambda control_id: setattr(window, 'focused', control_id)
-    window.doClose = lambda: setattr(window, 'closed', True)
-    return window
 
 
 class JellyfinServerTest(KodiTestCase):
@@ -232,14 +213,30 @@ class JellyfinStartupTest(KodiTestCase):
             patch.start()
             self.addCleanup(patch.stop)
 
-    def test_first_run_asks_for_server_then_sign_in(self):
-        ENV.dialog_answers = deque(['jellyfin.lan:8096'])
+    def signed_in(self, token='TOK-1', uid='u1', name='alice', is_admin=True, server_id='srv-1'):
+        """Sign in to continue as the person uses it: someone signs in, which the screen records on the account."""
+
+        def screen():
+            plexapp.ACCOUNT.recordAuth(auth_result(token, uid, name, is_admin, server_id))
+            plexapp.ACCOUNT.isAuthenticated = True
+            return True
+
+        return screen
+
+    def test_first_run_connects_to_a_server_then_signs_in(self):
         session = FakeSession(probe_ok(), PUBLIC_USERS)
 
-        with mock.patch.object(jellyfin, 'signIn', return_value=auth_result()) as do_sign_in:
+        def connect(identity, session=None, **kwargs):
+            return jellyfin.addServer('jellyfin.lan:8096', identity, session=session)
+
+        with (
+            mock.patch.object(jellyfin, 'connectToServer', side_effect=connect) as connect_screen,
+            mock.patch.object(jellyfin, 'signInScreen', side_effect=self.signed_in()) as sign_in_screen,
+        ):
             self.assertTrue(jellyfin.init(session=session))
 
-        do_sign_in.assert_called_once()
+        connect_screen.assert_called_once()
+        sign_in_screen.assert_called_once()
         self.assertEqual([s.serverId for s in jellyfin.storedServers()], ['srv-1'])
         self.assertEqual(plexapp.ACCOUNT.ID, 'u1')
         self.assertTrue(plexapp.ACCOUNT.isAdmin)
@@ -250,6 +247,19 @@ class JellyfinStartupTest(KodiTestCase):
         stored = jellyfin.storedSessions()['srv-1']
         self.assertEqual(stored['active_user_id'], 'u1')
         self.assertEqual(stored['users']['u1']['access_token'], 'TOK-1')
+
+    def test_sign_in_screen_lists_the_servers_users_before_anyone_signs_in(self):
+        ENV.settings[jellyfin.SERVERS_SETTING] = json.dumps([STORED])
+        seen = []
+
+        def screen():
+            seen.append(([u.username for u in plexapp.ACCOUNT.homeUsers], plexapp.SERVERMANAGER.selectedServer.uuid))
+            # Back: no one signed in
+
+        with mock.patch.object(jellyfin, 'signInScreen', side_effect=screen):
+            self.assertFalse(jellyfin.init(session=FakeSession(PUBLIC_USERS)))
+
+        self.assertEqual(seen, [([u['Name'] for u in PUBLIC_USERS.json()], 'srv-1')])
 
     def test_stored_session_relocates_moved_server_and_recovers_on_401(self):
         ENV.settings[jellyfin.SERVERS_SETTING] = json.dumps([STORED])
@@ -266,12 +276,42 @@ class JellyfinStartupTest(KodiTestCase):
             PUBLIC_USERS,
         )
 
-        with mock.patch.object(jellyfin, 'signIn', return_value=auth_result('TOK-NEW')) as do_sign_in:
+        with mock.patch.object(jellyfin, 'signInScreen', side_effect=self.signed_in('TOK-NEW')) as screen:
             self.assertTrue(jellyfin.init(session=session))
 
-        do_sign_in.assert_called_once()
+        screen.assert_called_once()
         self.assertEqual([s.baseUrl for s in jellyfin.storedServers()], ['http://192.168.1.250:8096'])
         self.assertEqual(plexapp.ACCOUNT.authToken, 'TOK-NEW')
+
+    def test_a_server_that_stopped_answering_opens_connect_to_server(self):
+        ENV.settings[jellyfin.SERVERS_SETTING] = json.dumps([STORED])
+
+        with mock.patch.object(jellyfin, 'connectToServer', return_value=None) as connect:
+            self.assertFalse(jellyfin.init(session=FakeSession(requests.ConnectionError('down'))))
+
+        self.assertEqual(connect.call_args.kwargs['address'], STORED['base_url'])
+        self.assertEqual(
+            connect.call_args.kwargs['error'], 'Could not reach a Jellyfin server at {}.'.format(STORED['base_url'])
+        )
+
+    def test_switch_server_on_the_sign_in_screen_starts_on_the_new_server(self):
+        ENV.settings[jellyfin.SERVERS_SETTING] = json.dumps([STORED])
+        new = {'base_url': 'http://b.lan:8096', 'server_id': 'srv-2', 'name': 'Jellyfin B'}
+        answers = iter([jellyfin.SWITCH_SERVER, True])
+
+        def screen():
+            answer = next(answers)
+            if answer == jellyfin.SWITCH_SERVER:
+                # Connect to Server stored srv-2 last
+                ENV.settings[jellyfin.SERVERS_SETTING] = json.dumps([STORED, new])
+                return answer
+            return self.signed_in('TOK-2', server_id='srv-2')()
+
+        with mock.patch.object(jellyfin, 'signInScreen', side_effect=screen):
+            self.assertTrue(jellyfin.init(session=FakeSession(PUBLIC_USERS, PUBLIC_USERS)))
+
+        self.assertEqual(plexapp.SERVERMANAGER.selectedServer.uuid, 'srv-2')
+        self.assertEqual(plexapp.ACCOUNT.authToken, 'TOK-2')
 
     def test_switch_server_restarts_on_the_new_one(self):
         other = {'base_url': 'http://b.lan:8096', 'server_id': 'srv-2', 'name': 'Jellyfin B'}
@@ -298,15 +338,17 @@ class JellyfinStartupTest(KodiTestCase):
             win.doUserOption('server')
             win._closeSessionWithOption.assert_called_once_with({'switch_server': 'srv-1'})
 
-        # Completing sign-in on srv-2 restarts on srv-2.
-        with mock.patch.object(jellyfin, 'signIn', return_value=auth_result('TOK-2', server_id='srv-2')):
+        # Signing in on srv-2 restarts on srv-2.
+        with mock.patch.object(jellyfin, 'signInScreen', side_effect=self.signed_in('TOK-2', server_id='srv-2')):
             self.assertTrue(jellyfin.initAfterSwitch('srv-1', session=FakeSession(PUBLIC_USERS)))
         self.assertEqual(plexapp.SERVERMANAGER.selectedServer.uuid, 'srv-2')
 
         # Giving up on srv-2's sign-in falls back to srv-1.
         jellyfin.saveSessions('srv-2', {}, None)
-        with mock.patch.object(jellyfin, 'signIn', return_value=None):
-            self.assertTrue(jellyfin.initAfterSwitch('srv-1', session=FakeSession(ME_ALICE, PUBLIC_USERS)))
+        with mock.patch.object(jellyfin, 'signInScreen', return_value=None):
+            self.assertTrue(
+                jellyfin.initAfterSwitch('srv-1', session=FakeSession(PUBLIC_USERS, ME_ALICE, PUBLIC_USERS))
+            )
         self.assertEqual(plexapp.SERVERMANAGER.selectedServer.uuid, 'srv-1')
         self.assertEqual(jellyfin.storedServers()[-1].serverId, 'srv-1')
 
@@ -319,188 +361,3 @@ class JellyfinStartupTest(KodiTestCase):
         win.onSessionEnded()
 
         win._closeSessionWithOption.assert_called_once_with('session_ended')
-
-    def test_sign_in_card_shows_quick_connect_code(self):
-        # Quick Connect enabled: shows 6-digit code, link to /web/#/quickconnect, QR with ?code=<CODE>, and polls to auth.
-        qc_pending = FakeResponse(
-            200, {'Code': '482910', 'Secret': 'QC-SEC-1', 'Authenticated': False, 'DateAdded': '2026-11-25T07:00:00Z'}
-        )
-        qc_done = FakeResponse(
-            200, {'Code': '482910', 'Secret': 'QC-SEC-1', 'Authenticated': True, 'DateAdded': '2026-11-25T07:00:00Z'}
-        )
-        auth_ok = FakeResponse(
-            200,
-            {
-                'AccessToken': 'TOK-QC',
-                'ServerId': 'srv-1',
-                'User': {'Id': 'u1', 'Name': 'alice', 'ServerId': 'srv-1', 'Policy': {'IsAdministrator': True}},
-                'SessionInfo': {'UserId': 'u1', 'UserName': 'alice'},
-            },
-        )
-        session = FakeSession(
-            FakeResponse(200, True),
-            FakeResponse(200, {'LoginDisclaimer': 'Welcome home'}),
-            qc_pending,
-            qc_done,
-            auth_ok,
-        )
-        client = JellyfinClient('http://jellyfin.lan:8096', IDENTITY, session=session)
-        window = pin_window()
-
-        with (
-            mock.patch.object(signin.PinLoginWindow, 'create', return_value=window),
-            mock.patch.object(jellyfin, 'WAIT_STEP', 0.001),
-            mock.patch.object(jellyfin.util.MONITOR, 'waitForAbort', return_value=False),
-            mock.patch.object(jellyfin.auth, 'POLL_INTERVAL', 0.001),
-        ):
-            result = jellyfin.signIn(client, 'http://jellyfin.lan:8096', server_name='Home Jellyfin')
-
-        self.assertEqual(result.access_token, 'TOK-QC')
-        self.assertTrue(window.closed)
-        props = ENV.window_props[13001]
-        self.assertEqual(props.get('server.name'), 'Home Jellyfin')
-        self.assertEqual(props.get('subtitle'), 'Welcome home')
-        self.assertEqual(props.get('quickconnect.enabled'), '1')
-        self.assertEqual(props.get('pin'), '482910')
-        self.assertIn('http://jellyfin.lan:8096/web/#/quickconnect', props.get('instructions'))
-        expected_qr = signin.qrImage('http://jellyfin.lan:8096/web/#/quickconnect?code=482910')
-        self.assertEqual(props.get('qr'), expected_qr)
-        self.assertTrue(os.path.exists(expected_qr))
-
-        # Quick Connect disabled: hides code and QR cleanly.
-        ENV.window_props.clear()
-        off_session = FakeSession(
-            FakeResponse(200, False),
-            FakeResponse(200, {'LoginDisclaimer': ''}),
-        )
-        off_client = JellyfinClient('http://jellyfin.lan:8096', IDENTITY, session=off_session)
-        off_window = pin_window()
-        off_window.abort = True
-
-        with mock.patch.object(signin.PinLoginWindow, 'create', return_value=off_window):
-            self.assertIsNone(jellyfin.signIn(off_client, 'http://jellyfin.lan:8096', server_name='Home Jellyfin'))
-
-        off_props = ENV.window_props[13001]
-        self.assertEqual(off_props.get('quickconnect.enabled'), '')
-        self.assertEqual(off_props.get('pin', ''), '')
-        self.assertEqual(off_props.get('qr', ''), '')
-
-    def test_another_user_signs_in_on_the_card(self):
-        # One more user on this Kodi (a user tile without a stored session, or Manual Login) signs in on the sign-in
-        # card: their name filled in and the password next, no server Change; their token joins the others'.
-        window = pin_window()
-        ENV.dialog_answers = deque(['bob-pw'])
-
-        def step_wait(_seconds):
-            if not getattr(step_wait, 'done', False):
-                window.onClick(window.PASSWORD_ID)
-                window.onClick(window.SIGN_IN_ID)
-                step_wait.done = True
-            return False
-
-        bob_ok = FakeResponse(
-            200,
-            {
-                'AccessToken': 'TOK-BOB',
-                'ServerId': 'srv-1',
-                'User': {'Id': 'u2', 'Name': 'bob', 'ServerId': 'srv-1', 'Policy': {'IsAdministrator': False}},
-                'SessionInfo': {'UserId': 'u2', 'UserName': 'bob'},
-            },
-        )
-        session = FakeSession(FakeResponse(200, False), FakeResponse(200, {'LoginDisclaimer': ''}), bob_ok)
-        client = JellyfinClient('http://jellyfin.lan:8096', IDENTITY, session=session)
-        account = JellyfinAccount(
-            client,
-            sessions={'u1': {'user_id': 'u1', 'username': 'alice', 'access_token': 'TOK-ALICE'}},
-            active_user_id='u1',
-        )
-        manager = mock.Mock()
-        manager.selectedServer.name = 'Home Jellyfin'
-        with (
-            mock.patch.object(signin.PinLoginWindow, 'create', return_value=window),
-            mock.patch.object(jellyfin, 'WAIT_STEP', 0.5),
-            mock.patch.object(jellyfin.util.MONITOR, 'waitForAbort', side_effect=step_wait),
-            mock.patch.object(jellyfin.plexapp, 'SERVERMANAGER', manager),
-        ):
-            self.assertTrue(jellyfin.signInUser(account, 'bob'))
-
-        props = ENV.window_props[13001]
-        self.assertEqual(props.get('username'), 'bob')
-        self.assertFalse(props.get('change.enabled'))
-        self.assertEqual(window.focused, window.PASSWORD_ID)
-        self.assertEqual(session.calls[2]['json'], {'Username': 'bob', 'Pw': 'bob-pw'})
-        self.assertEqual((account.ID, account.authToken), ('u2', 'TOK-BOB'))
-        self.assertEqual(account.sessions['u1']['access_token'], 'TOK-ALICE')
-
-        # Back on the card signs nobody in
-        session.queue(FakeResponse(200, False), FakeResponse(200, {'LoginDisclaimer': ''}))
-        back = pin_window()
-        back.abort = True
-        with (
-            mock.patch.object(signin.PinLoginWindow, 'create', return_value=back),
-            mock.patch.object(jellyfin.plexapp, 'SERVERMANAGER', manager),
-        ):
-            self.assertFalse(jellyfin.signInUser(account, ''))
-        self.assertEqual(account.ID, 'u2')
-
-    def test_sign_in_card_password_login_and_change_and_unreachable(self):
-        # Password sign-in when Quick Connect is disabled: wrong password shows error, then valid password signs in.
-        window = pin_window()
-        ENV.dialog_answers = deque(['alice', 'bad', 'good'])
-
-        def step_wait(_seconds):
-            if not hasattr(step_wait, 'stage'):
-                step_wait.stage = 0
-            if step_wait.stage == 0:
-                window.onClick(window.USERNAME_ID)
-                window.onClick(window.PASSWORD_ID)
-                window.onClick(window.SIGN_IN_ID)
-                step_wait.stage = 1
-            elif step_wait.stage == 1:
-                window.onClick(window.PASSWORD_ID)
-                window.onClick(window.SIGN_IN_ID)
-                step_wait.stage = 2
-            return False
-
-        auth_ok = FakeResponse(
-            200,
-            {
-                'AccessToken': 'TOK-PW',
-                'ServerId': 'srv-1',
-                'User': {'Id': 'u1', 'Name': 'alice', 'ServerId': 'srv-1', 'Policy': {'IsAdministrator': False}},
-                'SessionInfo': {'UserId': 'u1', 'UserName': 'alice'},
-            },
-        )
-        session = FakeSession(
-            FakeResponse(200, False),
-            FakeResponse(200, {'LoginDisclaimer': ''}),
-            FakeResponse(401, raw='Invalid username or password.'),
-            auth_ok,
-        )
-        client = JellyfinClient('http://jellyfin.lan:8096', IDENTITY, session=session)
-        with (
-            mock.patch.object(signin.PinLoginWindow, 'create', return_value=window),
-            mock.patch.object(jellyfin, 'WAIT_STEP', 0.5),
-            mock.patch.object(jellyfin.util.MONITOR, 'waitForAbort', side_effect=step_wait),
-        ):
-            result = jellyfin.signIn(client, 'http://jellyfin.lan:8096', server_name='Home Jellyfin')
-
-        self.assertEqual(result.access_token, 'TOK-PW')
-        self.assertEqual(ENV.settings.get(jellyfin.USERNAME_SETTING), 'alice')
-        self.assertNotIn('good', ENV.settings.values())
-
-        # Clicking Change returns jellyfin.CHANGE; unreachable focuses CHANGE_ID without calling server.
-        ENV.window_props.clear()
-        change_win = pin_window()
-        change_win.onClick(change_win.CHANGE_ID)
-        with mock.patch.object(signin.PinLoginWindow, 'create', return_value=change_win):
-            self.assertIs(
-                jellyfin.signIn(
-                    JellyfinClient('http://jellyfin.lan:8096', IDENTITY, session=FakeSession()),
-                    'http://jellyfin.lan:8096',
-                    reachable=False,
-                ),
-                jellyfin.CHANGE,
-            )
-        self.assertEqual(change_win.focused, change_win.CHANGE_ID)
-        self.assertIn('Could not reach a Jellyfin server', ENV.window_props[13001].get('error'))
