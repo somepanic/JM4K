@@ -2,7 +2,6 @@ from __future__ import absolute_import
 
 import hashlib
 import os
-from urllib.parse import quote
 
 from kodi_six import xbmcgui
 
@@ -31,6 +30,9 @@ def qrImage(text):
 
 
 class PinLoginWindow(kodigui.BaseWindow):
+    """Connect to Server: the Jellyfin server's address (Host), then Connect, or Cancel. connector(host) answers Connect
+    with (StoredServer, '') or (None, why): the screen stays open with the reason until a server answers."""
+
     xmlFile = 'script-plex-pin_login.xml'
     path = util.ADDON.getAddonInfo('path')
     theme = 'Main'
@@ -38,79 +40,55 @@ class PinLoginWindow(kodigui.BaseWindow):
     width = 1920
     height = 1080
 
-    USERNAME_ID = 201
-    PASSWORD_ID = 202
-    SIGN_IN_ID = 203
-    CHANGE_ID = 204
+    HOST_ID = 201
+    CONNECT_ID = 203
+    CANCEL_ID = 204
 
-    # what the user did on the card, read by lib/silo.py's signIn() while it waits
-    abort = submitted = change = False
-    username = password = ''
+    host = ''
+    stored = None
+    connector = None
 
-    def setOptions(self, options, address, username, allow_change=True):
-        """The server's name and subtitle (silonet.server_info.LoginOptions), its address and the last username;
-        allow_change=False hides the server row (another user signing in on the same server)."""
-        self._address = address
-        self.username = username
-        self.setProperty('server.name', options.name or util.T(32460, 'Sign In'))
-        self.setProperty('subtitle', options.subtitle)
-        self.setProperty('address', address)
-        self.setProperty('change.enabled', '1' if allow_change else '')
-        self.setProperty('username', username)
-        self.setProperty('password.enabled', '1' if options.password else '')
-        self.setProperty('quickconnect.enabled', '1' if getattr(options, 'quick_connect', False) else '')
-        if not options.password:
-            # the username field the card starts on is hidden: Change is its one button then
-            self.setFocusId(self.CHANGE_ID)
+    def setHost(self, host, error=''):
+        """The Host to show (an address to connect to, or none yet) and why the last one failed, if it did."""
+        self.host = host or ''
+        self.setProperty('host', self.host)
+        self.setProperty('error', error or '')
         for name, label in (
-            ('username', util.T(35301, 'Username')),
-            ('password', util.T(35302, 'Password')),
-            ('signin', util.T(32460, 'Sign In')),
-            ('heading', util.T(35309, 'Sign in to continue')),
-            ('phone', util.T(35304, 'Quick Connect')),
-            ('server', util.T(35305, 'Server')),
-            ('change', util.T(35306, 'Change')),
+            ('title', util.T(35357, 'Connect to Server')),
+            ('host', util.T(35358, 'Host')),
+            ('hint', util.T(35359, '192.168.1.100:8096 or https://myserver.com')),
+            ('connect', util.T(35360, 'Connect')),
+            ('cancel', util.T(32337, 'Cancel')),
         ):
             self.setProperty('label.' + name, label)
 
-    def showError(self, message):
-        """A failed password sign-in: the message, and the password to type again."""
-        self.password = ''
-        self.setProperty('password', '')
-        self.setProperty('error', message)
-
-    def setCode(self, code, address=None):
-        """Jellyfin's Quick Connect code (jellynet.auth.QuickConnectCode): six digits, web link, and QR."""
-        base = (address or getattr(self, '_address', '')).rstrip('/')
-        page_url = f'{base}/web/#/quickconnect' if base else ''
-        qr_url = f'{page_url}?code={quote(str(code.code), safe="")}' if page_url else str(code.code)
-        self.setProperty(
-            'instructions',
-            util.T(35243, 'On a phone or computer, open {link} and enter this code:').format(link=page_url),
-        )
-        self.setProperty('pin', str(code.code))
-        self.setProperty('qr', qrImage(qr_url))
-        self.setProperty('quickconnect.enabled', '1')
+    def setFound(self, found):
+        """A Jellyfin server found on the network fills in the Host, unless one is there already."""
+        if found is None or self.host:
+            return
+        self.setHost(found.url)
+        self.setProperty('found', util.T(35361, 'Found {name} on your network').format(name=found.name))
+        try:
+            self.setFocusId(self.CONNECT_ID)  # one press connects
+        except RuntimeError:
+            pass  # not on screen yet: the Host keeps the focus
 
     def onClick(self, controlID):
-        if controlID in (self.USERNAME_ID, self.PASSWORD_ID, self.SIGN_IN_ID):
-            self.setProperty('error', '')  # the last sign-in's, gone once the user tries again
-        if controlID == self.USERNAME_ID:
-            self.username = xbmcgui.Dialog().input(util.T(35301, 'Username'), self.username) or self.username
-            self.setProperty('username', self.username)
-        elif controlID == self.PASSWORD_ID:
-            self.password = xbmcgui.Dialog().input(util.T(35302, 'Password'), option=xbmcgui.ALPHANUM_HIDE_INPUT)
-            self.setProperty('password', '\N{BULLET}' * len(self.password))
-        elif controlID == self.SIGN_IN_ID:
-            self.submitted = True
-        elif controlID == self.CHANGE_ID:
-            self.change = True
-
-    def onAction(self, action):
-        try:
-            if action == xbmcgui.ACTION_NAV_BACK or action == xbmcgui.ACTION_PREVIOUS_MENU:
-                self.abort = True
-        except:
-            util.ERROR()
-
-        kodigui.BaseWindow.onAction(self, action)
+        if controlID == self.HOST_ID:
+            host = xbmcgui.Dialog().input(util.T(35358, 'Host'), self.host)
+            if host:
+                self.host = host.strip()
+                self.setProperty('host', self.host)
+                self.setProperty('error', '')
+                self.setProperty('found', '')
+        elif controlID == self.CONNECT_ID:
+            self.setProperty('error', '')
+            with self.propertyContext('busy'):
+                stored, error = self.connector(self.host)
+            if stored is None:
+                self.setProperty('error', error)
+            else:
+                self.stored = stored
+                self.doClose()
+        elif controlID == self.CANCEL_ID:
+            self.doClose()

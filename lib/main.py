@@ -321,6 +321,7 @@ def _main():
 
                     ):
                         oldAccID = plexapp.ACCOUNT.ID
+                        oldServerID = plexapp.SERVERMANAGER.selectedServer.uuid
                         result = userselect.start(BACKGROUND._winID)
                         tries = 0
                         while result == 'retry' and tries < 2:
@@ -334,6 +335,10 @@ def _main():
                             signout()
                             break
                         elif result == 'signin':
+                            break
+                        elif result == jellyfin.SWITCH_SERVER:
+                            # another server connected on the sign-in screen: start-up again, on it
+                            previousServer = oldServerID
                             break
                         elif result in ('cancel', 'retry') and fromSwitch:
                             if result == 'retry':

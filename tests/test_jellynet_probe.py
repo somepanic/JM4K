@@ -10,8 +10,8 @@ import json
 
 import requests
 from jellynet import errors
-from jellynet.client import ClientIdentity, JellyfinClient
-from jellynet.server_info import LoginOptions, ServerInfo, loginOptions, probe
+from jellynet.client import ClientIdentity
+from jellynet.server_info import ServerInfo, probe
 
 from .base import KodiTestCase, fixture
 from .jellynet_fakes import FakeResponse, FakeSession
@@ -96,45 +96,3 @@ class ProbeTest(KodiTestCase):
         self.assertEqual(info.server_id, '00000000000000000000000000000009')
         self.assertEqual(info.name, 'Silo')
         self.assertEqual(info.version, '12.1.0')
-
-
-class LoginOptionsTest(KodiTestCase):
-    def _options(self, *responses):
-        session = FakeSession(*responses)
-        client = JellyfinClient('http://jellyfin.lan:8096', IDENTITY, session=session)
-        return loginOptions(client), session
-
-    def test_quick_connect_off_hides_the_code(self):
-        options, session = self._options(
-            FakeResponse(200, False),
-            FakeResponse(200, {'LoginDisclaimer': 'Welcome home', 'CustomCss': '', 'SplashscreenEnabled': False}),
-        )
-
-        self.assertIsInstance(options, LoginOptions)
-        self.assertFalse(options.quick_connect)
-        self.assertEqual(options.disclaimer, 'Welcome home')
-        self.assertEqual(options.subtitle, 'Welcome home')
-        self.assertTrue(options.password)
-        self.assertEqual(
-            [c['url'] for c in session.calls],
-            [
-                'http://jellyfin.lan:8096/QuickConnect/Enabled',
-                'http://jellyfin.lan:8096/Branding/Configuration',
-            ],
-        )
-
-    def test_quick_connect_on_and_empty_disclaimer(self):
-        options, _ = self._options(
-            FakeResponse(200, True),
-            FakeResponse(200, {'LoginDisclaimer': None, 'CustomCss': '', 'SplashscreenEnabled': False}),
-        )
-
-        self.assertTrue(options.quick_connect)
-        self.assertEqual(options.disclaimer, '')
-
-    def test_server_that_fails_options_defaults_safely(self):
-        options, _ = self._options(FakeResponse(404), FakeResponse(500))
-
-        self.assertFalse(options.quick_connect)
-        self.assertEqual(options.disclaimer, '')
-        self.assertTrue(options.password)

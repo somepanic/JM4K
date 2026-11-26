@@ -1,7 +1,6 @@
 """
 Telling whether an address is a Jellyfin server JM4K can talk to, before anyone signs in:
-GET /System/Info/Public answers without credentials, as do /QuickConnect/Enabled and /Branding/Configuration
-for the sign-in card.
+GET /System/Info/Public answers without credentials.
 """
 
 import re
@@ -20,18 +19,6 @@ class ServerInfo:
         self.server_id = server_id
         self.name = name
         self.version = version
-
-
-class LoginOptions:
-    def __init__(self, quick_connect, disclaimer='', name=None, password=True):
-        self.quick_connect = bool(quick_connect)
-        self.disclaimer = disclaimer or ''
-        self.name = name
-        self.password = bool(password)
-
-    @property
-    def subtitle(self):
-        return self.disclaimer
 
 
 def _parse_version(version):
@@ -73,22 +60,3 @@ def probe(base_url, session=None, identity=None):
     finally:
         if session is None:
             client.close()
-
-
-def loginOptions(client, name=None):
-    """Sign-in options from /QuickConnect/Enabled and /Branding/Configuration (LoginDisclaimer)."""
-    try:
-        qc_answer = client.get('/QuickConnect/Enabled')
-    except (JellyfinError, ValueError):
-        qc_answer = False
-    quick_connect = qc_answer is True
-
-    try:
-        branding = client.get('/Branding/Configuration')
-    except (JellyfinError, ValueError):
-        branding = {}
-    if not isinstance(branding, dict):
-        branding = {}
-    raw_disclaimer = branding.get('LoginDisclaimer')
-    disclaimer = raw_disclaimer.strip() if isinstance(raw_disclaimer, str) else ''
-    return LoginOptions(quick_connect, disclaimer, name=name)

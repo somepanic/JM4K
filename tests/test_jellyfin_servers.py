@@ -14,6 +14,7 @@ from jellynet.discovery import Found
 from kodienv import ENV
 
 from lib import jellyfin
+from lib.windows import signin
 
 from .base import KodiTestCase, fixture
 from .jellynet_fakes import FakeResponse, FakeSession
@@ -84,15 +85,109 @@ TWO_SERVERS = [
 ]
 
 
-class PickerAndDialogTest(KodiTestCase):
+def connect_window(*steps):
+    """The Connect to Server screen as Kodi runs it: modal() plays the person's steps, each a function of the window."""
+    window = signin.PinLoginWindow.__new__(signin.PinLoginWindow)
+    window._closing = False
+    window._winID = None
+    window.windowId = 13001
+    window.isOpen = True
+    window.closed = False
+    window.doClose = lambda: setattr(window, 'closed', True)
+    window.modal = lambda: [step(window) for step in steps]
+    return window
+
+
+def click(control_id):
+    return lambda window: window.onClick(control_id)
+
+
+class RunNow:
+    """threading.Thread that runs its target at start(), so discovery fills in the Host before the steps."""
+
+    def __init__(self, target=None, args=(), **_kwargs):
+        self.target, self.args = target, args
+
+    def start(self):
+        self.target(*self.args)
+
+
+class ConnectScreenTest(KodiTestCase):
     def setUp(self):
         super().setUp()
         self.found = []
         mock.patch.object(jellyfin.discovery, 'discover', side_effect=lambda: self.found).start()
+        mock.patch.object(jellyfin.threading, 'Thread', RunNow).start()
+        self.addCleanup(mock.patch.stopall)
+
+    def connect(self, window, **kwargs):
+        with mock.patch.object(signin.PinLoginWindow, 'create', return_value=window):
+            return jellyfin.connectToServer(IDENTITY, **kwargs)
+
+    def test_connect_stores_the_server_at_the_host(self):
+        ENV.dialog_answers = deque(['jellyfin.lan:8096'])
+        window = connect_window(click(signin.PinLoginWindow.HOST_ID), click(signin.PinLoginWindow.CONNECT_ID))
+
+        stored = self.connect(window, session=FakeSession(public_info('srv-1')))
+
+        self.assertEqual((stored.baseUrl, stored.serverId), ('http://jellyfin.lan:8096', 'srv-1'))
+        self.assertEqual([s.serverId for s in jellyfin.storedServers()], ['srv-1'])
+        self.assertTrue(window.closed)
+        props = ENV.window_props[13001]
+        self.assertEqual(props.get('label.title'), 'Connect to Server')
+        self.assertEqual(props.get('label.hint'), '192.168.1.100:8096 or https://myserver.com')
+        self.assertEqual(props.get('host'), 'jellyfin.lan:8096')
+
+    def test_a_server_on_the_network_fills_in_the_host(self):
+        self.found = [Found('http://192.168.1.250:8096', 'srv-1', 'TheRubys')]
+        window = connect_window(click(signin.PinLoginWindow.CONNECT_ID))
+
+        stored = self.connect(window, session=FakeSession(public_info('srv-1')))
+
+        self.assertEqual(stored.baseUrl, 'http://192.168.1.250:8096')
+        self.assertEqual(ENV.window_props[13001].get('found'), 'Found TheRubys on your network')
+        self.assertFalse([c for c in ENV.dialog_calls if c[0] == 'input'])  # one press of Connect
+
+    def test_an_unreachable_host_says_so_and_stays_open(self):
+        ENV.dialog_answers = deque(['bad.lan:8096', 'good.lan:8096'])
+        seen = []
+        window = connect_window(
+            click(signin.PinLoginWindow.HOST_ID),
+            click(signin.PinLoginWindow.CONNECT_ID),
+            lambda w: seen.append((w.closed, ENV.window_props[13001].get('error'))),
+            click(signin.PinLoginWindow.HOST_ID),
+            click(signin.PinLoginWindow.CONNECT_ID),
+        )
+
+        stored = self.connect(window, session=FakeSession(requests.ConnectionError('refused'), public_info('srv-1')))
+
+        self.assertEqual(seen, [(False, 'Could not reach a Jellyfin server at bad.lan:8096.')])
+        self.assertEqual(stored.baseUrl, 'http://good.lan:8096')
+
+    def test_a_stored_server_that_stopped_answering_opens_with_its_address_and_why(self):
+        window = connect_window(click(signin.PinLoginWindow.CANCEL_ID))
+
+        self.assertIsNone(self.connect(window, address='http://a.lan:8096', error='Could not reach it.'))
+
+        props = ENV.window_props[13001]
+        self.assertEqual((props.get('host'), props.get('error')), ('http://a.lan:8096', 'Could not reach it.'))
+        jellyfin.discovery.discover.assert_not_called()  # an address given: nothing to look for
+
+    def test_cancel_adds_nothing(self):
+        window = connect_window(click(signin.PinLoginWindow.CANCEL_ID))
+
+        self.assertIsNone(self.connect(window))
+        self.assertEqual(jellyfin.storedServers(), [])
+        self.assertTrue(window.closed)
+
+
+class PickerTest(KodiTestCase):
+    def setUp(self):
+        super().setUp()
         self.picker = mock.patch.object(jellyfin, 'showOptionsDialog').start()
         self.addCleanup(mock.patch.stopall)
 
-    def test_picker_lists_servers_add_and_enter_rows(self):
+    def test_picker_lists_servers_and_add(self):
         # Switch server picker lists stored servers with the active one selected, plus ADD_SERVER.
         ENV.settings[jellyfin.SERVERS_SETTING] = json.dumps(TWO_SERVERS)
         self.picker.return_value = None
@@ -111,25 +206,6 @@ class PickerAndDialogTest(KodiTestCase):
         )
         self.assertEqual(self.picker.call_args.kwargs['selected_idx'], 1)
 
-        # Network discovery picker lists discovered servers plus ENTER_ADDRESS.
-        self.found = [Found('http://192.168.1.250:8096', 'srv-3', 'New Server')]
-        self.picker.reset_mock()
-        self.picker.return_value = jellyfin.ENTER_ADDRESS
-        ENV.dialog_answers = deque(['c.lan:8096'])
-
-        stored = jellyfin.addServerDialog(IDENTITY, session=FakeSession(public_info('srv-3', 'New Server')))
-
-        disc_heading, disc_options = self.picker.call_args[0][:2]
-        self.assertEqual(disc_heading, 'Jellyfin servers on your network')
-        self.assertEqual(
-            disc_options,
-            [
-                ('http://192.168.1.250:8096', 'New Server (http://192.168.1.250:8096)'),
-                (jellyfin.ENTER_ADDRESS, 'Enter address'),
-            ],
-        )
-        self.assertEqual(stored.baseUrl, 'http://c.lan:8096')
-
     def test_pick_server_switches_and_adds(self):
         ENV.settings[jellyfin.SERVERS_SETTING] = json.dumps(TWO_SERVERS)
         self.picker.return_value = 'srv-1'
@@ -142,34 +218,10 @@ class PickerAndDialogTest(KodiTestCase):
         self.picker.return_value = 'srv-1'
         self.assertIsNone(jellyfin.pickServer(IDENTITY))
 
+        # Add server opens Connect to Server
         self.picker.return_value = jellyfin.ADD_SERVER
-        ENV.dialog_answers = deque(['d.lan:8096'])
-        previous = jellyfin.pickServer(IDENTITY, session=FakeSession(public_info('srv-4', 'Jellyfin D')))
+        added = jellyfin.StoredServer('http://d.lan:8096', 'srv-4', 'Jellyfin D')
+        with mock.patch.object(jellyfin, 'connectToServer', return_value=added) as connect:
+            previous = jellyfin.pickServer(IDENTITY)
+        connect.assert_called_once()
         self.assertEqual(previous, 'srv-1')
-        self.assertEqual(jellyfin.storedServers()[-1].baseUrl, 'http://d.lan:8096')
-
-    def test_discovered_server_picked_directly_skips_keyboard(self):
-        self.found = [Found('http://192.168.1.250:8096', 'srv-1', 'Home Jellyfin')]
-        self.picker.return_value = 'http://192.168.1.250:8096'
-
-        stored = jellyfin.addServerDialog(IDENTITY, session=FakeSession(public_info('srv-1')))
-
-        self.assertEqual(stored.baseUrl, 'http://192.168.1.250:8096')
-        self.assertFalse([c for c in ENV.dialog_calls if c[0] == 'input'])
-
-    def test_unreachable_address_offers_try_again(self):
-        ENV.dialog_answers = deque(['bad.lan:8096', 'good.lan:8096'])
-        session = FakeSession(requests.ConnectionError('refused'), public_info('srv-1'))
-
-        with mock.patch.object(jellyfin.optionsdialog, 'show', return_value=0) as prompt:
-            stored = jellyfin.addServerDialog(IDENTITY, session=session)
-
-        self.assertEqual(stored.baseUrl, 'http://good.lan:8096')
-        self.assertIn('bad.lan:8096', prompt.call_args[0][1])
-        self.assertEqual(prompt.call_args[0][2:4], ('Try again', 'Cancel'))
-
-    def test_cancelled_entry_adds_nothing(self):
-        ENV.dialog_answers = deque([''])
-
-        self.assertIsNone(jellyfin.addServerDialog(IDENTITY))
-        self.assertEqual(jellyfin.storedServers(), [])

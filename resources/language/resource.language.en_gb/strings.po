@@ -4153,18 +4153,6 @@ msgctxt "#35304"
 msgid "Quick Connect"
 msgstr ""
 
-msgctxt "#35305"
-msgid "Server"
-msgstr ""
-
-msgctxt "#35306"
-msgid "Change"
-msgstr ""
-
-msgctxt "#35307"
-msgid "Enter address"
-msgstr ""
-
 msgctxt "#35309"
 msgid "Sign in to continue"
 msgstr ""
@@ -4189,14 +4177,6 @@ msgctxt "#35314"
 msgid "Too many sign-in attempts. Wait a moment and try again."
 msgstr ""
 
-msgctxt "#35315"
-msgid "Jellyfin servers on your network"
-msgstr ""
-
-msgctxt "#35316"
-msgid "Jellyfin server address, for example http://192.168.1.10:8096"
-msgstr ""
-
 msgctxt "#35317"
 msgid "Could not reach a Jellyfin server at {address}."
 msgstr ""
@@ -4207,10 +4187,6 @@ msgstr ""
 
 msgctxt "#35319"
 msgid "Can't reach the Jellyfin server. Check your connection and try again."
-msgstr ""
-
-msgctxt "#35320"
-msgid "Password for {name}"
 msgstr ""
 
 msgctxt "#35321"
@@ -4331,4 +4307,40 @@ msgstr ""
 
 msgctxt "#35356"
 msgid "{0}'s group"
+msgstr ""
+
+msgctxt "#35357"
+msgid "Connect to Server"
+msgstr ""
+
+msgctxt "#35358"
+msgid "Host"
+msgstr ""
+
+msgctxt "#35359"
+msgid "192.168.1.100:8096 or https://myserver.com"
+msgstr ""
+
+msgctxt "#35360"
+msgid "Connect"
+msgstr ""
+
+msgctxt "#35361"
+msgid "Found {name} on your network"
+msgstr ""
+
+msgctxt "#35362"
+msgid "Enter the address of your Jellyfin server."
+msgstr ""
+
+msgctxt "#35363"
+msgid "Use Quick Connect"
+msgstr ""
+
+msgctxt "#35364"
+msgid "Quick Connect is off on this server."
+msgstr ""
+
+msgctxt "#35365"
+msgid "Enter your username."
 msgstr ""
